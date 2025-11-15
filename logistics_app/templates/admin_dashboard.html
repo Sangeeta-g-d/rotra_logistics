@@ -1,0 +1,56 @@
+{% extends 'admin_base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-header">
+                <div>
+                    <div class="stat-label">Total Deliveries</div>
+                    <div class="stat-value">1,240</div>
+                    <div class="stat-change">12% this week</div>
+                </div>
+                <div class="stat-icon red">Truck</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div>
+                    <div class="stat-label">Active Drivers</div>
+                    <div class="stat-value">86</div>
+                    <div class="stat-change">online now</div>
+                </div>
+                <div class="stat-icon orange">Person</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div>
+                    <div class="stat-label">Revenue This Month</div>
+                    <div class="stat-value">₹4.6M</div>
+                    <div class="stat-change">8.3% vs last month</div>
+                </div>
+                <div class="stat-icon red">Money</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div>
+                    <div class="stat-label">Fleet Utilization</div>
+                    <div class="stat-value">78%</div>
+                    <div class="stat-change negative">2% from target</div>
+                </div>
+                <div class="stat-icon orange">Gear</div>
+            </div>
+        </div>
+    </div>
+
+    
+    </div>
+</div>
+{% endblock %}

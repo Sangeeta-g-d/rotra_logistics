@@ -1,0 +1,545 @@
+/* ========================================
+   VEHICLE MANAGEMENT – FULL CSS
+   (Separated from inline <style>)
+   ======================================== */
+
+/* -------------------------------------------------
+   FILE UPLOAD
+   ------------------------------------------------- */
+.file-upload-area {
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.file-upload-area:hover,
+.file-upload-area.active {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+.file-upload-area i {
+  font-size: 32px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+}
+.file-upload-area p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+.file-upload-area .browse {
+  color: #3b82f6;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.file-upload-area input[type="file"] {
+  display: none;
+}
+
+/* -------------------------------------------------
+   MODAL
+   ------------------------------------------------- */
+.modal-subtitle {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 8px 0 20px;
+}
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  width: 100%;
+  max-width: 600px;
+}
+.modal-header,
+.modal-actions {
+  flex: 0 0 auto;
+}
+.modal-body-wrapper {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 24px 16px;
+}
+.modal-header {
+  padding: 20px 24px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+}
+.modal-close:hover {
+  color: #374151;
+}
+
+/* -------------------------------------------------
+   SIDEBAR
+   ------------------------------------------------- */
+#profileSidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 340px;
+  height: 100%;
+  background: #fff;
+  box-shadow: -8px 0 30px rgba(0,0,0,0.15);
+  transform: translateX(100%);
+  transition: transform .35s ease;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', sans-serif;
+}
+#profileSidebar.open {
+  transform: translateX(0);
+}
+
+#sidebarOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s;
+  z-index: 999;
+}
+#sidebarOverlay.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+/* Scrollable content without visible scrollbar */
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.sidebar-content::-webkit-scrollbar {
+  width: 0 !important;
+}
+
+/* -------------------------------------------------
+   SIDEBAR CONTENT STYLES
+   ------------------------------------------------- */
+.vehicle-profile {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.vehicle-image img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+.vehicle-header h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+.vehicle-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.section {
+  margin-bottom: 24px;
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 10px;
+}
+.section h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+.detail-row span:first-child {
+  color: #6b7280;
+}
+.detail-row strong {
+  color: #111827;
+  font-weight: 500;
+}
+
+.owner-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.owner-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 16px;
+}
+.owner-details h5 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.owner-details p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.trip-stats {
+  display: flex;
+  justify-content: space-around;
+  background: #fff;
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin: 16px 0;
+}
+.stat-item {
+  text-align: center;
+}
+.stat-number {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+}
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.doc-item:last-child {
+  border-bottom: none;
+}
+.doc-name {
+  font-size: 14px;
+  color: #374151;
+}
+.doc-status-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.uploaded {
+  background: #d1fae5;
+  color: #065f46;
+}
+.pending {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.doc-link {
+  color: #3b82f6;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.assign-driver-btn {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  width: 100%;
+  margin-top: auto;
+}
+
+/* -------------------------------------------------
+   TABLE
+   ------------------------------------------------- */
+.table-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  margin-top: 16px;
+}
+
+#vehicleTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+#vehicleTable thead th {
+  background: #f9fafb;
+  font-weight: 600;
+  font-size: 13px;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 14px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+#vehicleTable tbody td {
+  padding: 14px 12px;
+  font-size: 14px;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Column widths */
+#vehicleTable th:nth-child(1), #vehicleTable td:nth-child(1) { width: 30%; }
+#vehicleTable th:nth-child(2), #vehicleTable td:nth-child(2) { width: 35%; }
+#vehicleTable th:nth-child(3), #vehicleTable td:nth-child(3) { width: 20%; }
+#vehicleTable th:nth-child(4), #vehicleTable td:nth-child(4) { width: 15%; }
+
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.clickable-row:hover {
+  background-color: #f9fafb !important;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.action-buttons button {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+}
+.action-buttons button:hover {
+  color: #dc2626;
+}
+
+/* No data */
+#vehicleTable tbody tr td[colspan="4"] {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+  font-size: 15px;
+}
+
+/* -------------------------------------------------
+   PAGINATION
+   ------------------------------------------------- */
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f9fafb;
+  font-size: 14px;
+  color: #6b7280;
+}
+.entries-per-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.entries-per-page select {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+}
+.pagination-info {
+  color: #6b7280;
+}
+.pagination-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.pagination-controls button {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.pagination-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pagination-controls button:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+/* -------------------------------------------------
+   TOP BAR
+   ------------------------------------------------- */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.top-bar h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+.search-add-container {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.search-input {
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 240px;
+  font-family: 'Inter', sans-serif;
+}
+.add-button {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+.add-button:hover {
+  background: #b91c1c;
+}
+
+/* -------------------------------------------------
+   FORM
+   ------------------------------------------------- */
+.form-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.form-group {
+  flex: 1;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #374151;
+  font-size: 14px;
+}
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.required {
+  color: #dc2626;
+}
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+.save-btn,
+.cancel-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.save-btn {
+  background: #dc2626;
+  color: white;
+  border: none;
+}
+.cancel-btn {
+  background: #f9fafb;
+  color: #6b7280;
+  border: none;
+}
+
+/* ========================================
+   END OF FILE
+   ======================================== */

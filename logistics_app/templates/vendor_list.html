@@ -1,0 +1,649 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Vendor Management{% endblock %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vendor Management</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+<div class="dashboard">
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <h2>Vendor Management</h2>
+    <div class="search-add-container">
+      <input type="text" id="searchInput" placeholder="Search vendors..." class="search-input">
+      <button class="add-button" id="openAddModal">+ Add Vendor</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <table id="vendorTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>PAN Number</th>
+          <th>Address</th>
+          <th>Join Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if vendors %}
+          {% for vendor in vendors %}
+          <tr class="clickable-row" data-vendor-id="{{ vendor.id }}"
+            data-vendor='{
+              "id": {{ vendor.id }},
+              "name": "{{ vendor.full_name|escapejs }}",
+              "phone": "{{ vendor.phone_number }}",
+              "panNumber": "{{ vendor.pan_number|default:"-"|escapejs }}",
+              "address": "{{ vendor.address|default:"-"|escapejs }}",
+              "joinDate": "{{ vendor.date_joined|date:"M d, Y" }}",
+              "tdsFile": "{% if vendor.tds_declaration %}{{ vendor.tds_declaration.url }}{% endif %}",
+              "status": "{% if vendor.is_active %}Active{% else %}Inactive{% endif %}"
+            }'>
+            <td>
+              {{ vendor.full_name }}
+            </td>
+            <td>{{ vendor.phone_number }}</td>
+            <td>{{ vendor.pan_number|default:'-' }}</td>
+            <td>{{ vendor.address|default:'-'|truncatewords:5 }}</td>
+            <td>{{ vendor.date_joined|date:"M d, Y" }}</td>
+            
+            <td class="action-col">
+              <div class="action-buttons">
+                <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+                <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+                <button class="action-delete" data-vendor-id="{{ vendor.id }}" title="Delete"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 40px; color: #6b7280;">
+              No vendors found. Click "Add Vendor" to get started.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <!-- PAGINATION -->
+    <div class="pagination-container">
+      <div class="entries-per-page">
+        <span>Show</span>
+        <select id="entriesPerPage">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+        <span>entries</span>
+      </div>
+
+      <div class="pagination-info">
+        Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalEntries">0</span> entries
+      </div>
+
+      <div class="pagination-controls">
+        <button id="prevPage" title="Previous">Previous</button>
+        <span id="currentPageInfo" style="padding: 0 12px; color: #374151; font-size: 14px;">Page 1</span>
+        <button id="nextPage" title="Next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD VENDOR MODAL -->
+  <div id="addModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Vendor</h3>
+        <button class="modal-close" id="closeAddModal">×</button>
+      </div>
+
+      <p class="modal-subtitle">Fill the details below to add a new vendor.</p>
+
+      <form id="addVendorForm" class="modal-form">
+        {% csrf_token %}
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name <span class="required">*</span></label>
+            <input type="text" name="full_name" id="full_name" placeholder="Enter vendor full name" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group half">
+            <label>Phone Number <span class="required">*</span></label>
+            <input type="tel" name="phone" id="phone" placeholder="Enter phone number" required>
+          </div>
+          <div class="form-group half">
+            <label>Password <span class="required">*</span></label>
+            <input type="password" name="password" id="password" placeholder="Enter password" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>PAN Number</label>
+            <input type="text" name="pan_number" id="pan_number" placeholder="Enter PAN number">
+          </div>
+          <div class="form-group">
+            <label>Address</label>
+            <input type="text" name="address" id="address" placeholder="Enter vendor address">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>TDS Declaration File</label>
+            <input type="file" name="tds_declaration" id="tds_declaration" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <small class="file-hint">Supported formats: PDF, DOC, JPG, PNG</small>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="save-btn" id="saveVendorBtn">Save Vendor</button>
+          <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROFILE SIDEBAR -->
+  <div id="profileSidebar">
+    <button class="close-btn" id="closeSidebar">×</button>
+
+    <div class="profile-header">
+      <h3 id="profileName" style="margin:8px 0 4px 0; font-size:18px; font-weight:600;"></h3>
+      <div id="profileRole" class="role-badge role-vendor">Vendor</div>
+      <p id="profilePhone" style="margin:6px 0; color:#6b7280; font-size:14px;"></p>
+      <p id="profilePan" style="margin:0; color:#6b7280; font-size:14px;"></p>
+    </div>
+
+    <div class="profile-section">
+      <h4>Details</h4>
+      <p>Status: <span id="profileStatus" class="status-badge status-active">Active</span></p>
+      <p>Joining Date: <span id="profileJoinDate"></span></p>
+      <p>Address: <span id="profileAddress"></span></p>
+    </div>
+
+    <div class="profile-section">
+      <h4>Documents</h4>
+      <p>TDS Declaration: 
+        <span id="profileTds">
+          <a href="#" id="tdsLink" target="_blank" style="color: var(--primary);">View File</a>
+        </span>
+      </p>
+    </div>
+
+    <div class="profile-buttons">
+      <button class="btn-edit">Edit Profile</button>
+      <button class="btn-deactivate" id="toggleStatusBtn">Deactivate Account</button>
+    </div>
+  </div>
+
+  <div id="sidebarOverlay"></div>
+</div>
+
+<!-- Toastify CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  console.log('🚀 Vendor Management System Loaded');
+  
+  // === TOAST HELPER ===
+  function showToast(text, type = 'info') {
+    const colors = {
+      success: '#16a34a',
+      error: '#dc2626',
+      info: '#2563eb',
+      warning: '#d97706'
+    };
+    Toastify({
+      text: text,
+      duration: 3500,
+      close: true,
+      gravity: "top",
+      position: "right",
+      backgroundColor: colors[type],
+      stopOnFocus: true,
+    }).showToast();
+  }
+
+  // === CSRF TOKEN ===
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
+  console.log('🔒 CSRF Token:', csrftoken ? 'Found' : 'NOT FOUND');
+
+  // === ELEMENTS ===
+  const table = document.getElementById('vendorTable');
+  const tbody = table.querySelector('tbody');
+  const sidebar = document.getElementById('profileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const closeBtn = document.getElementById('closeSidebar');
+  const searchInput = document.getElementById('searchInput');
+  const openAddModalBtn = document.getElementById('openAddModal');
+  const addModal = document.getElementById('addModal');
+  const closeAddModalBtn = document.getElementById('closeAddModal');
+  const cancelAddModalBtn = document.getElementById('cancelAddModal');
+  const addForm = document.getElementById('addVendorForm');
+  const saveVendorBtn = document.getElementById('saveVendorBtn');
+  const entriesSelect = document.getElementById('entriesPerPage');
+  const showingStart = document.getElementById('showingStart');
+  const showingEnd = document.getElementById('showingEnd');
+  const totalEntries = document.getElementById('totalEntries');
+  const prevBtn = document.getElementById('prevPage');
+  const nextBtn = document.getElementById('nextPage');
+  const currentPageInfo = document.getElementById('currentPageInfo');
+
+  let currentVendorId = null;
+  let currentPage = 1;
+  let perPage = parseInt(entriesSelect.value, 10);
+  let allRows = [];
+  let filteredRows = [];
+
+  // === INITIAL DATA SETUP ===
+  function initRows() {
+    allRows = Array.from(tbody.querySelectorAll('tr.clickable-row'));
+    filteredRows = [...allRows];
+    renderPage();
+  }
+
+  // === SEARCH ===
+  searchInput.addEventListener('input', function () {
+    const term = this.value.toLowerCase();
+    filteredRows = allRows.filter(row => 
+      row.textContent.toLowerCase().includes(term)
+    );
+    currentPage = 1;
+    renderPage();
+  });
+
+  // === SIDEBAR OPEN / CLOSE ===
+  function openSidebar(row) {
+    const data = JSON.parse(row.dataset.vendor);
+    currentVendorId = data.id;
+
+    document.getElementById('profileName').textContent = data.name;
+    document.getElementById('profilePhone').textContent = data.phone;
+    document.getElementById('profilePan').textContent = `PAN: ${data.panNumber}`;
+    document.getElementById('profileJoinDate').textContent = data.joinDate;
+    document.getElementById('profileAddress').textContent = data.address;
+
+    const statusEl = document.getElementById('profileStatus');
+    statusEl.textContent = data.status;
+    statusEl.className = 'status-badge ' + (data.status === 'Active' ? 'status-active' : 'status-inactive');
+
+    const tdsLink = document.getElementById('tdsLink');
+    if (data.tdsFile) {
+      tdsLink.href = data.tdsFile;
+      tdsLink.style.display = 'inline';
+    } else {
+      tdsLink.style.display = 'none';
+      document.getElementById('profileTds').textContent = 'No file uploaded';
+    }
+
+    document.getElementById('toggleStatusBtn').textContent =
+      data.status === 'Active' ? 'Deactivate Account' : 'Activate Account';
+
+    sidebar.style.transform = 'translateX(0)';
+    overlay.classList.add('show');
+    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+    row.style.backgroundColor = '#f0f9ff';
+  }
+
+  function closeSidebar() {
+    sidebar.style.transform = 'translateX(100%)';
+    overlay.classList.remove('show');
+    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+    currentVendorId = null;
+  }
+
+  table.addEventListener('click', e => {
+    if (e.target.closest('.action-col')) return;
+    const row = e.target.closest('.clickable-row');
+    if (row) openSidebar(row);
+  });
+
+  closeBtn.addEventListener('click', closeSidebar);
+  overlay.addEventListener('click', closeSidebar);
+
+  // === TOGGLE STATUS ===
+  document.getElementById('toggleStatusBtn').addEventListener('click', function () {
+    if (!currentVendorId) return;
+    if (!confirm('Are you sure you want to change the status of this vendor?')) return;
+
+    fetch(`/vendor/${currentVendorId}/toggle-status/`, {
+      method: 'POST',
+      headers: { 
+        'X-CSRFToken': csrftoken, 
+        'Content-Type': 'application/json' 
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.message, 'success');
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showToast(data.error || 'Failed to update status', 'error');
+      }
+    })
+    .catch(err => {
+      console.error('Toggle status error:', err);
+      showToast('Network error', 'error');
+    });
+  });
+
+  // === ACTION BUTTONS (View, Edit, Delete) ===
+  function attachActionListeners(row) {
+    row.querySelector('.action-view')?.addEventListener('click', e => {
+      e.stopPropagation();
+      openSidebar(row);
+    });
+
+    row.querySelector('.action-edit')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const name = row.querySelector('td:nth-child(1)').textContent.trim();
+      showToast(`Edit functionality for ${name} – coming soon!`, 'info');
+    });
+
+    row.querySelector('.action-delete')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const vendorId = row.dataset.vendorId;
+      const name = row.querySelector('td:nth-child(1)').textContent.trim();
+
+      if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+
+      fetch(`/vendor/${vendorId}/delete/`, {
+        method: 'POST',
+        headers: { 
+          'X-CSRFToken': csrftoken, 
+          'Content-Type': 'application/json' 
+        }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showToast(data.message, 'success');
+          row.remove();
+          allRows = allRows.filter(r => r !== row);
+          filteredRows = filteredRows.filter(r => r !== row);
+          renderPage();
+          closeSidebar();
+          if (filteredRows.length === 0) showNoDataRow();
+        } else {
+          showToast(data.error || 'Failed to delete', 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Delete error:', err);
+        showToast('Network error', 'error');
+      });
+    });
+  }
+
+  // Attach to existing rows
+  document.querySelectorAll('#vendorTable tbody tr.clickable-row').forEach(attachActionListeners);
+
+  // === ADD VENDOR MODAL ===
+  const showModal = () => {
+    addModal.style.display = 'flex';
+    addForm.reset();
+  };
+  
+  const hideModal = () => {
+    addModal.style.display = 'none';
+    addForm.reset();
+  };
+
+  openAddModalBtn.addEventListener('click', showModal);
+  closeAddModalBtn.addEventListener('click', hideModal);
+  cancelAddModalBtn.addEventListener('click', hideModal);
+  addModal.addEventListener('click', e => { 
+    if (e.target === addModal) hideModal(); 
+  });
+
+  // === ADD VENDOR SUBMIT ===
+  addForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    console.log('📤 Form submission started');
+    
+    // Get form data
+    const formData = new FormData(addForm);
+    
+    // Log form data for debugging
+    console.log('Form Data:');
+    for (let [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value instanceof File ? `File: ${value.name}` : value);
+    }
+    
+    // Disable submit button
+    saveVendorBtn.disabled = true;
+    saveVendorBtn.textContent = 'Saving...';
+    
+    // Send request
+    fetch('{% url "add_vendor" %}', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken,
+      },
+      body: formData
+    })
+    .then(response => {
+      console.log('📥 Response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('📥 Response data:', data);
+      
+      if (data.success) {
+        showToast(data.message, 'success');
+        
+        // Remove "no data" row if exists
+        const noDataRow = tbody.querySelector('tr td[colspan]');
+        if (noDataRow) {
+          noDataRow.closest('tr').remove();
+        }
+        
+        // Create new row
+        const tr = document.createElement('tr');
+        tr.className = 'clickable-row';
+        tr.dataset.vendorId = data.vendor.id;
+        tr.dataset.vendor = JSON.stringify({
+          id: data.vendor.id,
+          name: data.vendor.full_name,
+          phone: data.vendor.phone_number,
+          panNumber: data.vendor.pan_number || '-',
+          address: data.vendor.address || '-',
+          joinDate: data.vendor.date_joined || new Date().toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          }),
+          tdsFile: data.vendor.tds_declaration || '',
+          status: 'Active'
+        });
+        
+        tr.innerHTML = `
+          <td>${data.vendor.full_name}</td>
+          <td>${data.vendor.phone_number}</td>
+          <td>${data.vendor.pan_number || '-'}</td>
+          <td>${data.vendor.address || '-'}</td>
+          <td>${data.vendor.date_joined || new Date().toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          })}</td>
+          <td class="action-col">
+            <div class="action-buttons">
+              <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+              <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+              <button class="action-delete" data-vendor-id="${data.vendor.id}" title="Delete">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        
+        tbody.prepend(tr);
+        allRows.unshift(tr);
+        filteredRows.unshift(tr);
+        attachActionListeners(tr);
+        currentPage = 1;
+        renderPage();
+        hideModal();
+        
+        console.log('✅ Vendor added successfully to UI');
+      } else {
+        showToast(data.error || 'Failed to add vendor', 'error');
+        console.error('❌ Server returned error:', data.error);
+      }
+    })
+    .catch(error => {
+      console.error('❌ Fetch error:', error);
+      showToast('Network error: ' + error.message, 'error');
+    })
+    .finally(() => {
+      saveVendorBtn.disabled = false;
+      saveVendorBtn.textContent = 'Save Vendor';
+    });
+  });
+
+  // === PAGINATION SYSTEM ===
+  function showNoDataRow() {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;padding:40px;color:#6b7280;">
+          No vendors found. Click "Add Vendor" to get started.
+        </td>
+      </tr>`;
+  }
+
+  function renderPage() {
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+
+    allRows.forEach(r => r.style.display = 'none');
+    filteredRows.slice(start, end).forEach(r => r.style.display = '');
+
+    const visibleEnd = Math.min(end, filteredRows.length);
+    showingStart.textContent = filteredRows.length ? start + 1 : 0;
+    showingEnd.textContent = visibleEnd;
+    totalEntries.textContent = filteredRows.length;
+
+    renderPaginationButtons();
+  }
+
+  function renderPaginationButtons() {
+    const totalPages = Math.ceil(filteredRows.length / perPage);
+    currentPageInfo.textContent = `Page ${currentPage}`;
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+  }
+
+  entriesSelect.addEventListener('change', function () {
+    perPage = parseInt(this.value, 10);
+    currentPage = 1;
+    renderPage();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderPage();
+    }
+  });
+
+  nextBtn.addEventListener('click', () => {
+    const totalPages = Math.ceil(filteredRows.length / perPage);
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderPage();
+    }
+  });
+
+  // === INITIALIZE ===
+  initRows();
+  console.log('✅ Initialization complete');
+});
+</script>
+
+<style>
+/* Modal styling */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.4);
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.modal-content {
+  background: #fff;
+  width: 650px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+</style>
+
+</body>
+</html>
+
+{% endblock %}

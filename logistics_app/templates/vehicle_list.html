@@ -1,0 +1,584 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Vehicle Management{% endblock %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vehicle Management</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
+
+<link rel="stylesheet" href="{% static 'css/vehicle_management.css' %}" />
+</head>
+<body>
+<div class="dashboard">
+    <!-- TOP BAR -->
+    <div class="top-bar">
+        <h2>Vehicle Management</h2>
+        <div class="search-add-container">
+            <input type="text" id="searchInput" placeholder="Search vehicles..." class="search-input" />
+            <button class="add-button" id="openAddModal">+ Add Vehicle</button>
+        </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-card">
+        <table id="vehicleTable">
+            <thead>
+                <tr>
+                    <th>Reg No</th>
+                    <th>Owner</th>
+                    <th>Status</th>
+                    <th style="width:10%">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if vehicles %}
+                    {% for vehicle in vehicles %}
+                    <tr class="clickable-row"
+                        data-vehicle-id="{{ vehicle.id }}"
+                        data-vehicle='{
+                            "id": {{ vehicle.id }},
+                            "reg_no": "{{ vehicle.reg_no|escapejs }}",
+                            "owner_name": "{{ vehicle.owner.full_name|escapejs }}",
+                            "owner_phone": "{{ vehicle.owner.phone_number }}",
+                            "type": "{{ vehicle.get_type_display|escapejs }}",
+                            "fuel_type": "{{ vehicle.get_fuel_type_display|escapejs }}",
+                            "insurance_doc": "{% if vehicle.insurance_doc %}{{ vehicle.insurance_doc.url }}{% endif %}",
+                            "rc_doc": "{% if vehicle.rc_doc %}{{ vehicle.rc_doc.url }}{% endif %}",
+                            "status": "{{ vehicle.status }}",
+                            "status_label": "{{ vehicle.get_status_display }}"
+                        }'>
+                        <td>{{ vehicle.reg_no }}</td>
+                        <td>{{ vehicle.owner.full_name }}</td>
+                        <td>
+                            <span class="status-badge {% if vehicle.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
+                                {{ vehicle.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="action-col">
+                            <div class="action-buttons">
+                                <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+                                <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+                                <button class="action-delete" data-vehicle-id="{{ vehicle.id }}" title="Delete"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align:center;padding:40px;color:#6b7280;">
+                            No vehicles found. Click "Add Vehicle" to get started.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+       <!-- Pagination -->
+    <div class="pagination-container">
+      <div class="entries-per-page">
+        <span>Show</span>
+        <select id="entriesPerPage">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+        <span>entries</span>
+      </div>
+      <div class="pagination-info">
+        Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalEntries">0</span> entries
+      </div>
+      <div class="pagination-controls">
+        <button id="prevPage" disabled>Previous</button>
+        <span id="currentPageInfo">Page 1</span>
+        <button id="nextPage">Next</button>
+      </div>
+    </div>
+    </div>
+
+    <!-- ADD VEHICLE MODAL -->
+    <div id="addModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Vehicle</h3>
+                <button class="modal-close" id="closeAddModal">×</button>
+            </div>
+            <p class="modal-subtitle">Fill the details below to add a new vehicle.</p>
+            <div class="modal-body-wrapper">
+                <form id="addVehicleForm" class="modal-form" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Reg No <span class="required">*</span></label>
+                            <input type="text" name="reg_no" placeholder="Enter Reg no" required />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Choose Owner <span class="required">*</span></label>
+                            <select name="owner" required>
+                                <option value="">Select Owner</option>
+                                {% for vendor in vendors %}
+                                <option value="{{ vendor.id }}">{{ vendor.full_name }} ({{ vendor.phone_number }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Insurance Document</label>
+                            <div class="file-upload-area">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Drag and drop files here or <span class="browse">Browse Files</span></p>
+                                <input type="file" name="insurance_doc" accept=".pdf,.jpg,.jpeg,.png">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>RC Document</label>
+                            <div class="file-upload-area">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Drag and drop files here or <span class="browse">Browse Files</span></p>
+                                <input type="file" name="rc_doc" accept=".pdf,.jpg,.jpeg,.png">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" class="save-btn" id="saveVehicleBtn">Save Vehicle</button>
+                        <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROFILE SIDEBAR (exact match) -->
+    <div id="profileSidebar">
+        <button class="close-btn" id="closeSidebar">×</button>
+
+        <div class="sidebar-content">
+            <!-- Header -->
+            <div style="text-align:center;margin-bottom:16px;">
+                <div style="font-size:16px;font-weight:700;color:#111827;" id="sidebarRegNo">TN-45-AB-1234</div>
+                <div style="font-size:13px;color:#6b7280;margin-top:3px;" id="sidebarType">Heavy Truck • 25 Tons</div>
+                <div style="margin-top:6px;padding:3px 10px;background:#ecfdf5;color:#065f46;border-radius:16px;font-size:11px;display:inline-block;font-weight:500;">Active</div>
+            </div>
+
+            <!-- Truck Image -->
+            <div style="margin:16px 0;border-radius:10px;overflow:hidden;">
+                <img src="https://images.unsplash.com/photo-1624369963127-dd4267a3c73b?w=800&h=280&fit=crop" alt="Truck" style="width:100%;height:130px;object-fit:cover;">
+            </div>
+
+            <!-- Vehicle Details -->
+            <div style="background:#f9fafb;padding:14px;border-radius:10px;margin-bottom:14px;">
+                <h4 style="margin:0 0 10px;font-size:13px;color:#374151;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Vehicle Details</h4>
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+                    <span style="color:#6b7280;">Vehicle Number</span>
+                    <strong id="sidebarRegNoDetail" style="font-weight:600;color:#111827;">TN-45-AB-1234</strong>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+                    <span style="color:#6b7280;">Type</span>
+                    <strong id="sidebarTypeDetail" style="font-weight:600;color:#111827;">Heavy Truck</strong>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+                    <span style="color:#6b7280;">Load Weight</span>
+                    <strong style="font-weight:600;color:#111827;">25 Tons</strong>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;">
+                    <span style="color:#6b7280;">Fuel Type</span>
+                    <strong id="sidebarFuelTypeDetail" style="font-weight:600;color:#111827;">Diesel</strong>
+                </div>
+            </div>
+
+            <!-- Owner Information -->
+            <div style="background:#f0f9ff;padding:14px;border-radius:10px;margin-bottom:14px;">
+                <h4 style="margin:0 0 10px;font-size:13px;color:#374151;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Owner Information</h4>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="width:40px;height:40px;border-radius:50%;background:#3b82f6;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">
+                        <span id="ownerInitials">RK</span>
+                    </div>
+                    <div>
+                        <div style="font-weight:600;font-size:14px;color:#111827;" id="sidebarOwnerName">Ramesh Kumar</div>
+                        <div style="color:#6b7280;font-size:12px;" id="sidebarOwnerPhone">+91 98765 43210</div>
+                        <div style="color:#6b7280;font-size:12px;">ramesh@transport.co</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trip Statistics -->
+            <div style="display:flex;background:#f0fdf4;padding:14px;border-radius:10px;margin-bottom:14px;text-align:center;">
+                <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:700;color:#16a34a;">14</div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:3px;">Total Trips</div>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:700;color:#16a34a;">5</div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:3px;">Completed Trips</div>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:700;color:#3b82f6;">3</div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:3px;">Pending Trips</div>
+                </div>
+            </div>
+
+            <!-- Documents -->
+            <div style="background:#fff;padding:14px;border-radius:10px;border:1px solid #e5e7eb;">
+                <h4 style="margin:0 0 10px;font-size:13px;color:#374151;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Documents</h4>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                    <div style="font-size:13px;color:#374151;">RC Certificate</div>
+                    <div id="rcDocStatus">
+                        <span style="width:18px;height:18px;background:#fecaca;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-exclamation" style="color:#dc2626;font-size:10px;"></i>
+                        </span>
+                        <span style="font-size:12px;color:#dc2626;">Pending</span>
+                    </div>
+                </div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div style="font-size:13px;color:#374151;">Insurance</div>
+                    <div id="insuranceDocStatus">
+                        <span style="width:18px;height:18px;background:#d1fae5;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-check" style="color:#16a34a;font-size:10px;"></i>
+                        </span>
+                        <a href="#" id="insuranceLink" target="_blank" style="color:#3b82f6;font-size:12px;text-decoration:none;"></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Button -->
+        <div style="padding:14px 16px;border-top:1px solid #e5e7eb;background:#fff;">
+            <button class="assign-driver-btn">Assign Driver</button>
+        </div>
+    </div>
+
+    <div id="sidebarOverlay"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    /* --------------------------------------------------------------
+       TOAST HELPER
+    -------------------------------------------------------------- */
+    function showToast(text, type = "info") {
+        const colors = { success: "#16a34a", error: "#dc2626", info: "#2563eb", warning: "#d97706" };
+        Toastify({ text, duration: 3500, close: true, gravity: "top", position: "right", backgroundColor: colors[type] }).showToast();
+    }
+
+    /* --------------------------------------------------------------
+       CSRF TOKEN
+    -------------------------------------------------------------- */
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === name + "=") {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie("csrftoken");
+
+    /* --------------------------------------------------------------
+       ELEMENTS
+    -------------------------------------------------------------- */
+    const table           = document.getElementById("vehicleTable");
+    const tbody           = table.querySelector("tbody");
+    const sidebar         = document.getElementById("profileSidebar");
+    const overlay         = document.getElementById("sidebarOverlay");
+    const closeBtn        = document.getElementById("closeSidebar");
+    const searchInput     = document.getElementById("searchInput");
+    const openAddModalBtn = document.getElementById("openAddModal");
+    const addModal        = document.getElementById("addModal");
+    const closeAddModalBtn= document.getElementById("closeAddModal");
+    const cancelAddModalBtn=document.getElementById("cancelAddModal");
+    const addForm         = document.getElementById("addVehicleForm");
+    const saveVehicleBtn  = document.getElementById("saveVehicleBtn");
+    const entriesSelect   = document.getElementById("entriesPerPage");
+    const showingStart    = document.getElementById("showingStart");
+    const showingEnd      = document.getElementById("showingEnd");
+    const totalEntries    = document.getElementById("totalEntries");
+    const prevBtn         = document.getElementById("prevPage");
+    const nextBtn         = document.getElementById("nextPage");
+    const currentPageInfo = document.getElementById("currentPageInfo");
+
+    let currentVehicleId = null;
+    let currentPage = 1;
+    let perPage = parseInt(entriesSelect.value, 10);
+    let allRows = [];
+    let filteredRows = [];
+
+    /* --------------------------------------------------------------
+       FILE UPLOAD (drag & drop)
+    -------------------------------------------------------------- */
+    document.querySelectorAll('.file-upload-area').forEach(area => {
+        const input = area.querySelector('input[type="file"]');
+        const browse = area.querySelector('.browse');
+        const p = area.querySelector('p');
+
+        browse.addEventListener('click', () => input.click());
+        area.addEventListener('click', e => { if (e.target !== browse) input.click(); });
+
+        input.addEventListener('change', () => {
+            const file = input.files[0];
+            if (file) p.innerHTML = `<i class="fas fa-check-circle" style="color:#16a34a"></i> <span style="color:#16a34a;font-weight:500">${file.name}</span>`;
+            else p.innerHTML = `Drag and drop files here or <span class="browse">Browse Files</span>`;
+        });
+
+        area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('active'); });
+        area.addEventListener('dragleave', () => area.classList.remove('active'));
+        area.addEventListener('drop', e => {
+            e.preventDefault(); area.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file && ['application/pdf','image/jpeg','image/jpg','image/png'].includes(file.type)) {
+                const dt = new DataTransfer(); dt.items.add(file);
+                input.files = dt.files; input.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+
+    /* --------------------------------------------------------------
+       INITIAL ROWS + SEARCH
+    -------------------------------------------------------------- */
+    function initRows() {
+        allRows = Array.from(tbody.querySelectorAll("tr.clickable-row"));
+        filteredRows = [...allRows];
+        renderPage();
+    }
+
+    searchInput.addEventListener("input", () => {
+        const term = searchInput.value.toLowerCase();
+        filteredRows = allRows.filter(r => r.textContent.toLowerCase().includes(term));
+        currentPage = 1;
+        renderPage();
+    });
+
+    /* --------------------------------------------------------------
+       SIDEBAR OPEN / CLOSE
+    -------------------------------------------------------------- */
+    function openSidebar(row) {
+        const data = JSON.parse(row.dataset.vehicle);
+        currentVehicleId = data.id;
+
+        document.getElementById("sidebarRegNo").textContent = data.reg_no;
+        document.getElementById("sidebarRegNoDetail").textContent = data.reg_no;
+        document.getElementById("sidebarTypeDetail").textContent = data.type;
+        document.getElementById("sidebarFuelTypeDetail").textContent = data.fuel_type;
+        document.getElementById("sidebarType").textContent = `${data.type} • 25 Tons`;
+
+        document.getElementById("sidebarOwnerName").textContent = data.owner_name;
+        document.getElementById("sidebarOwnerPhone").textContent = data.owner_phone;
+        document.getElementById("ownerInitials").textContent =
+            data.owner_name.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0,2);
+
+        // ----- RC DOC -----
+        const rcStatus = document.getElementById("rcDocStatus");
+        if (data.rc_doc) {
+            rcStatus.innerHTML = `<span style="width:18px;height:18px;background:#d1fae5;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                                    <i class="fas fa-check" style="color:#16a34a;font-size:10px;"></i>
+                                 </span>
+                                 <a href="${data.rc_doc}" target="_blank" style="color:#3b82f6;font-size:12px;text-decoration:none;">View</a>`;
+        } else {
+            rcStatus.innerHTML = `<span style="width:18px;height:18px;background:#fecaca;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                                    <i class="fas fa-exclamation" style="color:#dc2626;font-size:10px;"></i>
+                                 </span>
+                                 <span style="font-size:12px;color:#dc2626;">Pending</span>`;
+        }
+
+        // ----- INSURANCE DOC -----
+        const insStatus = document.getElementById("insuranceDocStatus");
+        if (data.insurance_doc) {
+            insStatus.innerHTML = `<span style="width:18px;height:18px;background:#d1fae5;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                                    <i class="fas fa-check" style="color:#16a34a;font-size:10px;"></i>
+                                 </span>
+                                 <a href="${data.insurance_doc}" target="_blank" style="color:#3b82f6;font-size:12px;text-decoration:none;">View</a>`;
+        } else {
+            insStatus.innerHTML = `<span style="width:18px;height:18px;background:#fecaca;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                                    <i class="fas fa-exclamation" style="color:#dc2626;font-size:10px;"></i>
+                                 </span>
+                                 <span style="font-size:12px;color:#dc2626;">Pending</span>`;
+        }
+
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+        row.style.backgroundColor = '#f0f9ff';
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+        document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+        currentVehicleId = null;
+    }
+
+    table.addEventListener("click", e => {
+        if (e.target.closest(".action-col")) return;
+        const row = e.target.closest(".clickable-row");
+        if (row) openSidebar(row);
+    });
+
+    closeBtn.addEventListener("click", closeSidebar);
+    overlay.addEventListener("click", closeSidebar);
+
+    /* --------------------------------------------------------------
+       ACTION BUTTONS (View / Edit / Delete)
+    -------------------------------------------------------------- */
+    function attachActionListeners(row) {
+        row.querySelector(".action-view")?.addEventListener("click", e => {
+            e.stopPropagation(); openSidebar(row);
+        });
+
+        row.querySelector(".action-edit")?.addEventListener("click", e => {
+            e.stopPropagation(); showToast("Edit coming soon!", "info");
+        });
+
+        row.querySelector(".action-delete")?.addEventListener("click", e => {
+            e.stopPropagation();
+            const id = row.dataset.vehicleId;
+            if (!confirm("Delete this vehicle?")) return;
+            fetch(`/vehicle/${id}/delete/`, {
+                method: "POST",
+                headers: { "X-CSRFToken": csrftoken }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, "success");
+                    row.remove();
+                    allRows = allRows.filter(r => r !== row);
+                    filteredRows = filteredRows.filter(r => r !== row);
+                    renderPage();
+                    closeSidebar();
+                } else showToast(data.error, "error");
+            });
+        });
+    }
+    document.querySelectorAll("#vehicleTable tbody tr.clickable-row").forEach(attachActionListeners);
+
+    /* --------------------------------------------------------------
+       ADD VEHICLE MODAL
+    -------------------------------------------------------------- */
+    const showModal = () => {
+        addModal.style.display = "flex";
+        addForm.reset();
+        document.querySelectorAll('.file-upload-area p').forEach(p => {
+            p.innerHTML = `Drag and drop files here or <span class="browse">Browse Files</span>`;
+        });
+    };
+    const hideModal = () => { addModal.style.display = "none"; };
+
+    openAddModalBtn.addEventListener("click", showModal);
+    closeAddModalBtn.addEventListener("click", hideModal);
+    cancelAddModalBtn.addEventListener("click", hideModal);
+    addModal.addEventListener("click", e => { if (e.target === addModal) hideModal(); });
+
+    addForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        saveVehicleBtn.disabled = true;
+        saveVehicleBtn.textContent = "Saving...";
+
+        const formData = new FormData(addForm);
+        fetch('{% url "add_vehicle" %}', {
+            method: "POST",
+            headers: { "X-CSRFToken": csrftoken },
+            body: formData,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, "success");
+                const tr = document.createElement("tr");
+                tr.className = "clickable-row";
+                tr.dataset.vehicleId = data.vehicle.id;
+                tr.dataset.vehicle = JSON.stringify(data.vehicle_data);
+                tr.innerHTML = `
+                    <td>${data.vehicle.reg_no}</td>
+                    <td>${data.vehicle.owner_name}</td>
+                    <td><span class="status-badge status-active">Active</span></td>
+                    <td class="action-col">
+                        <div class="action-buttons">
+                            <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+                            <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="action-delete" data-vehicle-id="${data.vehicle.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                `;
+                tbody.prepend(tr);
+                allRows.unshift(tr);
+                filteredRows.unshift(tr);
+                attachActionListeners(tr);
+                currentPage = 1;
+                renderPage();
+                hideModal();
+            } else {
+                showToast(data.error || "Failed to add vehicle", "error");
+            }
+        })
+        .finally(() => {
+            saveVehicleBtn.disabled = false;
+            saveVehicleBtn.textContent = "Save Vehicle";
+        });
+    });
+
+    /* --------------------------------------------------------------
+       PAGINATION
+    -------------------------------------------------------------- */
+    function renderPage() {
+        const start = (currentPage - 1) * perPage;
+        const end   = start + perPage;
+
+        allRows.forEach(r => r.style.display = "none");
+        filteredRows.slice(start, end).forEach(r => r.style.display = "");
+
+        const visibleEnd = Math.min(end, filteredRows.length);
+        showingStart.textContent = filteredRows.length ? start + 1 : 0;
+        showingEnd.textContent   = visibleEnd;
+        totalEntries.textContent = filteredRows.length;
+
+        renderPaginationButtons();
+    }
+
+    function renderPaginationButtons() {
+        const totalPages = Math.ceil(filteredRows.length / perPage);
+        currentPageInfo.textContent = `Page ${currentPage}`;
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage >= totalPages || totalPages === 0;
+    }
+
+    entriesSelect.addEventListener("change", () => {
+        perPage = +entriesSelect.value;
+        currentPage = 1;
+        renderPage();
+    });
+    prevBtn.addEventListener("click", () => {
+        if (currentPage > 1) { currentPage--; renderPage(); }
+    });
+    nextBtn.addEventListener("click", () => {
+        const totalPages = Math.ceil(filteredRows.length / perPage);
+        if (currentPage < totalPages) { currentPage++; renderPage(); }
+    });
+
+    initRows();
+});
+</script>
+</body>
+</html>
+{% endblock %}

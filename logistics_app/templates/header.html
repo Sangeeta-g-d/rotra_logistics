@@ -1,0 +1,385 @@
+<!-- admin_header.html -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+<button class="hamburger" id="hamburger" aria-label="Toggle sidebar">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+</button>
+
+<div class="header">
+  <div class="search-bar">
+    <input type="text" placeholder="Search fleet, drivers, orders...">
+  </div>
+
+  <div class="header-actions">
+    <!-- Add New Vehicle Type button -->
+    <button class="add-vehicle-btn" id="openVehicleModal">
+      + Add Vehicle Type
+    </button>
+
+    <div class="icon-btn notification">🔔</div>
+    <div class="icon-btn">✉️</div>
+
+    <div class="user-profile" id="profile-btn">
+      <div class="user-avatar">A</div>
+      <span>Admin</span>
+    </div>
+
+    <!-- Dropdown Menu -->
+    <div class="dropdown-menu" id="profile-dropdown">
+      <a href="/logout/">Logout</a>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Popup -->
+<div class="modal-overlay" id="vehicleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add New Vehicle Type</h3>
+      <button class="close-btn" id="closeModal">&times;</button>
+    </div>
+    <p class="modal-subtext">Enter the vehicle type name below.</p>
+
+    <div class="form-group">
+      <label>Vehicle Type Name</label>
+      <input type="text" id="vehicleName" placeholder="Enter Vehicle Name" class="form-control">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-save" id="saveVehicle">Save</button>
+      <button class="btn btn-cancel" id="closeModal2">Cancel</button>
+    </div>
+
+    <h4 style="margin-top:25px;">Added Vehicle Types</h4>
+    <div id="vehicleList" class="vehicle-list">
+      <div class="loading-text">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 10px 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .add-vehicle-btn {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+
+  .add-vehicle-btn:hover { opacity: 0.9; }
+  .icon-btn { font-size: 18px; cursor: pointer; }
+
+  .user-profile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .user-avatar {
+    width: 32px; height: 32px;
+    background-color: #007bff; color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold;
+  }
+
+  .dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 20px; top: 55px;
+    background: #fff; border: 1px solid #ddd;
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .dropdown-menu a {
+    display: block; padding: 10px 15px;
+    text-decoration: none; color: #333;
+  }
+
+  .dropdown-menu a:hover { background: #f5f5f5; }
+
+  /* ===== MODAL STYLES ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(3px);
+    justify-content: center; align-items: center;
+    z-index: 1000;
+  }
+
+  .modal {
+    background: #fff;
+    width: 475px;
+    max-width: 90%;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    padding: 25px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #f44336;
+    padding-bottom: 10px;
+  }
+
+  .modal-header h3 { margin: 0; font-size: 18px; font-weight: 600; }
+
+  .close-btn {
+    background: none; border: none;
+    font-size: 22px; cursor: pointer; color: #555;
+  }
+
+  .modal-subtext { font-size: 14px; color: #777; margin: 10px 0 20px; }
+
+  .form-group { margin-bottom: 15px; }
+
+  .form-group label {
+    font-size: 14px; display: block; margin-bottom: 6px; color: #333;
+  }
+
+  .form-control {
+    width: 100%; padding: 10px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 14px;
+  }
+
+  .modal-actions {
+    display: flex; justify-content: flex-start; gap: 10px; margin-bottom: 15px;
+  }
+
+  .btn {
+    padding: 10px 25px; border-radius: 8px; border: none;
+    cursor: pointer; font-weight: 500; font-size: 14px;
+  }
+
+  .btn-save { background: #f44336; color: #fff; }
+  .btn-cancel { background: #fff; color: #333; border: 1px solid #ccc; }
+  .btn-save:hover { background: #d73228; }
+  .btn-cancel:hover { background: #f8f8f8; }
+
+  /* ===== Vehicle List ===== */
+  .vehicle-list {
+    margin-top: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 10px;
+  }
+
+  .vehicle-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f9fafb;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+  }
+
+  .vehicle-item span.delete {
+    color: red;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .loading-text {
+    text-align: center;
+    color: #999;
+    padding: 15px;
+    font-size: 14px;
+  }
+
+  .empty-text {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+    font-size: 14px;
+  }
+</style>
+
+<script>
+  const modal = document.getElementById('vehicleModal');
+  const openBtn = document.getElementById('openVehicleModal');
+  const closeBtns = [document.getElementById('closeModal'), document.getElementById('closeModal2')];
+  const vehicleList = document.getElementById('vehicleList');
+  const input = document.getElementById('vehicleName');
+  const saveBtn = document.getElementById('saveVehicle');
+
+  function showToast(message, type = 'success') {
+  // use the same green for all success toasts; error can still use red if desired
+  const bg = (type === 'success') ? '#16A34A' : '#E11D48';
+
+  Toastify({
+    text: message,
+    duration: 3000,
+    gravity: "top",
+    position: "right",
+    stopOnFocus: true,
+    style: {
+      background: bg,
+      color: "#fff",
+    },
+    className: "toastify-custom"
+  }).showToast();
+}
+
+  // Load all vehicle types
+  function loadVehicleTypes() {
+    vehicleList.innerHTML = '<div class="loading-text">Loading...</div>';
+    
+    fetch('/vehicle_type_list_view/')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.vehicle_types.length > 0) {
+          vehicleList.innerHTML = '';
+          data.vehicle_types.forEach(vt => {
+            addVehicleToList(vt);
+          });
+        } else {
+          vehicleList.innerHTML = '<div class="empty-text">No vehicle types added yet.</div>';
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        vehicleList.innerHTML = '<div class="empty-text">Failed to load vehicle types.</div>';
+      });
+  }
+
+  // Add vehicle to the list (DOM)
+  function addVehicleToList(vt) {
+    const item = document.createElement('div');
+    item.className = 'vehicle-item';
+    item.innerHTML = `
+      <span>${vt.name}</span>
+      <span class="delete" data-id="${vt.id}">&times;</span>
+    `;
+    item.querySelector('.delete').addEventListener('click', deleteVehicleType);
+    vehicleList.prepend(item);
+  }
+
+  // Open modal and load vehicle types
+  openBtn.addEventListener('click', () => {
+    modal.style.display = 'flex';
+    loadVehicleTypes();
+  });
+
+  closeBtns.forEach(btn => btn.addEventListener('click', () => modal.style.display = 'none'));
+  window.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+
+  // Save Vehicle Type
+  saveBtn.addEventListener('click', () => {
+    const name = input.value.trim();
+    if (!name) {
+      showToast('Please enter vehicle name', 'error');
+      return;
+    }
+
+    fetch('/add_vehicle_type/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCSRFToken(),
+      },
+      body: new URLSearchParams({ name })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast(data.message, 'success');
+          const vt = data.vehicle_type;
+          
+          // Remove empty text if exists
+          const emptyText = vehicleList.querySelector('.empty-text');
+          if (emptyText) emptyText.remove();
+          
+          addVehicleToList(vt);
+          input.value = '';
+        } else {
+          showToast(data.error, 'error');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showToast('Failed to add vehicle type', 'error');
+      });
+  });
+
+  // Delete Vehicle Type
+  function deleteVehicleType(e) {
+    const id = e.target.getAttribute('data-id');
+    
+    if (!confirm('Are you sure you want to delete this vehicle type?')) {
+      return;
+    }
+
+    fetch(`/delete_vehicle_type/${id}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCSRFToken(),
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          e.target.parentElement.remove();
+          showToast(data.message, 'success');
+          
+          // Check if list is empty and show message
+          if (vehicleList.children.length === 0) {
+            vehicleList.innerHTML = '<div class="empty-text">No vehicle types added yet.</div>';
+          }
+        } else {
+          showToast(data.error, 'error');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showToast('Failed to delete vehicle type', 'error');
+      });
+  }
+
+  // CSRF token helper
+  function getCSRFToken() {
+    const name = 'csrftoken=';
+    const cookies = document.cookie.split(';');
+    for (let c of cookies) {
+      c = c.trim();
+      if (c.startsWith(name)) return c.substring(name.length, c.length);
+    }
+    return '';
+  }
+</script>

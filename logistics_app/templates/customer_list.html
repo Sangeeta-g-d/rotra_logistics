@@ -1,0 +1,549 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Customer Management{% endblock %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Customer Management</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+<link rel="stylesheet" href="{% static 'css/customer_management.css' %}">
+</head>
+<body>
+
+<div class="dashboard">
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <h2>Customer Management</h2>
+    <div class="search-add-container">
+      <input type="text" id="searchInput" placeholder="Search customers..." class="search-input">
+      <button class="add-button" id="openAddModal">+ Add Customer</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <table id="customerTable">
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Phone</th>
+          <th>Contact Person</th>
+          <th>Location</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if customers %}
+          {% for cust in customers %}
+          <tr class="clickable-row"
+              data-customer-id="{{ cust.id }}"
+              data-customer='{
+                "id": {{ cust.id }},
+                "name": "{{ cust.customer_name|escapejs }}",
+                "phone": "{{ cust.phone_number|default:'' }}",
+                "contactPerson": "{{ cust.contact_person_name|default:'' }}",
+                "contactPhone": "{{ cust.contact_person_phone|default:'' }}",
+                "location": "{{ cust.location|default:'' }}",
+                "joinDate": "{{ cust.created_at|date:'d M Y' }}",
+                "status": "{% if cust.is_active %}Active{% else %}Inactive{% endif %}",
+                "trips_booked": {{ cust.trips_booked|default:0 }},
+                "trips_completed": {{ cust.trips_completed|default:0 }},
+                "trips_pending": {{ cust.trips_pending|default:0 }}
+              }'>
+            <td data-label="Customer">
+              <div class="customer-info">
+                <div class="avatar-circle">{{ cust.customer_name|slice:":2"|upper }}</div>
+                <div class="customer-details">
+                  {{ cust.customer_name }}
+                  <p>Registered {{ cust.created_at|date:'d M Y' }}</p>
+                </div>
+              </div>
+            </td>
+            <td data-label="Phone">{{ cust.phone_number|default:'-' }}</td>
+            <td data-label="Contact Person">{{ cust.contact_person_name|default:'-' }}</td>
+            <td data-label="Location">{{ cust.location|default:'-' }}</td>
+            <td class="action-col" style="position:relative;">
+              <div class="action-dots">
+                <button class="action-dots-btn" title="Actions"><i class="fas fa-ellipsis-v"></i></button>
+                <div class="action-dropdown">
+                  <button class="action-edit-btn"><i class="fas fa-edit"></i> Edit</button>
+                  <button class="action-delete-btn delete-btn" data-customer-id="{{ cust.id }}"><i class="fas fa-trash"></i> Delete</button>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="5" style="text-align:center;padding:40px;color:#6b7280;">
+            No customers found. Click "Add Customer" to get started.
+          </td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+     <!-- Pagination -->
+    <div class="pagination-container">
+      <div class="entries-per-page">
+        <span>Show</span>
+        <select id="entriesPerPage">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+        <span>entries</span>
+      </div>
+      <div class="pagination-info">
+        Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalEntries">0</span> entries
+      </div>
+      <div class="pagination-controls">
+        <button id="prevPage" disabled>Previous</button>
+        <span id="currentPageInfo">Page 1</span>
+        <button id="nextPage">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD MODAL -->
+  <div id="addModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Customer</h3>
+        <button class="modal-close" id="closeAddModal">x</button>
+      </div>
+      <p class="modal-subtitle">Fill the details below to add a new customer.</p>
+      <form id="addCustomerForm" class="modal-form">
+        {% csrf_token %}
+        <div class="form-row">
+          <div class="form-group">
+            <label>Customer Name <span class="required">*</span></label>
+            <input type="text" name="customerName" placeholder="Enter customer name" required>
+          </div>
+          <div class="form-group half">
+            <label>Phone Number <span class="required">*</span></label>
+            <input type="tel" name="phoneNumber" placeholder="Enter phone" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group half">
+            <label>Contact Person Name</label>
+            <input type="text" name="contactPersonName" placeholder="Enter contact person name">
+          </div>
+          <div class="form-group half">
+            <label>Contact Person Phone</label>
+            <input type="tel" name="contactPersonPhone" placeholder="Enter contact person phone">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" name="location" placeholder="City, State">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="save-btn">Save Customer</button>
+          <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel-overlay" id="panelOverlay"></div>
+  <div class="partner-panel" id="partnerPanel">
+    <div class="no-selection">
+      <i class="fas fa-hand-pointer"></i>
+      <p>Select a customer to view details</p>
+    </div>
+  </div>
+</div>
+
+<!-- Toastify -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+<script>
+/* -------------------------------------------------
+   Helper functions
+------------------------------------------------- */
+function getInitials(name) {
+  if (!name) return '??';
+  const parts = name.trim().split(' ');
+  if (parts.length === 1) return parts[0].substring(0,2).toUpperCase();
+  return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+}
+
+function showToast(text, type='info'){
+  const colors = {success:'#16a34a', error:'#dc2626', info:'#2563eb', warning:'#d97706'};
+  Toastify({
+    text, duration:3500, close:true, gravity:"top", position:"right",
+    backgroundColor: colors[type], stopOnFocus:true
+  }).showToast();
+}
+
+/* -------------------------------------------------
+   Global variables
+------------------------------------------------- */
+const tbody          = document.querySelector('#customerTable tbody');
+const panel          = document.getElementById('partnerPanel');
+const overlay        = document.getElementById('panelOverlay');
+const searchInput    = document.getElementById('searchInput');
+const openAddBtn     = document.getElementById('openAddModal');
+const addModal       = document.getElementById('addModal');
+const addForm        = document.getElementById('addCustomerForm');
+const entriesSelect  = document.getElementById('entriesPerPage');
+const showingStart   = document.getElementById('showingStart');
+const showingEnd     = document.getElementById('showingEnd');
+const totalEntries   = document.getElementById('totalEntries');
+const prevBtn        = document.getElementById('prevPage');
+const nextBtn        = document.getElementById('nextPage');
+const currentPageInfo= document.getElementById('currentPageInfo');
+
+let currentPage = 1;
+let perPage = parseInt(entriesSelect.value, 10);
+let allRows = [];
+let filteredRows = [];
+const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+/* -------------------------------------------------
+   Init rows (avatars + data)
+------------------------------------------------- */
+function initRows(){
+  allRows = Array.from(tbody.querySelectorAll('tr.clickable-row'));
+  allRows.forEach(r => {
+    const d = JSON.parse(r.dataset.customer);
+    const av = r.querySelector('.avatar-circle');
+    if (av) av.textContent = getInitials(d.name);
+  });
+  filteredRows = [...allRows];
+  renderPage();
+}
+
+/* -------------------------------------------------
+   Search
+------------------------------------------------- */
+searchInput.addEventListener('input', () => {
+  const term = searchInput.value.toLowerCase();
+  filteredRows = allRows.filter(r => r.textContent.toLowerCase().includes(term));
+  currentPage = 1;
+  renderPage();
+});
+
+/* -------------------------------------------------
+   Panel (view details)
+------------------------------------------------- */
+function openPanel(data){
+  const initials = getInitials(data.name);
+  const isActive = data.status === 'Active';
+  const statusBg = isActive ? '#ecfdf5' : '#fee2e2';
+  const statusColor = isActive ? '#16a34a' : '#dc2626';
+
+  panel.innerHTML = `
+    <div class="panel-header"><h3>Partner Details</h3><button class="close-panel" id="closePanel">x</button></div>
+    <div class="panel-content">
+      <div style="display:flex;gap:16px;padding-bottom:18px;border-bottom:1px solid #e5e7eb;margin-bottom:18px;">
+        <div class="panel-avatar">${initials}</div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
+          <h3 style="margin:0 0 4px;font-size:15px;font-weight:600;color:#111827;">${data.name}</h3>
+          <span style="display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${statusBg};color:${statusColor};width:fit-content;">
+            ${data.status}
+          </span>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="section-header" data-section="partner-info">
+          <div class="section-icon" style="background:#fef3c7;color:#d97706;"><i class="fas fa-user"></i></div>
+          <h4 class="section-title">Partner Info</h4><i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="section-content" id="partner-info-content">
+          <div class="info-row"><span class="info-label">Name</span><span class="info-value">${data.name}</span></div>
+          <div class="info-row"><span class="info-label">Registered Date</span><span class="info-value">${data.joinDate}</span></div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="section-header" data-section="contact-details">
+          <div class="section-icon" style="background:#dbeafe;color:#1d4ed8;"><i class="fas fa-address-book"></i></div>
+          <h4 class="section-title">Contact Details</h4><i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="section-content" id="contact-details-content">
+          <div class="info-row"><span class="info-label">Contact Person</span><span class="info-value">${data.contactPerson||'-'}</span></div>
+          <div class="info-row"><span class="info-label">Mobile Number</span><span class="info-value">${data.contactPhone||'-'}</span></div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="section-header" data-section="trips-summary">
+          <div class="section-icon" style="background:#fee2e2;color:#dc2626;"><i class="fas fa-truck"></i></div>
+          <h4 class="section-title">Trips Summary</h4><i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="section-content" id="trips-summary-content">
+          <div style="background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 6px rgba(0,0,0,.06);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <div style="display:flex;align-items:center;gap:8px;"><i class="fas fa-truck" style="color:#dc2626;font-size:15px;"></i><span style="font-weight:600;color:#111827;font-size:13px;">Trips Booked</span></div>
+              <span style="background:#fee2e2;color:#dc2626;padding:4px 10px;border-radius:999px;font-weight:700;font-size:13px;">${data.trips_booked}</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div style="display:flex;align-items:center;gap:8px;"><i class="fas fa-check-circle" style="color:#16a34a;font-size:14px;"></i><span style="color:#16a34a;font-weight:600;font-size:13px;">Completed</span></div>
+              <span style="color:#16a34a;font-weight:700;font-size:14px;">${data.trips_completed}</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:8px;"><i class="fas fa-clock" style="color:#f59e0b;font-size:14px;"></i><span style="color:#f59e0b;font-weight:600;font-size:13px;">Pending</span></div>
+              <span style="color:#f59e0b;font-weight:700;font-size:14px;">${data.trips_pending}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-actions">
+      <button class="panel-action-btn btn-edit-partner"><i class="fas fa-edit"></i> Edit Partner</button>
+      <button class="panel-action-btn btn-view-trips"><i class="fas fa-eye"></i> View Trips</button>
+      <button class="panel-action-btn btn-block-customer"><i class="fas fa-ban"></i> Blocklist Customer</button>
+    </div>
+  `;
+
+  document.body.classList.add('panel-open');
+  overlay.classList.add('show');  // SHOW OVERLAY
+
+  document.getElementById('closePanel').onclick = closePanel;
+  overlay.onclick = closePanel;
+
+
+
+  panel.querySelectorAll('.section-header').forEach(h => {
+    h.addEventListener('click', function(){
+      const id = this.dataset.section + '-content';
+      const content = document.getElementById(id);
+      this.classList.toggle('collapsed');
+      content.classList.toggle('collapsed');
+    });
+  });
+
+  panel.querySelector('.btn-edit-partner').onclick = () => showToast('Edit coming soon!', 'info');
+  panel.querySelector('.btn-view-trips').onclick   = () => showToast('View trips coming soon!', 'info');
+  panel.querySelector('.btn-block-customer').onclick = () => {
+    if (confirm(`Block ${data.name}?`)) showToast('Customer blocked', 'success');
+  };
+}
+
+function closePanel(){
+  document.body.classList.remove('panel-open');
+  overlay.classList.remove('show');  // HIDE OVERLAY
+  document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('selected'));
+}
+
+/* -------------------------------------------------
+   Row click (view / dots / delete)
+------------------------------------------------- */
+tbody.addEventListener('click', e => {
+  const row  = e.target.closest('.clickable-row');
+  const dots = e.target.closest('.action-dots-btn');
+  const item = e.target.closest('.action-dropdown button');
+
+  if (dots) {
+    e.stopPropagation();
+    const dropdown = dots.nextElementSibling;
+    document.querySelectorAll('.action-dropdown').forEach(d => d.classList.remove('show'));
+    dropdown.classList.toggle('show');
+    return;
+  }
+
+  if (item) {
+    e.stopPropagation();
+    const action = item.classList[0];
+    const data   = JSON.parse(row.dataset.customer);
+
+    if (action === 'action-edit-btn') {
+      showToast('Edit coming soon!', 'info');
+    } else if (action === 'action-delete-btn') {
+      if (confirm('Delete this customer?')) {
+        fetch(`{% url 'delete_customer' 999 %}`.replace('999', data.id), {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(r => r.json())
+        .then(d => {
+          if (d.success) {
+            row.remove();
+            showToast('Data Deleted Successfully', 'success');
+            closePanel();
+          } else {
+            showToast('Error', 'error');
+          }
+        });
+      }
+    }
+    document.querySelectorAll('.action-dropdown').forEach(d => d.classList.remove('show'));
+    return;
+  }
+
+  if (row && !e.target.closest('.action-col')) {
+    const data = JSON.parse(row.dataset.customer);
+    openPanel(data);
+    document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('selected'));
+    row.classList.add('selected');
+  }
+});
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.action-dropdown').forEach(d => d.classList.remove('show'));
+});
+
+/* -------------------------------------------------
+   Pagination
+------------------------------------------------- */
+function renderPage(){
+  const start = (currentPage - 1) * perPage;
+  const end   = start + perPage;
+  allRows.forEach(r => r.style.display = 'none');
+  filteredRows.slice(start, end).forEach(r => r.style.display = '');
+  showingStart.textContent = filteredRows.length ? start + 1 : 0;
+  showingEnd.textContent   = Math.min(end, filteredRows.length);
+  totalEntries.textContent = filteredRows.length;
+  const totalPages = Math.ceil(filteredRows.length / perPage);
+  currentPageInfo.textContent = `Page ${currentPage}`;
+  prevBtn.disabled = currentPage === 1;
+  nextBtn.disabled = currentPage >= totalPages;
+}
+
+entriesSelect.addEventListener('change', () => {
+  perPage = +entriesSelect.value;
+  currentPage = 1;
+  renderPage();
+});
+
+prevBtn.addEventListener('click', () => {
+  if (currentPage > 1) { currentPage--; renderPage(); }
+});
+
+nextBtn.addEventListener('click', () => {
+  if (currentPage < Math.ceil(filteredRows.length / perPage)) { currentPage++; renderPage(); }
+});
+
+/* -------------------------------------------------
+   ADD CUSTOMER MODAL
+------------------------------------------------- */
+openAddBtn.onclick = () => addModal.style.display = 'flex';
+
+[document.getElementById('closeAddModal'), document.getElementById('cancelAddModal')].forEach(b => {
+  b.onclick = () => {
+    addModal.style.display = 'none';
+    addForm.reset();
+  };
+});
+
+addModal.onclick = e => {
+  if (e.target === addModal) {
+    addModal.style.display = 'none';
+    addForm.reset();
+  }
+};
+
+/* ---- SUBMIT FORM ---- */
+addForm.addEventListener('submit', async function(e){
+  e.preventDefault();
+
+  const formData = new FormData(this);
+  const btn = this.querySelector('.save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const resp = await fetch("{% url 'add_customer' %}", {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrftoken },
+      body: formData
+    });
+    const json = await resp.json();
+
+    if (json.success) {
+      showToast(json.message, 'success');
+
+      const cust = json.customer;
+      const initials = getInitials(cust.name);
+      const newRow = document.createElement('tr');
+      newRow.className = 'clickable-row';
+      newRow.dataset.customerId = cust.id;
+      newRow.dataset.customer = JSON.stringify({
+        id: cust.id,
+        name: cust.name,
+        phone: cust.phone,
+        contactPerson: cust.contactPerson,
+        contactPhone: cust.contactPhone,
+        location: cust.location,
+        joinDate: cust.joinDate,
+        status: cust.status,
+        trips_booked: 0,
+        trips_completed: 0,
+        trips_pending: 0
+      });
+
+      newRow.innerHTML = `
+        <td data-label="Customer">
+          <div class="customer-info">
+            <div class="avatar-circle">${initials}</div>
+            <div class="customer-details">
+              <h4>${cust.name}</h4>
+              <p>Registered ${cust.joinDate}</p>
+            </div>
+          </div>
+        </td>
+        <td data-label="Phone">${cust.phone || '-'}</td>
+        <td data-label="Contact Person">${cust.contactPerson || '-'}</td>
+        <td data-label="Location">${cust.location || '-'}</td>
+        <td class="action-col" style="position:relative;">
+          <div class="action-dots">
+            <button class="action-dots-btn" title="Actions"><i class="fas fa-ellipsis-v"></i></button>
+            <div class="action-dropdown">
+              <button class="action-edit-btn"><i class="fas fa-edit"></i> Edit</button>
+              <button class="action-delete-btn delete-btn" data-customer-id="${cust.id}"><i class="fas fa-trash"></i> Delete</button>
+            </div>
+          </div>
+        </td>
+      `;
+
+      tbody.prepend(newRow);
+      allRows.unshift(newRow);
+      filteredRows = [...allRows];
+      currentPage = 1;
+      renderPage();
+
+      addModal.style.display = 'none';
+      addForm.reset();
+    } else {
+      showToast(json.error || 'Something went wrong', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Customer';
+  }
+});
+
+/* -------------------------------------------------
+   Initialise
+------------------------------------------------- */
+initRows();
+</script>
+
+</body>
+</html>
+{% endblock %}

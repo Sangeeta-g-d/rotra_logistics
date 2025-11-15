@@ -1,0 +1,821 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Driver Management{% endblock %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Driver Management</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <style>
+    /* Modal Styling Fixes */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 600px;
+      max-height: 90vh; /* Limit height to 90% of viewport */
+      overflow-y: auto; /* Enable vertical scrolling */
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+    
+    .modal-header {
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 10;
+      padding: 20px 24px 0;
+      border-radius: 12px 12px 0 0;
+    }
+    
+    .modal-form {
+      padding: 0 24px 24px;
+    }
+    
+    /* File Upload Styling */
+    .file-upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      background-color: #f9fafb;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    
+    .file-upload-area:hover, .file-upload-area.dragover {
+      border-color: #dc2626;
+      background-color: #fef2f2;
+    }
+    
+    .file-upload-area i {
+      font-size: 32px;
+      color: #dc2626;
+      margin-bottom: 12px;
+    }
+    
+    .file-upload-area p {
+      margin: 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+    
+    .browse-link {
+      color: #dc2626;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    
+    .file-name {
+      display: block;
+      margin-top: 8px;
+      color: #374151;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    /* Profile Photo Styling */
+    .profile-photo .photo-upload {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .profile-photo .photo-upload img {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      cursor: pointer;
+      border: 2px solid #e5e7eb;
+      transition: border-color 0.3s ease;
+    }
+    
+    .profile-photo .photo-upload img:hover {
+      border-color: #dc2626;
+    }
+    
+    .profile-photo .photo-upload span {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    
+    /* Form Layout */
+    .form-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .form-group {
+      flex: 1;
+      margin-bottom: 16px;
+    }
+    
+    .form-group.half {
+      flex: 1;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      color: #374151;
+      font-size: 14px;
+    }
+    
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    
+    .required {
+      color: #dc2626;
+    }
+    
+    /* Modal Actions */
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+    
+    .save-btn {
+      background: #dc2626;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    
+    .cancel-btn {
+      background: #f9fafb;
+      color: #6b7280   ;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    /* ==== SIDEBAR – SCROLL WITHOUT VISIBLE SCROLLBAR ==== */
+#profileSidebar {
+    -ms-overflow-style: none;          /* IE & Edge */
+    scrollbar-width: none;             /* Firefox */
+}
+#profileSidebar::-webkit-scrollbar {
+    width: 0 !important;               /* Chrome / Safari */
+}
+  </style>
+</head>
+<body>
+
+<div class="dashboard">
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <h2>Driver Management</h2>
+    <div class="search-add-container">
+      <input type="text" id="searchInput" placeholder="Search drivers..." class="search-input">
+      <button class="add-button" id="openAddModal">+ Add Driver</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <!-- TABLE -->
+<div class="table-card">
+  <table id="driverTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Phone Number</th>
+        <th>Owner</th>
+        <th>Owner Phone</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if drivers %}
+        {% for driver in drivers %}
+        <tr class="clickable-row" data-driver-id="{{ driver.id }}"
+          data-driver='{
+            "id": {{ driver.id }},
+            "name": "{{ driver.full_name|escapejs }}",
+            "phone": "{{ driver.phone_number }}",
+            "owner": "{{ driver.owner.full_name|escapejs }}",
+            "ownerPhone": "{{ driver.owner.phone_number }}",
+            "ownerId": {{ driver.owner.id }},
+            "status": "{{ driver.get_status_display }}",
+            "joinDate": "{{ driver.created_at|date:"M d, Y" }}",
+            "totalTrips": {{ driver.total_trips }},
+            "completedTrips": {{ driver.completed_trips }},
+            "pendingTrips": {{ driver.pending_trips }},
+            "img": "{% if driver.profile_photo %}{{ driver.profile_photo.url }}{% else %}{% static 'images/default_driver.png' %}{% endif %}",
+            "hasPan": {% if driver.pan_document %}true{% else %}false{% endif %},
+            "hasAadhar": {% if driver.aadhar_document %}true{% else %}false{% endif %},
+            "hasRC": {% if driver.rc_document %}true{% else %}false{% endif %}
+          }'>
+          <td>
+            <img src="{% if driver.profile_photo %}{{ driver.profile_photo.url }}{% else %}{% static 'images/default_driver.png' %}{% endif %}" 
+                 class="employee-avatar">
+            {{ driver.full_name }}
+          </td>
+          <td>{{ driver.phone_number }}</td>
+          <td>{{ driver.owner.full_name }}</td>
+          <td>{{ driver.owner.phone_number }}</td>
+          <td class="action-col">
+            <div class="action-buttons">
+              <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+              <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+              <button class="action-delete" data-driver-id="{{ driver.id }}" title="Delete"><i class="fas fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 40px; color: #6b7280;">
+            No drivers found. Click "Add Driver" to get started.
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+    <!-- PAGINATION -->
+    <div class="pagination-container">
+      <div class="entries-per-page">
+        <span>Show</span>
+        <select id="entriesPerPage">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+        <span>entries</span>
+      </div>
+
+      <div class="pagination-info">
+        Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalEntries">0</span> entries
+      </div>
+
+      <div class="pagination-controls">
+        <button id="prevPage" title="Previous">Previous</button>
+        <span id="currentPageInfo" style="padding: 0 12px; color: #374151; font-size: 14px;">Page 1</span>
+        <button id="nextPage" title="Next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD DRIVER MODAL -->
+  <div id="addModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Driver</h3>
+        <button class="modal-close" id="closeAddModal">×</button>
+      </div>
+
+      <p class="modal-subtitle">Fill the details below to add a new driver.</p>
+
+      <form id="addDriverForm" class="modal-form" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name <span class="required">*</span></label>
+            <input type="text" name="fullName" placeholder="Enter full name" required>
+          </div>
+          <div class="form-group profile-photo">
+            <label>Profile Photo</label>
+            <div class="photo-upload">
+              <img id="photoPreview" src="{% static 'img/camera.png' %}">
+              <input type="file" id="photoInput" name="profilePhoto" accept="image/*" style="display:none;">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group half">
+            <label>Phone No <span class="required">*</span></label>
+            <input type="tel" name="phoneNo" placeholder="Enter phone number" required>
+          </div>
+          <div class="form-group half">
+            <label>Choose Owner <span class="required">*</span></label>
+            <select name="owner" required>
+              <option value="" disabled selected>Select Owner</option>
+              {% for vendor in vendors %}
+                <option value="{{ vendor.id }}">{{ vendor.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Pan Number Document Uploads</label>
+          <div class="file-upload-area" id="panUploadArea">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p>Drag and drop files here or <span class="browse-link" data-input="panDocument">Browse Files</span></p>
+            <input type="file" id="panDocument" name="panDocument" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            <span id="panFileName" class="file-name"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Aadhar Card Document Uploads</label>
+          <div class="file-upload-area" id="aadharUploadArea">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p>Drag and drop files here or <span class="browse-link" data-input="aadharDocument">Browse Files</span></p>
+            <input type="file" id="aadharDocument" name="aadharDocument" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            <span id="aadharFileName" class="file-name"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>RC Document Uploads</label>
+          <div class="file-upload-area" id="rcUploadArea">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p>Drag and drop files here or <span class="browse-link" data-input="rcDocument">Browse Files</span></p>
+            <input type="file" id="rcDocument" name="rcDocument" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            <span id="rcFileName" class="file-name"></span>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="save-btn">Save Driver</button>
+          <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROFILE SIDEBAR -->
+  <div id="profileSidebar">
+    <button class="close-btn" id="closeSidebar">×</button>
+
+    <div class="profile-header">
+      <img id="profileImg" src="" alt="Profile">
+      <h3 id="profileName" style="margin:8px 0 4px 0; font-size:18px; font-weight:600;"></h3>
+      <div id="profileStatus" class="role-badge"></div>
+      <p id="profilePhone" style="margin:6px 0; color:#6b7280; font-size:14px;"></p>
+      <p id="profileOwner" style="margin:0; color:#6b7280; font-size:14px;"></p>
+    </div>
+
+    <div class="profile-section">
+      <h4>Details</h4>
+      <p>Joining Date: <span id="profileJoinDate"></span></p>
+    </div>
+
+    <div class="profile-section">
+      <h4>Documents</h4>
+      <p>PAN Card: <span id="profilePan" class="status-badge"></span></p>
+      <p>Aadhar Card: <span id="profileAadhar" class="status-badge"></span></p>
+      <p>RC Document: <span id="profileRC" class="status-badge"></span></p>
+    </div>
+
+  
+
+    <div class="profile-buttons">
+      <button class="btn-edit">Edit Driver</button>
+      <button class="btn-deactivate" id="toggleStatusBtn">Deactivate</button>
+    </div>
+  </div>
+
+  <div id="sidebarOverlay"></div>
+</div>
+
+<!-- Toastify CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // === TOAST HELPER ===
+  function showToast(text, type = 'info') {
+    const colors = {
+      success: '#16a34a',
+      error: '#dc2626',
+      info: '#2563eb',
+      warning: '#d97706'
+    };
+    Toastify({
+      text: text,
+      duration: 3500,
+      close: true,
+      gravity: "top",
+      position: "right",
+      backgroundColor: colors[type],
+      stopOnFocus: true,
+    }).showToast();
+  }
+
+  // === ELEMENTS ===
+  const table           = document.getElementById('driverTable');
+  const tbody           = table.querySelector('tbody');
+  const sidebar         = document.getElementById('profileSidebar');
+  const overlay         = document.getElementById('sidebarOverlay');
+  const closeBtn        = document.getElementById('closeSidebar');
+  const searchInput     = document.getElementById('searchInput');
+  const openAddModalBtn = document.getElementById('openAddModal');
+  const addModal        = document.getElementById('addModal');
+  const closeAddModalBtn= document.getElementById('closeAddModal');
+  const cancelAddModalBtn=document.getElementById('cancelAddModal');
+  const addForm         = document.getElementById('addDriverForm');
+  const photoInput      = document.getElementById('photoInput');
+  const photoPreview    = document.getElementById('photoPreview');
+  const entriesSelect   = document.getElementById('entriesPerPage');
+  const showingStart    = document.getElementById('showingStart');
+  const showingEnd      = document.getElementById('showingEnd');
+  const totalEntries    = document.getElementById('totalEntries');
+  const prevBtn         = document.getElementById('prevPage');
+  const nextBtn         = document.getElementById('nextPage');
+  const currentPageInfo = document.getElementById('currentPageInfo');
+
+  // File upload areas
+  const panUploadArea = document.getElementById('panUploadArea');
+  const aadharUploadArea = document.getElementById('aadharUploadArea');
+  const rcUploadArea = document.getElementById('rcUploadArea');
+
+  let currentDriverId = null;
+  let currentPage = 1;
+  let perPage = parseInt(entriesSelect.value, 10);
+  let allRows = [];
+  let filteredRows = [];
+
+  // === CSRF TOKEN ===
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  // === FILE UPLOAD HELPERS ===
+  document.querySelectorAll('.browse-link').forEach(link => {
+    link.addEventListener('click', function() {
+      const inputId = this.dataset.input;
+      document.getElementById(inputId).click();
+    });
+  });
+
+  // Show file names when selected
+  ['panDocument', 'aadharDocument', 'rcDocument'].forEach(id => {
+    const input = document.getElementById(id);
+    const display = document.getElementById(id + 'FileName');
+    if (input && display) {
+      input.addEventListener('change', function() {
+        display.textContent = this.files[0] ? this.files[0].name : '';
+      });
+    }
+  });
+
+  // Photo preview
+  photoPreview.addEventListener('click', () => photoInput.click());
+  photoInput.addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+      const reader = new FileReader();
+      reader.onload = e => photoPreview.src = e.target.result;
+      reader.readAsDataURL(this.files[0]);
+    }
+  });
+
+  // Drag and drop functionality
+  function setupDragDrop(uploadArea, inputId) {
+    const input = document.getElementById(inputId);
+    const fileName = document.getElementById(inputId + 'FileName');
+    
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      
+      if (e.dataTransfer.files.length) {
+        input.files = e.dataTransfer.files;
+        fileName.textContent = e.dataTransfer.files[0].name;
+      }
+    });
+    
+    uploadArea.addEventListener('click', () => {
+      input.click();
+    });
+  }
+
+  // Initialize drag and drop for all upload areas
+  setupDragDrop(panUploadArea, 'panDocument');
+  setupDragDrop(aadharUploadArea, 'aadharDocument');
+  setupDragDrop(rcUploadArea, 'rcDocument');
+
+  // === INITIAL DATA SETUP ===
+  function initRows() {
+    allRows = Array.from(tbody.querySelectorAll('tr.clickable-row'));
+    filteredRows = [...allRows];
+    renderPage();
+  }
+
+  // === SEARCH ===
+  searchInput.addEventListener('input', function () {
+    const term = this.value.toLowerCase();
+    filteredRows = allRows.filter(row => 
+      row.textContent.toLowerCase().includes(term)
+    );
+    currentPage = 1;
+    renderPage();
+  });
+
+  // === SIDEBAR OPEN / CLOSE ===
+  function openSidebar(row) {
+    const data = JSON.parse(row.dataset.driver);
+    currentDriverId = data.id;
+
+    document.getElementById('profileImg').src = data.img;
+    document.getElementById('profileName').textContent = data.name;
+    document.getElementById('profilePhone').textContent = data.phone;
+    document.getElementById('profileOwner').textContent = 'Owner: ' + data.owner;
+    document.getElementById('profileJoinDate').textContent = data.joinDate;
+    
+
+    const statusEl = document.getElementById('profileStatus');
+    statusEl.textContent = data.status;
+    statusEl.className = 'role-badge ' + (data.status === 'Active' ? 'role-admin' : 'role-traffic');
+
+    document.getElementById('profilePan').textContent = data.hasPan ? 'Uploaded ✓' : 'Not Uploaded';
+    document.getElementById('profilePan').className = 'status-badge ' + (data.hasPan ? 'status-active' : 'status-inactive');
+    
+    document.getElementById('profileAadhar').textContent = data.hasAadhar ? 'Uploaded ✓' : 'Not Uploaded';
+    document.getElementById('profileAadhar').className = 'status-badge ' + (data.hasAadhar ? 'status-active' : 'status-inactive');
+    
+    document.getElementById('profileRC').textContent = data.hasRC ? 'Uploaded ✓' : 'Not Uploaded';
+    document.getElementById('profileRC').className = 'status-badge ' + (data.hasRC ? 'status-active' : 'status-inactive');
+
+    document.getElementById('toggleStatusBtn').textContent =
+      data.status === 'Active' ? 'Deactivate Driver' : 'Activate Driver';
+
+    sidebar.style.transform = 'translateX(0)';
+    overlay.classList.add('show');
+    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+    row.style.backgroundColor = '#f0f9ff';
+  }
+
+  function closeSidebar() {
+    sidebar.style.transform = 'translateX(100%)';
+    overlay.classList.remove('show');
+    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+    currentDriverId = null;
+  }
+
+  table.addEventListener('click', e => {
+    if (e.target.closest('.action-col')) return;
+    const row = e.target.closest('.clickable-row');
+    if (row) openSidebar(row);
+  });
+
+  closeBtn.addEventListener('click', closeSidebar);
+  overlay.addEventListener('click', closeSidebar);
+
+  // === TOGGLE STATUS ===
+  document.getElementById('toggleStatusBtn').addEventListener('click', function () {
+    if (!currentDriverId) return;
+    if (!confirm('Are you sure you want to change the status of this driver?')) return;
+
+    fetch(`/drivers/${currentDriverId}/toggle-status/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.message, 'success');
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showToast(data.error || 'Failed to update status', 'error');
+      }
+    })
+    .catch(() => showToast('Network error', 'error'));
+  });
+
+  // === ACTION BUTTONS ===
+  function attachActionListeners(row) {
+    row.querySelector('.action-view')?.addEventListener('click', e => {
+      e.stopPropagation();
+      openSidebar(row);
+    });
+
+    row.querySelector('.action-edit')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const name = row.querySelector('td:nth-child(1)').textContent.trim();
+      showToast(`Edit functionality for ${name} – coming soon!`, 'info');
+    });
+
+    row.querySelector('.action-delete')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const driverId = row.dataset.driverId;
+      const name = row.querySelector('td:nth-child(1)').textContent.trim();
+
+      if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+
+      fetch(`/drivers/${driverId}/delete/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showToast(data.message, 'success');
+          row.remove();
+          allRows = allRows.filter(r => r !== row);
+          filteredRows = filteredRows.filter(r => r !== row);
+          renderPage();
+          closeSidebar();
+          if (filteredRows.length === 0) showNoDataRow();
+        } else {
+          showToast(data.error || 'Failed to delete', 'error');
+        }
+      })
+      .catch(() => showToast('Network error', 'error'));
+    });
+  }
+
+  document.querySelectorAll('#driverTable tbody tr.clickable-row').forEach(attachActionListeners);
+
+  // === ADD DRIVER MODAL ===
+  const showModal = () => addModal.style.display = 'flex';
+  const hideModal = () => {
+    addModal.style.display = 'none';
+    addForm.reset();
+    photoPreview.src = '{% static "images/camera-icon.png" %}';
+    document.querySelectorAll('.file-name').forEach(el => el.textContent = '');
+  };
+
+  openAddModalBtn.addEventListener('click', showModal);
+  closeAddModalBtn.addEventListener('click', hideModal);
+  cancelAddModalBtn.addEventListener('click', hideModal);
+  addModal.addEventListener('click', e => { if (e.target === addModal) hideModal(); });
+
+  // === ADD DRIVER SUBMIT ===
+  addForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const formData = new FormData(addForm);
+
+    fetch('{% url "add_driver" %}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrftoken },
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.message, 'success');
+
+        const noDataRow = tbody.querySelector('tr td[colspan]');
+        if (noDataRow) noDataRow.closest('tr').remove();
+
+        const tr = document.createElement('tr');
+        tr.className = 'clickable-row';
+        tr.dataset.driverId = data.driver.id;
+        tr.dataset.driver = JSON.stringify(data.driver);
+
+        tr.innerHTML = `
+          <td><img src="${data.driver.img}" class="employee-avatar" alt="${data.driver.name}">${data.driver.name}</td>
+          <td>${data.driver.phone}</td>
+          <td>${data.driver.owner}</td>
+          <td><span class="role-badge ${data.driver.status==='Active'?'role-admin':'role-traffic'}">${data.driver.status}</span></td>
+          <td class="action-col">
+            <div class="action-buttons">
+              <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+              <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+              <button class="action-delete" data-driver-id="${data.driver.id}" title="Delete"><i class="fas fa-trash"></i></button>
+            </div>
+          </td>
+        `;
+
+        tbody.prepend(tr);
+        allRows.unshift(tr);
+        filteredRows.unshift(tr);
+        attachActionListeners(tr);
+        currentPage = 1;
+        renderPage();
+        hideModal();
+      } else {
+        showToast(data.error || 'Failed to add driver', 'error');
+      }
+    })
+    .catch(() => showToast('Network error', 'error'));
+  });
+
+  // === PAGINATION ===
+  function showNoDataRow() {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center;padding:40px;color:#6b7280;">
+          No drivers found. Click "Add Driver" to get started.
+        </td>
+      </tr>`;
+  }
+
+  function renderPage() {
+    const start = (currentPage - 1) * perPage;
+    const end   = start + perPage;
+
+    allRows.forEach(r => r.style.display = 'none');
+    filteredRows.slice(start, end).forEach(r => r.style.display = '');
+
+    const visibleEnd = Math.min(end, filteredRows.length);
+    showingStart.textContent = filteredRows.length ? start + 1 : 0;
+    showingEnd.textContent   = visibleEnd;
+    totalEntries.textContent = filteredRows.length;
+
+    renderPaginationButtons();
+  }
+
+  function renderPaginationButtons() {
+    const totalPages = Math.ceil(filteredRows.length / perPage);
+    currentPageInfo.textContent = `Page ${currentPage}`;
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+  }
+
+  entriesSelect.addEventListener('change', function () {
+    perPage = parseInt(this.value, 10);
+    currentPage = 1;
+    renderPage();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderPage();
+    }
+  });
+
+  nextBtn.addEventListener('click', () => {
+    const totalPages = Math.ceil(filteredRows.length / perPage);
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderPage();
+    }
+  });
+
+  initRows();
+});
+</script>
+
+</body>
+</html>
+
+{% endblock %}

@@ -1,0 +1,699 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Load Management{% endblock %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Load Management</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'css/load_management.css' %}">
+
+  <!-- Toastify CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <h2>Load Management</h2>
+    <div class="search-add-container">
+      <input type="text" id="searchInput" placeholder="Search loads..." class="search-input">
+      <button class="add-button" id="openAddModal">+ Add Load</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <table id="loadTable">
+      <thead>
+        <tr>
+          <th>Load ID</th>
+          <th>Customer</th>
+          <th>Route</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if loads %}
+          {% for load in loads %}
+          <tr class="clickable-row" data-load-id="{{ load.id }}"
+              data-load='{
+                "load_id": "{{ load.load_id }}",
+                "pickup": "{{ load.pickup_location }}",
+                "drop": "{{ load.drop_location }}",
+                "vehicle_type": "{{ load.vehicle_type.name }}",
+                "date": "{{ load.pickup_date|date:"M d, Y" }}",
+                "material": "{{ load.material|default:"-" }}",
+                "weight": "{{ load.weight }}",
+                "driver_name": "{{ load.driver.name|default:"-" }}",
+                "driver_phone": "{{ load.driver.phone|default:"-" }}",
+                "status_display": "{{ load.get_status_display }}"
+              }'>
+            <td>{{ load.load_id }}</td>
+            <td>{{ load.customer.customer_name }}</td>
+            <td>{{ load.pickup_location }} to {{ load.drop_location }}</td>
+            <td>{{ load.pickup_date|date:"M d, Y" }}</td>
+            <td><span class="status-badge status-{{ load.status }}">{{ load.get_status_display }}</span></td>
+            <td class="action-col">
+              <div class="action-buttons">
+                <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+                <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+                <button class="action-delete" data-load-id="{{ load.id }}" title="Delete"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="6" style="text-align:center;padding:60px;color:#6b7280;font-size:15px;">
+            No loads found. Click "+ Add Load" to get started.
+          </td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <!-- Pagination -->
+    <div class="pagination-container">
+      <div class="entries-per-page">
+        <span>Show</span>
+        <select id="entriesPerPage">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+        <span>entries</span>
+      </div>
+      <div class="pagination-info">
+        Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalEntries">0</span> entries
+      </div>
+      <div class="pagination-controls">
+        <button id="prevPage" disabled>Previous</button>
+        <span id="currentPageInfo">Page 1</span>
+        <button id="nextPage">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD LOAD MODAL -->
+  <div id="addModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Load</h3>
+        <button class="modal-close" id="closeAddModal">×</button>
+      </div>
+      
+      <p class="modal-subtitle">Fill the details below to add a new load.</p>
+
+      <form id="addLoadForm" class="modal-form">
+        {% csrf_token %}
+        <h4 class="section-title">Customer Details</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Customer Name <span class="required">*</span></label>
+            <select name="customer" id="customerSelect" required>
+              <option value="" disabled selected>Select customer</option>
+              {% for customer in customers %}
+              <option value="{{ customer.id }}" 
+                      data-contact-person="{{ customer.contact_person_name|default:'' }}"
+                      data-contact-phone="{{ customer.contact_person_phone|default:'' }}"
+                      data-phone="{{ customer.phone_number }}">
+                {{ customer.customer_name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Contact Person Name</label>
+            <input type="text" name="contactPersonName" id="contactPersonName" readonly style="background-color: #f9fafb;">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Contact Person Phone</label>
+            <input type="text" name="contactPersonPhone" id="contactPersonPhone" readonly style="background-color: #f9fafb;">
+          </div>
+        </div>
+        <h4 class="section-title">Vehicle Requirements</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Vehicle Type <span class="required">*</span></label>
+            <select name="vehicleType" required>
+              <option value="" disabled selected>Select vehicle type</option>
+              {% for vtype in vehicle_types %}
+              <option value="{{ vtype.id }}">{{ vtype.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Weight <span class="required">*</span></label>
+            <input type="text" name="weight" placeholder="e.g. 20 Ton, 15.5T" required>
+          </div>
+        </div>
+        <h4 class="section-title">Route & Schedule</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Pickup Location <span class="required">*</span></label>
+            <input type="text" name="pickupLocation" required>
+          </div>
+          <div class="form-group">
+            <label>Drop Location <span class="required">*</span></label>
+            <input type="text" name="dropLocation" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Pickup Date <span class="required">*</span></label>
+            <input type="date" name="pickupDate" required>
+          </div>
+          <div class="form-group">
+            <label>Arrival Date</label>
+            <input type="date" name="dropDate">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Time <span class="required">*</span></label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="timeInput" placeholder="02:30" maxlength="5" style="width:100px;" required>
+              <select id="ampmSelect">
+                <option value="AM">AM</option>
+                <option value="PM" selected>PM</option>
+              </select>
+              <input type="hidden" name="time" id="hiddenTimeInput">
+            </div>
+          </div>
+        </div>
+        <h4 class="section-title">Pricing & Others</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Price Per Unit (₹) <span class="required">*</span></label>
+            <input type="text" name="pricePerUnit" placeholder="e.g. 850" required>
+          </div>
+          <div class="form-group">
+            <label>Material</label>
+            <input type="text" name="material" placeholder="Sand, Cement, etc.">
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea name="notes" rows="3" placeholder="Any additional info..."></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="save-btn">Save Load</button>
+          <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div id="profileSidebar">
+    <button class="close-btn" id="closeSidebar">×</button>
+
+    <!-- Header -->
+    <div style="padding:24px 20px 0;">
+      <h3 id="sidebarLoadId" style="margin:0 0 8px;font-size:20px;font-weight:600;color:#111827;"></h3>
+      <p id="sidebarStatus" style="margin:0;color:#6b7280;font-size:14px;"></p>
+    </div>
+
+    <!-- Route Bar -->
+    <div style="padding:16px 20px;">
+      <div style="background:#f9fafb;border-radius:8px;padding:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div id="sidebarPickup" style="font-size:13px;color:#374151;font-weight:500;"></div>
+            <i class="fas fa-arrow-right" style="color:#dc2626;font-size:14px;"></i>
+            <div id="sidebarDrop" style="font-size:13px;color:#374151;font-weight:500;"></div>
+          </div>
+          <i class="fas fa-truck" style="color:#dc2626;font-size:18px;"></i>
+        </div>
+        <div style="height:4px;background:#fee2e2;border-radius:2px;position:relative;overflow:hidden;">
+          <div id="progressBar" style="width:68%;height:100%;background:#dc2626;border-radius:2px;"></div>
+          <i class="fas fa-car-side" style="position:absolute;top:-8px;left:65%;color:#dc2626;font-size:20px;"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trip Requests -->
+    <div style="padding:0 20px;">
+      <h4 style="margin:20px 0 16px;font-size:15px;font-weight:600;color:#111827;">Trip requests by owner</h4>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f3f4f6;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#6b7280;">JM</div>
+          <div><div style="font-size:14px;font-weight:500;color:#111827;">John Michael</div><div style="font-size:12px;color:#6b7280;">+91 98765 4321</div></div>
+        </div>
+        <i class="fas fa-check-circle" style="color:#16a34a;font-size:20px;"></i>
+      </div>
+    </div>
+
+    <!-- Trip Information -->
+    <div style="padding:20px;background:#fafafa;margin:20px 0;">
+      <h4 style="margin:0 0 16px;font-size:15px;font-weight:600;color:#111827;">Trip Information</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:14px;">
+        <div><div style="color:#6b7280;margin-bottom:4px;">Vehicle Type</div><div id="sidebarVehicleType" style="font-weight:500;color:#111827;"></div></div>
+        <div><div style="color:#6b7280;margin-bottom:4px;">Date</div><div id="sidebarDate" style="font-weight:500;color:#111827;"></div></div>
+        <div><div style="color:#6b7280;margin-bottom:4px;">Material</div><div id="sidebarMaterial" style="font-weight:500;color:#111827;"></div></div>
+        <div><div style="color:#6b7280;margin-bottom:4px;">Weight</div><div id="sidebarWeight" style="font-weight:500;color:#111827;"></div></div>
+      </div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px dashed #e5e7eb;">
+        <div style="font-size:14px;color:#6b7280;margin-bottom:8px;">Driver Details</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="driverAvatar" style="width:36px;height:36px;border-radius:50%;background:#dc2626;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;"></div>
+          <div>
+            <div id="sidebarDriverName" style="font-weight:500;color:#111827;"></div>
+            <div id="sidebarDriverPhone" style="font-size:13px;color:#dc2626;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-container">
+      <h4 class="chat-header">Chat</h4>
+      <div class="chat-messages">
+        <div class="chat-message admin">
+          <div class="chat-label">Admin</div>
+          <div class="chat-bubble admin">Driver confirmed departure from Mumbai warehouse.</div>
+          <div class="chat-time">Dec 21, 10:30 AM</div>
+        </div>
+        <div class="chat-message owner">
+          <div class="chat-label">Owner</div>
+          <div class="chat-bubble owner">Taking rest at Jaipur. Will resume journey by 6 PM.</div>
+          <div class="chat-time">Dec 22, 2:15 PM</div>
+        </div>
+      </div>
+      <div class="chat-input-container">
+        <input type="text" class="chat-input" placeholder="Type a comment">
+        <button class="chat-send-btn"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </div>
+
+    <!-- Close Trip Button -->
+    <div style="padding:20px;border-top:1px solid #f3f4f6;background:#fff;position:sticky;bottom:0;">
+      <button style="width:100%;background:#16a34a;color:#fff;border:none;padding:14px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(22,163,74,.3);font-family:'Inter',sans-serif;">
+        Close Trip
+      </button>
+    </div>
+  </div>
+  <div id="sidebarOverlay"></div>
+</div>
+
+<!-- Toastify JS -->
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  console.log('🚀 Load Management System Loaded');
+
+  // === TOAST HELPER ===
+  function showToast(text, type = 'info') {
+    const colors = {
+      success: '#16a34a',
+      error: '#dc2626',
+      info: '#2563eb',
+      warning: '#d97706'
+    };
+    Toastify({
+      text: text,
+      duration: 3500,
+      close: true,
+      gravity: "top",
+      position: "right",
+      backgroundColor: colors[type],
+      stopOnFocus: true,
+    }).showToast();
+  }
+
+  // === CSRF TOKEN ===
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
+  console.log('🔒 CSRF Token:', csrftoken ? 'Found' : 'NOT FOUND');
+
+  // === ELEMENTS ===
+  const table = document.getElementById('loadTable');
+  const tbody = table.querySelector('tbody');
+  const openAddModalBtn = document.getElementById('openAddModal');
+  const addModal = document.getElementById('addModal');
+  const closeAddModalBtn = document.getElementById('closeAddModal');
+  const cancelAddModalBtn = document.getElementById('cancelAddModal');
+  const addForm = document.getElementById('addLoadForm');
+  const customerSelect = document.getElementById('customerSelect');
+  const contactPersonName = document.getElementById('contactPersonName');
+  const contactPersonPhone = document.getElementById('contactPersonPhone');
+  const sidebar = document.getElementById('profileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const closeBtn = document.getElementById('closeSidebar');
+  const timeInput = document.getElementById('timeInput');
+  const ampmSelect = document.getElementById('ampmSelect');
+  const hiddenTimeInput = document.getElementById('hiddenTimeInput');
+  const searchInput = document.getElementById('searchInput');
+  const entriesSelect = document.getElementById('entriesPerPage');
+  const showingStart = document.getElementById('showingStart');
+  const showingEnd = document.getElementById('showingEnd');
+  const totalEntries = document.getElementById('totalEntries');
+  const prevBtn = document.getElementById('prevPage');
+  const nextBtn = document.getElementById('nextPage');
+  const currentPageInfo = document.getElementById('currentPageInfo');
+
+  let currentPage = 1;
+  let perPage = parseInt(entriesSelect.value, 10);
+  let allRows = [];
+  let filteredRows = [];
+
+  // === INITIAL DATA SETUP ===
+  function initRows() {
+    allRows = Array.from(tbody.querySelectorAll('tr.clickable-row'));
+    filteredRows = [...allRows];
+    renderPage();
+  }
+
+  // === SEARCH ===
+  searchInput.addEventListener('input', function () {
+    const term = this.value.toLowerCase();
+    filteredRows = allRows.filter(row => 
+      row.textContent.toLowerCase().includes(term)
+    );
+    currentPage = 1;
+    renderPage();
+  });
+
+  // === CUSTOMER AUTOFILL ===
+  customerSelect.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    
+    if (selectedOption.value) {
+      const contactPerson = selectedOption.getAttribute('data-contact-person');
+      const contactPhone = selectedOption.getAttribute('data-contact-phone');
+      
+      contactPersonName.value = contactPerson || '';
+      contactPersonPhone.value = contactPhone || '';
+    } else {
+      contactPersonName.value = '';
+      contactPersonPhone.value = '';
+    }
+  });
+
+  // === TIME INPUT HANDLING ===
+  timeInput.addEventListener('input', function(e) {
+    let value = e.target.value.replace(/[^\d]/g, '');
+    
+    if (value.length >= 2) {
+      value = value.substring(0, 2) + ':' + value.substring(2, 4);
+    }
+    
+    e.target.value = value.substring(0, 5);
+    updateHiddenTime();
+  });
+
+  ampmSelect.addEventListener('change', updateHiddenTime);
+
+  function updateHiddenTime() {
+    const timeValue = timeInput.value;
+    const ampmValue = ampmSelect.value;
+    if (timeValue) {
+      hiddenTimeInput.value = timeValue + ' ' + ampmValue;
+    }
+  }
+
+  // === MODAL FUNCTIONS ===
+  function showModal() {
+    addModal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    contactPersonName.value = '';
+    contactPersonPhone.value = '';
+  }
+
+  function hideModal() {
+    addModal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+    addForm.reset();
+  }
+
+  openAddModalBtn.addEventListener('click', showModal);
+  closeAddModalBtn.addEventListener('click', hideModal);
+  cancelAddModalBtn.addEventListener('click', hideModal);
+  
+  addModal.addEventListener('click', function(e) {
+    if (e.target === addModal) {
+      hideModal();
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && addModal.style.display === 'flex') {
+      hideModal();
+    }
+  });
+
+  // === FORM SUBMISSION ===
+  addForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    console.log('📤 Form submission started');
+    
+    const formData = new FormData(addForm);
+    
+    const saveBtn = addForm.querySelector('.save-btn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = 'Saving...';
+    saveBtn.disabled = true;
+
+    fetch('{% url "add_load" %}', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    })
+    .then(response => {
+      console.log('📥 Response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('📥 Response data:', data);
+      
+      if (data.success) {
+        showToast(data.message, 'success');
+        hideModal();
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        
+      } else {
+        showToast(data.error || 'Failed to create load', 'error');
+        console.error('❌ Server returned error:', data.error);
+      }
+    })
+    .catch(error => {
+      console.error('❌ Fetch error:', error);
+      showToast('Network error: ' + error.message, 'error');
+    })
+    .finally(() => {
+      saveBtn.textContent = originalText;
+      saveBtn.disabled = false;
+    });
+  });
+
+  // === SIDEBAR FUNCTIONS ===
+  function openSidebar(row) {
+    const data = JSON.parse(row.dataset.load);
+
+    document.getElementById('sidebarLoadId').textContent = data.load_id;
+    document.getElementById('sidebarStatus').textContent = data.status_display;
+    document.getElementById('sidebarPickup').textContent = data.pickup;
+    document.getElementById('sidebarDrop').textContent = data.drop;
+    document.getElementById('sidebarVehicleType').textContent = data.vehicle_type;
+    document.getElementById('sidebarDate').textContent = data.date;
+    document.getElementById('sidebarMaterial').textContent = data.material;
+    document.getElementById('sidebarWeight').textContent = data.weight;
+
+    const driverName = data.driver_name;
+    const driverPhone = data.driver_phone;
+    document.getElementById('sidebarDriverName').textContent = driverName;
+    document.getElementById('sidebarDriverPhone').textContent = driverPhone;
+    
+    if (driverName && driverName !== '-') {
+      const initials = driverName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+      document.getElementById('driverAvatar').textContent = initials;
+    } else {
+      document.getElementById('driverAvatar').textContent = '--';
+    }
+
+    sidebar.classList.add('open');
+    overlay.classList.add('show');
+    
+    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+    row.style.backgroundColor = '#f0f9ff';
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('show');
+    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+  }
+
+  table.addEventListener('click', function(e) {
+    if (e.target.closest('.action-col')) return;
+    const row = e.target.closest('.clickable-row');
+    if (row) openSidebar(row);
+  });
+
+  closeBtn.addEventListener('click', closeSidebar);
+  overlay.addEventListener('click', closeSidebar);
+
+  // === ACTION BUTTONS ===
+  function attachActionListeners(row) {
+    row.querySelector('.action-view')?.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openSidebar(row);
+    });
+
+    row.querySelector('.action-edit')?.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const loadId = row.querySelector('td:first-child').textContent;
+      showToast(`Edit functionality for ${loadId} – coming soon!`, 'info');
+    });
+
+    row.querySelector('.action-delete')?.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const loadId = this.getAttribute('data-load-id');
+      const loadIdText = row.querySelector('td:first-child').textContent;
+
+      if (!confirm(`Are you sure you want to delete load ${loadIdText}?`)) return;
+
+      const originalHtml = this.innerHTML;
+      this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      this.disabled = true;
+
+      fetch(`/loads/${loadId}/delete/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showToast(data.message, 'success');
+          row.remove();
+          allRows = allRows.filter(r => r !== row);
+          filteredRows = filteredRows.filter(r => r !== row);
+          renderPage();
+          closeSidebar();
+          
+          if (filteredRows.length === 0) {
+            showNoDataRow();
+          }
+        } else {
+          showToast(data.error || 'Failed to delete load', 'error');
+          this.innerHTML = originalHtml;
+          this.disabled = false;
+        }
+      })
+      .catch(error => {
+        console.error('Delete error:', error);
+        showToast('Network error. Please try again.', 'error');
+        this.innerHTML = originalHtml;
+        this.disabled = false;
+      });
+    });
+  }
+
+  document.querySelectorAll('#loadTable tbody tr.clickable-row').forEach(attachActionListeners);
+
+  // === PAGINATION SYSTEM ===
+  function showNoDataRow() {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;padding:60px;color:#6b7280;font-size:15px;">
+          No loads found. Click "+ Add Load" to get started.
+        </td>
+      </tr>`;
+  }
+
+  function renderPage() {
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+
+    allRows.forEach(r => r.style.display = 'none');
+    filteredRows.slice(start, end).forEach(r => r.style.display = '');
+
+    const visibleEnd = Math.min(end, filteredRows.length);
+    showingStart.textContent = filteredRows.length ? start + 1 : 0;
+    showingEnd.textContent = visibleEnd;
+    totalEntries.textContent = filteredRows.length;
+
+    renderPaginationButtons();
+  }
+
+  function renderPaginationButtons() {
+    const totalPages = Math.ceil(filteredRows.length / perPage);
+    currentPageInfo.textContent = `Page ${currentPage}`;
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+  }
+
+  entriesSelect.addEventListener('change', function () {
+    perPage = parseInt(this.value, 10);
+    currentPage = 1;
+    renderPage();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderPage();
+    }
+  });
+
+  nextBtn.addEventListener('click', () => {
+    const totalPages = Math.ceil(filteredRows.length / perPage);
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderPage();
+    }
+  });
+
+  // === INITIALIZE ===
+  initRows();
+  console.log('✅ Initialization complete');
+});
+</script>
+
+</body>
+</html>
+{% endblock %}
