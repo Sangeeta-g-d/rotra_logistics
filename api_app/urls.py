@@ -26,6 +26,7 @@ urlpatterns = [
     path("load/<int:id>/trip_status/", VendorTripDetailsView.as_view(), name="vendor-load-details"),
     path("load/<int:id>/upload_lr/", VendorLRUploadView.as_view(), name="vendor-upload-lr"),
     path("load/<int:id>/upload_pod/", VendorPODUploadView.as_view(), name="vendor-upload-pod"),
+    path("change_password/", VendorProfileUpdateView.as_view(), name="vendor-change-password"),
 
 
     

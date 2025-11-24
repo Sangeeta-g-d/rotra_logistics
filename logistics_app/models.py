@@ -259,6 +259,8 @@ class Vehicle(models.Model):
     insurance_doc = models.FileField(upload_to='vehicles/insurance/', null=True, blank=True)
     rc_doc = models.FileField(upload_to='vehicles/rc/', null=True, blank=True)
 
+    location = models.CharField(max_length=255, null=True, blank=True)
+
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
 

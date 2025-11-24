@@ -57,6 +57,13 @@ urlpatterns = [
     path('api/trip/<int:trip_id>/upload-lr/', views.upload_lr_document_api, name='upload_lr_document'),
     path('api/trip/<int:trip_id>/view-lr/', views.view_lr_document_api, name='view_lr_document'),
     path('api/trip/<int:trip_id>/upload-pod/', views.upload_pod_document_api, name='upload_pod_document_api'),
+
+
+path('payments/', views.payment_management, name='payment_management'),
+path('api/payment/<int:trip_id>/details/', views.get_payment_details_api, name='get_payment_details_api'),
+path('api/payment/<int:trip_id>/mark-first-half-paid/', views.mark_first_half_paid_api, name='mark_first_half_paid'),
+path('api/payment/<int:trip_id>/mark-final-payment-paid/', views.mark_final_payment_paid_api, name='mark_final_payment_paid'),
+
     
     
     

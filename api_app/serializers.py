@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate
 import uuid
 from logistics_app.models import VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import password_validation
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -165,6 +166,8 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "created_by_name",
             "created_by_phone",
             "vehicle_type_name",
+            "pickup_location",
+            "drop_location",
             "weight",
             "price_per_unit",
             "trip_status",
@@ -209,6 +212,7 @@ class VehicleSerializer(serializers.ModelSerializer):
             "load_capacity",
             "insurance_doc",
             "rc_doc",
+            "location",
             "status",
             "created_at",
             "owner_name",
@@ -350,4 +354,42 @@ class PODUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Load
         fields = ["pod_document"]
+
+
+class VendorProfileUpdateSerializer(serializers.Serializer):
+    full_name = serializers.CharField(required=False)
+    profile_image = serializers.ImageField(required=False)
+
+    old_password = serializers.CharField(required=False)
+    new_password = serializers.CharField(required=False)
+
+    def validate(self, data):
+        user = self.context["request"].user
+
+        # If password is being changed
+        if data.get("new_password"):
+            if not data.get("old_password"):
+                raise serializers.ValidationError({"old_password": "Old password required"})
+            if not user.check_password(data["old_password"]):
+                raise serializers.ValidationError({"old_password": "Incorrect old password"})
+
+        return data
+
+    def save(self):
+        user = self.context["request"].user
+
+        # Update name
+        if self.validated_data.get("full_name"):
+            user.full_name = self.validated_data["full_name"]
+
+        # Update profile image
+        if self.validated_data.get("profile_image"):
+            user.profile_image = self.validated_data["profile_image"]
+
+        # Update password (NO validation)
+        if self.validated_data.get("new_password"):
+            user.set_password(self.validated_data["new_password"])
+
+        user.save()
+        return user
 

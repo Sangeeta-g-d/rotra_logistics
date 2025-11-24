@@ -1723,6 +1723,20 @@ def upload_lr_document_api(request, trip_id):
     try:
         load = Load.objects.get(id=trip_id, created_by=request.user)
         
+        # Check if LR is already uploaded
+        if load.lr_document:
+            return JsonResponse({
+                'success': False, 
+                'error': 'LR document already uploaded'
+            }, status=400)
+        
+        # Only allow upload if status is 'loaded'
+        if load.trip_status != 'loaded':
+            return JsonResponse({
+                'success': False, 
+                'error': 'LR can only be uploaded when trip status is "Loaded"'
+            }, status=400)
+        
         if 'lr_document' not in request.FILES:
             return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
         
@@ -1802,21 +1816,23 @@ def update_trip_status_api(request, trip_id):
         
         next_status = status_flow[current_index + 1]
         
-        # For LR uploaded status, we handle it separately via file upload
+        # For LR uploaded status, check if document exists
         if next_status == 'lr_uploaded':
-            return JsonResponse({
-                'success': False, 
-                'error': 'Please upload LR document first',
-                'requires_lr_upload': True
-            }, status=400)
+            if not load.lr_document:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Please upload LR document first',
+                    'requires_lr_upload': True
+                }, status=400)
         
-        # For POD uploaded status, we handle it separately via file upload
+        # For POD uploaded status, check if document exists
         if next_status == 'pod_uploaded':
-            return JsonResponse({
-                'success': False, 
-                'error': 'Please upload POD document first',
-                'requires_pod_upload': True
-            }, status=400)
+            if not load.pod_document:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Please upload POD document first',
+                    'requires_pod_upload': True
+                }, status=400)
         
         # Special case: When moving to first_half_payment, also complete in_transit
         if next_status == 'first_half_payment':
@@ -1827,7 +1843,8 @@ def update_trip_status_api(request, trip_id):
             if not load.in_transit_at:
                 load.in_transit_at = timezone.now()
             
-            # The trip_status remains as first_half_payment, but in_transit is also completed
+            # Set trip_status to show both are completed, but we move to unloading as current
+            load.trip_status = 'first_half_payment'
         
         # Special case: When moving to in_transit, also complete first_half_payment
         elif next_status == 'in_transit':
@@ -1837,6 +1854,8 @@ def update_trip_status_api(request, trip_id):
             # Also mark first_half_payment as completed if not already
             if not load.first_half_payment_at:
                 load.first_half_payment_at = timezone.now()
+            
+            load.trip_status = 'in_transit'
         
         # For other status updates
         else:
@@ -1874,6 +1893,8 @@ def update_trip_status_api(request, trip_id):
         return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
     except Exception as e:
         print(f"Error updating trip status: {e}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
 
 @login_required
@@ -2080,6 +2101,20 @@ def upload_pod_document_api(request, trip_id):
     try:
         load = Load.objects.get(id=trip_id, created_by=request.user)
         
+        # Check if POD is already uploaded
+        if load.pod_document:
+            return JsonResponse({
+                'success': False, 
+                'error': 'POD document already uploaded'
+            }, status=400)
+        
+        # Only allow upload if status is 'unloading'
+        if load.trip_status != 'unloading':
+            return JsonResponse({
+                'success': False, 
+                'error': 'POD can only be uploaded when trip status is "Unloading"'
+            }, status=400)
+        
         if 'pod_document' not in request.FILES:
             return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
         
@@ -2115,5 +2150,159 @@ def upload_pod_document_api(request, trip_id):
         print(f"Error uploading POD document: {e}")
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
 
+
+@login_required
+def payment_management(request):
+    """Display payment management page with all trips and their payment status"""
+    if not request.user.is_staff:
+        return redirect('admin_login')
+
+    # Show all trips that are not pending (assigned onwards)
+    trips = Load.objects.filter(
+        created_by=request.user,
+    ).exclude(
+        status='pending'
+    ).select_related(
+        'driver', 'vehicle', 'vehicle_type', 'customer'
+    ).order_by('-updated_at')
+
+    return render(request, 'payment_management.html', {'trips': trips})
+
+
+@login_required
+@require_http_methods(["GET"])
+def get_payment_details_api(request, trip_id):
+    """API endpoint to get detailed payment information for a trip"""
+    try:
+        load = Load.objects.select_related(
+            'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by', 'driver__owner'
+        ).get(id=trip_id, created_by=request.user)
+        
+        # Determine payment status
+        first_half_paid = load.trip_status not in ['pending', 'loaded', 'lr_uploaded']
+        final_payment_paid = load.trip_status == 'payment_completed'
+
+        # Get payment dates
+        first_half_date = None
+        final_payment_date = None
+        
+        if hasattr(load, 'first_half_payment_at') and load.first_half_payment_at:
+            first_half_date = load.first_half_payment_at.strftime('%b %d, %Y %I:%M %p')
+        
+        if hasattr(load, 'payment_completed_at') and load.payment_completed_at:
+            final_payment_date = load.payment_completed_at.strftime('%b %d, %Y %I:%M %p')
+
+        data = {
+            'id': load.id,
+            'load_id': load.load_id,
+            'trip_status': load.trip_status,
+            'trip_status_display': load.get_trip_status_display(),
+
+            'pickup_location': load.pickup_location,
+            'drop_location': load.drop_location,
+            'pickup_date': load.pickup_date.strftime('%b %d, %Y'),
+            'drop_date': load.drop_date.strftime('%b %d, %Y') if load.drop_date else 'TBD',
+
+            'vehicle_no': load.vehicle.reg_no if load.vehicle else 'Not Assigned',
+            'vehicle_type': load.vehicle_type.name,
+            'driver_name': load.driver.full_name if load.driver else 'Not Assigned',
+            'driver_phone': load.driver.phone_number if load.driver else 'N/A',
+
+            'customer_name': load.customer.customer_name,
+            'customer_phone': load.customer.phone_number,
+
+            'vendor_name': load.driver.owner.full_name if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'Not Assigned',
+            'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
+
+            # Payment details
+            'first_half_payment': float(load.first_half_payment),
+            'final_payment': float(load.final_payment),
+            'total_amount': float(load.first_half_payment + load.final_payment),
+            'first_half_paid': first_half_paid,
+            'final_payment_paid': final_payment_paid,
+            'first_half_date': first_half_date,
+            'final_payment_date': final_payment_date,
+
+            'notes': load.notes or 'No notes available',
+            'created_at': load.created_at.strftime('%b %d, %Y %I:%M %p'),
+            'last_updated': load.updated_at.strftime('%b %d, %Y %I:%M %p'),
+        }
+
+        return JsonResponse({'success': True, 'data': data})
+
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Payment record not found'}, status=404)
+    except Exception as e:
+        print(f"Error fetching payment details: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def mark_first_half_paid_api(request, trip_id):
+    """Mark first half payment as paid"""
+    try:
+        load = Load.objects.get(id=trip_id, created_by=request.user)
+        
+        # Check if already paid
+        if load.trip_status not in ['pending', 'loaded', 'lr_uploaded']:
+            return JsonResponse({
+                'success': False,
+                'error': 'First half payment is already marked as paid'
+            }, status=400)
+        
+        # Update status to first_half_payment
+        load.update_trip_status('first_half_payment', user=request.user)
+        
+        # Also mark in_transit if not already marked
+        if not hasattr(load, 'in_transit_at') or not load.in_transit_at:
+            load.in_transit_at = timezone.now()
+        
+        load.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'First half payment marked as paid',
+            'payment_date': load.first_half_payment_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'first_half_payment_at') and load.first_half_payment_at else None
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
+    except Exception as e:
+        print(f"Error marking first half payment: {e}")
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def mark_final_payment_paid_api(request, trip_id):
+    """Mark final payment as paid"""
+    try:
+        load = Load.objects.get(id=trip_id, created_by=request.user)
+        
+        # Check if POD is uploaded
+        if load.trip_status != 'pod_uploaded':
+            return JsonResponse({
+                'success': False,
+                'error': 'Final payment can only be marked after POD is uploaded'
+            }, status=400)
+        
+        # Update status to payment_completed
+        load.update_trip_status('payment_completed', user=request.user)
+        load.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Final payment marked as paid',
+            'payment_date': load.payment_completed_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'payment_completed_at') and load.payment_completed_at else None
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
+    except Exception as e:
+        print(f"Error marking final payment: {e}")
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
 
 

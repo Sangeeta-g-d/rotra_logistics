@@ -404,19 +404,11 @@
       padding: 12px;
       background: #f9fafb;
       border-radius: 8px;
-      scrollbar-width: none; /* Firefox */
+      scrollbar-width: none;
     }
     
     .chat-messages-container::-webkit-scrollbar {
       width: 0px;
-    }
-    
-    .chat-messages-container::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    
-    .chat-messages-container::-webkit-scrollbar-thumb {
-      background: transparent;
     }
     
     .chat-message {
@@ -489,7 +481,6 @@
     #profileSidebar::-webkit-scrollbar-track { background: transparent; }
     #profileSidebar::-webkit-scrollbar-thumb { background: transparent; }
     
-    /* Hide scrollbar for Firefox */
     #profileSidebar {
       scrollbar-width: none;
     }
@@ -548,7 +539,6 @@
       cursor: not-allowed;
     }
 
-    /* Modal styles for LR upload */
     .lr-modal, .pod-modal {
       display: none;
       position: fixed;
@@ -759,7 +749,6 @@
     </div>
   </div>
 
-  <!-- RIGHT SIDEBAR -->
   <aside id="profileSidebar">
     <div class="sidebar-header">
       <div>
@@ -843,19 +832,15 @@
     <div class="chat-section">
       <h3 class="chat-title">Chat</h3>
       
-      <!-- Chat Messages Display -->
       <div class="chat-messages-container" id="chatMessagesContainer">
         <div class="no-messages" id="noMessages">No messages yet</div>
-        <!-- Messages will be populated here -->
       </div>
       
-      <!-- Chat Input -->
       <div class="chat-input-wrapper">
         <input type="text" class="chat-input" id="commentInput" placeholder="Type a message...">
         <button class="send-rocket" id="sendComment"><i class="fas fa-paper-plane"></i></button>
       </div>
       
-      <!-- Action Buttons -->
       <div class="chat-buttons">
         <button class="btn-update" id="btnUpdateStatus">Update Status</button>
         <button class="btn-upload-lr" id="btnUploadLR" style="display: none;">Upload LR</button>
@@ -872,6 +857,7 @@
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
 let currentTripId = null;
+let sidebarEventListenersAttached = false;
 
 function getCookie(name) {
   let cookieValue = null;
@@ -904,11 +890,35 @@ function showToast(message, type = 'success') {
   }).showToast();
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+function attachSidebarEventListeners() {
+  if (sidebarEventListenersAttached) return;
+  
   const sidebar = document.getElementById('profileSidebar');
   const overlay = document.getElementById('sidebarOverlay');
   const closeBtn = document.getElementById('closeSidebar');
 
+  closeBtn.addEventListener('click', closeSidebar);
+  overlay.addEventListener('click', closeSidebar);
+
+  document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
+  document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
+  document.getElementById('btnUploadPOD').addEventListener('click', showPODUploadModal);
+  document.getElementById('btnAddComment').addEventListener('click', addComment);
+  document.getElementById('sendComment').addEventListener('click', addComment);
+  document.getElementById('btnCloseTrip').addEventListener('click', closeTrip);
+  
+  const commentInput = document.getElementById('commentInput');
+  commentInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      addComment();
+    }
+  });
+
+  sidebarEventListenersAttached = true;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
   const tbody = document.querySelector('#tripsTable tbody');
   let allRows = Array.from(document.querySelectorAll('.clickable-row'));
   let filteredRows = [...allRows];
@@ -945,8 +955,19 @@ document.addEventListener('DOMContentLoaded', function () {
     renderPage();
   });
 
-  prevBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderPage(); } });
-  nextBtn.addEventListener('click', () => { if (currentPage < Math.ceil(filteredRows.length / perPage)) { currentPage++; renderPage(); } });
+  prevBtn.addEventListener('click', () => { 
+    if (currentPage > 1) { 
+      currentPage--; 
+      renderPage(); 
+    } 
+  });
+  
+  nextBtn.addEventListener('click', () => { 
+    if (currentPage < Math.ceil(filteredRows.length / perPage)) { 
+      currentPage++; 
+      renderPage(); 
+    } 
+  });
 
   document.getElementById('searchInput').addEventListener('input', function() {
     const term = this.value.toLowerCase();
@@ -955,32 +976,27 @@ document.addEventListener('DOMContentLoaded', function () {
     renderPage();
   });
 
+  attachRowClickListeners();
+  attachSidebarEventListeners();
+  initializeLRModal();
+  initializePODModal();
+  renderPage();
+});
+
+function attachRowClickListeners() {
   document.querySelectorAll('.clickable-row').forEach(row => {
-    row.addEventListener('click', e => {
+    row.addEventListener('click', function(e) {
       if (!e.target.closest('.action-col')) {
-        const tripId = row.dataset.tripId;
+        const tripId = this.dataset.tripId;
         loadTripDetails(tripId);
       }
     });
   });
-
-  closeBtn.addEventListener('click', closeSidebar);
-  overlay.addEventListener('click', closeSidebar);
-
-  document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
-  document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
-  document.getElementById('btnUploadPOD').addEventListener('click', showPODUploadModal);
-  document.getElementById('btnAddComment').addEventListener('click', addComment);
-  document.getElementById('sendComment').addEventListener('click', addComment);
-  document.getElementById('btnCloseTrip').addEventListener('click', closeTrip);
-
-  initializeLRModal();
-  initializePODModal();
-
-  renderPage();
-});
+}
 
 function initializeLRModal() {
+  if (document.getElementById('lrModal')) return;
+  
   const modalHTML = `
   <div class="lr-modal" id="lrModal">
     <div class="lr-modal-content">
@@ -1045,6 +1061,8 @@ function initializeLRModal() {
 }
 
 function initializePODModal() {
+  if (document.getElementById('podModal')) return;
+  
   const modalHTML = `
   <div class="pod-modal" id="podModal">
     <div class="pod-modal-content">
@@ -1332,21 +1350,30 @@ function loadTripDetails(tripId) {
   if (selectedRow) selectedRow.classList.add('selected');
   
   fetch(`/api/trip/${tripId}/details/`, {
+    method: 'GET',
     headers: {
-      'X-CSRFToken': csrftoken
-    }
+      'X-CSRFToken': csrftoken,
+      'Content-Type': 'application/json'
+    },
+    credentials: 'same-origin'
   })
-  .then(response => response.json())
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  })
   .then(result => {
     if (result.success) {
       populateSidebar(result.data);
     } else {
-      showToast('Error loading trip details: ' + result.error, 'error');
+      showToast('Error loading trip details: ' + (result.error || 'Unknown error'), 'error');
       closeSidebar();
     }
   })
   .catch(error => {
     console.error('Error:', error);
+    showToast('Failed to load trip details', 'error');
     closeSidebar();
   });
 }
@@ -1405,14 +1432,14 @@ function populateSidebar(data) {
   renderChatMessages(data.comments || []);
   
   const uploadLRBtn = document.getElementById('btnUploadLR');
-  if (data.trip_status === 'loaded') {
+  if (data.trip_status === 'loaded' && !data.lr_document) {
     uploadLRBtn.style.display = 'inline-block';
   } else {
     uploadLRBtn.style.display = 'none';
   }
   
   const uploadPODBtn = document.getElementById('btnUploadPOD');
-  if (data.trip_status === 'unloading') {
+  if (data.trip_status === 'unloading' && !data.pod_document) {
     uploadPODBtn.style.display = 'inline-block';
   } else {
     uploadPODBtn.style.display = 'none';
@@ -1461,7 +1488,6 @@ function renderChatMessages(comments) {
     container.appendChild(messageDiv);
   });
   
-  // Scroll to bottom to show latest messages
   container.scrollTop = container.scrollHeight;
 }
 
@@ -1487,19 +1513,22 @@ function renderTimeline(data) {
     let isCurrent = index === currentStatusIndex;
     let isPending = index > currentStatusIndex;
     
-    // Special handling: first_half_payment and in_transit both complete together
     if (status === 'first_half_payment' || status === 'in_transit') {
-      if (currentStatusIndex >= 3 && currentStatusIndex <= 4) {
-        // Both are completed, next is unloading
+      if (currentStatusIndex > 4) {
         isCompleted = true;
         isCurrent = false;
         isPending = false;
-      } else if (currentStatusIndex > 4) {
-        // Past both
+      } else if (currentStatusIndex >= 3 && currentStatusIndex <= 4) {
         isCompleted = true;
         isCurrent = false;
         isPending = false;
       }
+    }
+    
+    if ((data.trip_status === 'first_half_payment' || data.trip_status === 'in_transit') && status === 'unloading') {
+      isCurrent = true;
+      isCompleted = false;
+      isPending = false;
     }
     
     const timelineItem = createTimelineItem(status, isCompleted, isCurrent, isPending, data);
@@ -1549,7 +1578,6 @@ function createTimelineItem(status, isCompleted, isCurrent, isPending, data) {
 }
 
 function getStatusInfo(status, data) {
-  // Helper function to format timestamp or show "Pending"
   const formatTimestamp = (timestampStr) => {
     if (!timestampStr) return 'Pending';
     try {
@@ -1632,8 +1660,12 @@ function getStatusInfo(status, data) {
 }
 
 function closeSidebar() {
-  document.getElementById('profileSidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('show');
+  const sidebar = document.getElementById('profileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  
+  sidebar.classList.remove('open');
+  overlay.classList.remove('show');
+  
   document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('selected'));
   currentTripId = null;
 }
@@ -1675,10 +1707,8 @@ function updateTripStatus() {
     } else {
       if (result.requires_lr_upload) {
         showToast('Please upload LR document before updating status', 'error');
-        document.getElementById('btnUploadLR').click();
       } else if (result.requires_pod_upload) {
         showToast('Please upload POD document before updating status', 'error');
-        document.getElementById('btnUploadPOD').click();
       } else {
         showToast('Error: ' + result.error, 'error');
       }
@@ -1717,8 +1747,6 @@ function addComment() {
     if (result.success) {
       showToast('Comment added successfully', 'success');
       commentInput.value = '';
-      
-      // Reload trip details to show new comment
       loadTripDetails(currentTripId);
     } else {
       showToast('Error: ' + result.error, 'error');
@@ -1772,23 +1800,6 @@ function updateTableRow(tripId, newStatus, newStatusDisplay) {
     }
   }
 }
-  attachRowClickListeners();
-
-  function attachRowClickListeners() {
-    document.querySelectorAll('.clickable-row').forEach(row => {
-      // Remove existing listener if any
-      row.replaceWith(row.cloneNode(true));
-    });
-    
-    document.querySelectorAll('.clickable-row').forEach(row => {
-      row.addEventListener('click', e => {
-        if (!e.target.closest('.action-col')) {
-          const tripId = row.dataset.tripId;
-          loadTripDetails(tripId);
-        }
-      });
-    });
-  }
 </script>
 
 </body>

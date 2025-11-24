@@ -1,304 +1,1840 @@
 {% extends "admin_base.html" %}
 {% load static %}
-{% block title %}Trip & Payment Management{% endblock %}
-
+{% block title %}Trip Management{% endblock %}
 {% block content %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <title>Trip & Payment Management</title>
+  <title>Trip Management</title>
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
     crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
   <style>
-    .route-display { display: flex; align-items: center; gap: 8px; font-weight: 500; color: #374151; }
-    .route-arrow { color: #dc2626; font-size: 14px; }
-    .driver-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
-      color: white; display: flex; align-items: center; justify-content: center;
-      font-size: 13px; font-weight: 600;
+    :root {
+      --primary: #ef4444;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --amber: #d97706;
+      --gray-light: #f9fafb;
+      --border: #e5e7eb;
+      --icon-color: #6b7280;
+      --icon-hover-bg: #f3f4f6;
+      --text: #111827;
+      --muted: #6b7280;
+      --light: #f3f4f6;
+      --success: #16a34a;
     }
+
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body { 
+      font-family: "Inter", sans-serif;
+      background-color: #f8fafc;
+      margin: 0;
+      padding: 0;
+    }
+
+    .dashboard {
+      padding: 20px;
+      background: #f8fafc;
+      min-height: 100vh;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .top-bar h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    .search-add-container {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .search-input {
+      width: 250px;
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      background: white;
+    }
+
+    .add-button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .add-button:hover {
+      background: #dc2626;
+    }
+
+    .table-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+      border: 1px solid #e5e7eb;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 16px 20px;
+      font-size: 14px;
+      text-align: left;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    th { 
+      color: #64748b; 
+      background: #f8fafc; 
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    tbody tr:hover { background: #f8fafc; cursor: pointer; }
+    tbody tr.selected { background: #fef2f2; }
+
+    .route-display { display: flex; align-items: center; gap: 8px; font-weight: 0; }
+    .route-arrow { color: var(--primary); }
+
     .status-badge {
-      padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
     }
-    .status-ongoing { background: #fef3c7; color: #d97706; }
-    .status-completed { background: #d1fae5; color: #16a34a; }
-    .status-cancelled { background: #fee2e2; color: #dc2626; }
-    .payment-paid { background: #d1fae5; color: #16a34a; }
-    .payment-pending { background: #dbeafe; color: #1d4ed8; }
-    .payment-failed { background: #fee2e2; color: #dc2626; }
-    .payment-refunded { background: #f3f4f6; color: #6b7280; }
-    .amount { font-weight: 600; color: #16a34a; }
+    .status-pending { background: #fef3c7; color: #d97706; }
+    .status-loaded { background: #ffedd5; color: #ea580c; }
+    .status-lr_uploaded { background: #dbeafe; color: #2563eb; }
+    .status-first_half_payment { background: #fef3c7; color: #d97706; }
+    .status-in_transit { background: #ffedd5; color: #ea580c; }
+    .status-unloading { background: #dbeafe; color: #2563eb; }
+    .status-pod_uploaded { background: #d1fae5; color: #16a34a; }
+    .status-payment_completed { background: #d1fae5; color: #16a34a; }
+
+    .pagination-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .entries-per-page select {
+      padding: 4px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      margin: 0 6px;
+    }
+
+    .pagination-controls button {
+      padding: 6px 12px;
+      border: 1px solid #d1d5db;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .pagination-controls button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #f9fafb;
+    }
+
+    .pagination-info {
+      color: #6b7280;
+    }
+
+    #profileSidebar {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 420px;
+      height: 100vh;
+      background: white;
+      box-shadow: -8px 0 30px rgba(0,0,0,0.1);
+      transform: translateX(100%);
+      transition: transform 0.35s ease;
+      z-index: 1001;
+      overflow-y: auto;
+    }
+    #profileSidebar.open { transform: translateX(0); }
+
+    .sidebar-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .sidebar-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 28px;
+      color: var(--muted);
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .close-btn:hover { background: var(--light); }
+
+    .route-header {
+      padding: 20px;
+      text-align: center;
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+    }
+    .route-title {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .route-path {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .route-line {
+      flex: 1;
+      height: 2px;
+      border-bottom: 3px dotted #dc2626;
+      position: relative;
+    }
+    .route-line::before, .route-line::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: var(--primary);
+      border-radius: 50%;
+      top: -5px;
+    }
+    .route-line::before { left: 0; }
+    .route-line::after { right: 0; }
+    .truck-icon {
+      background: var(--primary);
+      color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      z-index: 1;
+    }
+
+    .trip-info-section { padding: 24px 20px; border-bottom: 1px solid var(--border); }
+    .section-title { font-size: 16px; font-weight: 700; margin: 0 0 20px 0; color: var(--text); }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .info-item { font-size: 14px; }
+    .info-label { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+    .info-value { font-weight: 600; color: var(--text); }
+    .current-location { display: flex; align-items: center; gap: 8px; margin: 20px 0 0; font-weight: 600; color: var(--primary); }
+    .current-location i { font-size: 18px; }
+
+    .payment-box {
+      background: #fffbeb;
+      padding: 16px;
+      border-radius: 12px;
+      margin: 20px 0;
+      border: 1px solid #fde68a;
+    }
+    .payment-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .paid { color: var(--success); font-weight: 600; }
+    .pending { color: #f59e0b; font-weight: 600; }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+    .detail-label { color: var(--muted); font-size: 13px; }
+    .detail-value { font-weight: 600; text-align: right; font-size: 13px; }
+
+    .progress-container { margin: 32px 0 24px; }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .progress-title { font-size: 16px; font-weight: 700; }
+    .progress-percent { font-size: 15px; font-weight: 600; color: var(--primary); }
+    .progress-bar { height: 8px; background: #fee2e2; border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.6s ease; }
+
+    .timeline-section { margin-top: 32px; }
+    .timeline-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .timeline { position: relative; padding-left: 36px; }
+    .timeline::before { content: ''; position: absolute; left: 17px; top: 0; bottom: 0; width: 2px; background: #e5e7eb; }
+    .timeline-item { position: relative; padding-bottom: 28px; }
+    .timeline-item:last-child { padding-bottom: 0; }
+    .timeline-dot {
+      position: absolute;
+      left: -36px;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      font-size: 16px;
+    }
+    .timeline-dot.completed { 
+      background: var(--primary); 
+      color: white; 
+      border-color: var(--primary); 
+    }
+    .timeline-dot.current { 
+      background: white; 
+      border-color: var(--primary); 
+      color: var(--primary); 
+      animation: pulse 2s infinite; 
+    }
+    .timeline-dot.pending { 
+      background: white; 
+      border-color: #e5e7eb; 
+      color: #9ca3af; 
+    }
+    .timeline-content { padding-left: 8px; }
+    .timeline-main { font-weight: 600; font-size: 14px; }
+    .timeline-main.completed { color: var(--text); }
+    .timeline-main.current { color: var(--primary); font-weight: 700; }
+    .timeline-main.pending { color: #9ca3af; }
+    .timeline-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .timeline-time { position: absolute; right: 0; top: 0; font-size: 12px; color: var(--muted); }
+    
+    .view-file-btn {
+      margin-top: 8px;
+      padding: 6px 12px;
+      background: #fef2f2;
+      color: var(--primary);
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .view-file-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    
+    .view-file-btn i {
+      font-size: 14px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .chat-section { margin-top: 0; padding: 0 20px 20px; border-top: 1px solid var(--border); background: white; }
+    .chat-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; padding-top: 20px; }
+    
+    .chat-messages-container {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      scrollbar-width: none;
+    }
+    
+    .chat-messages-container::-webkit-scrollbar {
+      width: 0px;
+    }
+    
+    .chat-message {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    
+    .chat-message:last-child {
+      margin-bottom: 0;
+    }
+    
+    .chat-message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .chat-message-sender {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+    }
+    
+    .chat-message-time {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    
+    .chat-message-content {
+      font-size: 14px;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+    
+    .no-messages {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px;
+      font-size: 14px;
+    }
+    
+    .chat-input-wrapper { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .chat-input { flex: 1; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: white; outline: none; }
+    .send-rocket { width: 30px; height: 30px; background: var(--primary); color: white; border: none; border-radius: 50%; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+    .send-rocket:hover { background: #dc2626; transform: scale(1.05); }
+    .chat-buttons { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .btn-update, .btn-close-trip { background: var(--primary); color: white; padding: 12px 20px; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-add-comment { background: white; color: var(--primary); padding: 12px 20px; border: 2px solid var(--primary); border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-close-trip { background: var(--green); width: 100%; padding: 14px; font-size: 15px; }
+    .btn-update:hover { background: #dc2626; }
+    .btn-add-comment:hover { background: #fef2f2; }
+    .btn-close-trip:hover { background: #15803d; }
+
+    #sidebarOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+    #sidebarOverlay.show { opacity: 1; visibility: visible; }
+
+    #profileSidebar::-webkit-scrollbar { width: 0px; }
+    #profileSidebar::-webkit-scrollbar-track { background: transparent; }
+    #profileSidebar::-webkit-scrollbar-thumb { background: transparent; }
+    
+    #profileSidebar {
+      scrollbar-width: none;
+    }
+
+    .action-view {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .action-view:hover {
+      background: #dc2626;
+    }
+    
+    .btn-upload-lr {
+      background: #dc2626;
+      color: white;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-upload-lr:hover {
+      background: #b91c1c;
+    }
+
+    .btn-upload-lr:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-upload-pod {
+      background: #2563eb;
+      color: white;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-upload-pod:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-upload-pod:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .lr-modal, .pod-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lr-modal-content, .pod-modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .lr-modal-header, .pod-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .lr-modal-header h3, .pod-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .close-modal, .close-pod-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #6b7280;
+      cursor: pointer;
+    }
+
+    .upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #fafafa;
+      margin-bottom: 20px;
+    }
+
+    .upload-area:hover {
+      border-color: #ef4444;
+      background: #fef2f2;
+    }
+
+    .upload-area.dragover {
+      border-color: #ef4444;
+      background: #fef2f2;
+    }
+
+    .file-preview {
+      display: none;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .file-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .remove-file, .remove-pod-file {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .btn-cancel {
+      padding: 10px 20px;
+      border: 1px solid #d1d5db;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-submit-lr {
+      padding: 10px 20px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-submit-pod {
+      padding: 10px 20px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-submit-lr:disabled, .btn-submit-pod:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .toastify-custom {
+      border-radius: 8px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      padding: 12px 20px;
+    }
   </style>
 </head>
 <body>
-<div class="dashboard">
 
-  <!-- TOP BAR -->
+<div class="dashboard">
   <div class="top-bar">
-    <h2>Trip & Payment Management</h2>
+    <h2>Trip Management</h2>
     <div class="search-add-container">
-      <input type="text" id="searchInput" placeholder="Search by trip ID, customer, route..." class="search-input">
-      <button class="add-button" style="background: #16a34a;">All Confirmed Trips</button>
+      <input type="text" id="searchInput" placeholder="Search trips..." class="search-input">
+      <button class="add-button" onclick="window.location.href='{% url 'load_list' %}'">View All Loads</button>
     </div>
   </div>
 
-  <!-- TABLE -->
-  <div class="table-card">
-    <table id="tripTable">
-      <thead>
-        <tr>
-          <th>Trip ID</th>
-          <th>Route</th>
-          <th>Customer</th>
-          <th>Driver</th>
-          <th>Amount</th>
-          <th>Payment</th>
-          <th>Trip Status</th>
-          <th>Date</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for booking in bookings %}
-        <tr class="clickable-row" 
-            data-booking-id="{{ booking.id }}"
-            data-booking='{
-              "trip_id": "{{ booking.trip.load_id }}",
-              "pickup": "{{ booking trip.pickup_location }}",
-              "drop": "{{ booking.trip.drop_location }}",
-              "customer": "{{ booking.user.get_full_name|default:booking.user.email }}",
-              "customer_email": "{{ booking.user.email }}",
-              "driver": "{{ booking.trip.driver.full_name|default:"Not Assigned" }}",
-              "driver_phone": "{{ booking.trip.driver.phone_number|default:"-" }}",
-              "vehicle": "{{ booking.trip.vehicle.reg_no|default:"-" }}",
-              "amount": {{ booking.total_price }},
-              "payment_status": "{{ booking.payment.status }}",
-              "payment_id": "{{ booking.payment.stripe_payment_intent_id|default:"-" }}",
-              "payment_method": "{{ booking.payment.payment_method_type|default:"Card" }}",
-              "last4": "{{ booking.payment.last4|default:"4242" }}",
-              "trip_status": "{{ booking.trip.status }}",
-              "trip_status_display": "{{ booking.trip.get_status_display }}",
-              "booking_date": "{{ booking.created_at|date:"M d, Y" }}",
-              "description": "{{ booking.trip.title|default:"Trip Booking" }}"
-            }'>
-          <td><strong>{{ booking.trip.load_id }}</strong></td>
+ <div class="table-card">
+  <table id="tripsTable">
+    <thead>
+      <tr>
+        <th>Load ID</th>
+        <th>Route</th>
+        <th>First Half</th>
+        <th>Final Payment</th>
+        <th>Total Amount</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if trips %}
+        {% for load in trips %}
+        <tr class="clickable-row" data-trip-id="{{ load.id }}">
+          <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
           <td>
             <div class="route-display">
-              <span>{{ booking.trip.pickup_location }}</span>
+              {{ load.pickup_location }}
               <i class="fas fa-arrow-right route-arrow"></i>
-              <span>{{ booking.trip.drop_location }}</span>
+              {{ load.drop_location }}
             </div>
           </td>
+          
+          <!-- First Half Payment Column -->
           <td>
-            <div style="font-size:14px;">
-              <div><strong>{{ booking.user.get_full_name|default:booking.user.email }}</strong></div>
-              <small style="color:#6b7280;">{{ booking.user.email }}</small>
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; max-width: 150px;">
+              <span style="font-weight: 600; color: #1c2436;">
+                ₹{{ load.first_half_payment|floatformat:2 }}
+              </span>
+              {% if load.trip_status == "first_half_payment" or load.trip_status == "in_transit" or load.trip_status == "unloading" or load.trip_status == "pod_uploaded" or load.trip_status == "payment_completed" %}
+                <i class="fas fa-check-circle" style="color: #16a34a; font-size: 16px;" title="Paid"></i>
+              {% else %}
+                <i class="fas fa-clock" style="color: #d97706; font-size: 16px;" title="Pending"></i>
+              {% endif %}
             </div>
           </td>
+          
+          <!-- Final Payment Column -->
           <td>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <div class="driver-avatar">
-                {{ booking.trip.driver.full_name|slice:":2"|upper|default:"NA" }}
-              </div>
-              <div>
-                <div style="font-size:13px;"><strong>{{ booking.trip.driver.full_name|default:"Not Assigned" }}</strong></div>
-                <small style="color:#6b7280;">{{ booking.trip.vehicle.reg_no|default:"-" }}</small>
-              </div>
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; max-width: 150px;">
+              <span style="font-weight: 600; color: #111827;">
+                ₹{{ load.final_payment|floatformat:2 }}
+              </span>
+              {% if load.trip_status == "payment_completed" %}
+                <i class="fas fa-check-circle" style="color: #16a34a; font-size: 16px;" title="Paid"></i>
+              {% else %}
+                <i class="fas fa-clock" style="color: #d97706; font-size: 16px;" title="Pending"></i>
+              {% endif %}
             </div>
           </td>
-          <td class="amount">₹{{ booking.total_price|floatformat:0 }}</td>
+          
+          <!-- Total Amount Column -->
           <td>
-            <span class="status-badge payment-{{ booking.payment.status }}">
-              {% if booking.payment.status == 'succeeded' %}Paid{% endif %}
-              {% if booking.payment.status == 'requires_payment_method' %}Pending{% endif %}
-              {% if booking.payment.status == 'failed' %}Failed{% endif %}
-              {% if booking.payment.status == 'refunded' %}Refunded{% endif %}
-            </span>
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; max-width: 150px;">
+              <span style="font-weight: 700; color: var(--primary);">
+                ₹{{ load.total_trip_amount|floatformat:2 }}
+              </span>
+            </div>
           </td>
-          <td>
-            <span class="status-badge status-{{ booking.trip.status }}">
-              {{ booking.trip.get_status_display }}
-            </span>
-          </td>
-          <td>{{ booking.created_at|date:"M d, Y" }}</td>
+          
           <td class="action-col">
-            <div class="action-buttons">
-              <button class="action-view" title="View Details"><i class="fas fa-eye"></i></button>
-              {% if booking.payment.status == 'succeeded' %}
-                <button class="action-refund" title="Refund" style="color:#dc2626;"><i class="fas fa-undo"></i></button>
-              {% endif %}
-              {% if booking.trip.status == 'ongoing' or booking.trip.status == 'assigned' %}
-                <button class="action-complete" title="Mark Complete" style="color:#16a34a;"><i class="fas fa-check-circle"></i></button>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="9" style="text-align:center;padding:80px;color:#6b7280;font-size:16px;">
-            <i class="fas fa-route fa-3x mb-3" style="color:#e5e7eb;"></i><br>
-            No confirmed bookings yet.
+            <button class="action-view" onclick="viewTrip(event, {{ load.id }})">View</button>
           </td>
         </tr>
         {% endfor %}
-      </tbody>
-    </table>
+      {% else %}
+        <tr><td colspan="8" style="text-align:center;padding:60px;color:#6b7280;">No trips found.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
 
-    <!-- Pagination -->
-    <div class="pagination-container">
-      <div class="entries-per-page">
-        <span>Show</span>
-        <select id="entriesPerPage">
-          <option value="10" selected>10</option>
-          <option value="25">25</option>
-          <option value="50">50</option>
-        </select>
-        <span>entries</span>
-      </div>
-      <div class="pagination-info">
-        Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalEntries">0</span> entries
-      </div>
-      <div class="pagination-controls">
-        <button id="prevPage">Previous</button>
-        <span id="currentPageInfo">Page 1</span>
-        <button id="nextPage">Next</button>
-      </div>
+  <div class="pagination-container">
+    <div class="entries-per-page">
+      <span>Show</span>
+      <select id="entriesPerPage">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+      </select>
+      <span>entries</span>
+    </div>
+    <div class="pagination-info">
+      Showing <span id="showingStart">1</span> to <span id="showingEnd">10</span> of <span id="totalEntries">0</span> entries
+    </div>
+    <div class="pagination-controls">
+      <button id="prevPage">Previous</button>
+      <span id="currentPageInfo">Page 1</span>
+      <button id="nextPage">Next</button>
     </div>
   </div>
+</div>
 
-  <!-- Unified Sidebar -->
-  <div id="profileSidebar">
+  <aside id="profileSidebar">
     <div class="sidebar-header">
-      <h3>Booking & Payment Details</h3>
+      <div>
+        <h3 id="sidebarTripId">Loading...</h3>
+        <span class="status-badge" id="sidebarStatusBadge" style="font-size:11px;padding:4px 10px;margin-top:6px;display:inline-block;">
+          Loading...
+        </span>
+      </div>
       <button class="close-btn" id="closeSidebar">×</button>
     </div>
-    <div class="profile-avatar">
-      <div class="avatar-circle" style="background: linear-gradient(135deg, #10b981, #059669); width:70px; height:70px;">
-        <i class="fas fa-ticket-alt fa-2x"></i>
+
+    <div class="route-header">
+      <div class="route-title">Route Information</div>
+      <div class="route-path">
+        <div class="route-line"></div>
+        <div class="truck-icon"><i class="fas fa-truck"></i></div>
+        <div class="route-line"></div>
+      </div>
+      <div style="margin-top:8px;font-weight:600;">
+        <span id="routeFrom">-</span> — <span id="routeTo">-</span>
       </div>
     </div>
-    <div class="profile-info">
-      <h3 class="profile-name" id="tripId"></h3>
-      <p class="profile-phone" id="bookingStatus"></p>
+
+    <div class="trip-info-section">
+      <h3 class="section-title">Trip Information</h3>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">Vehicle No</div><div class="info-value" id="vehicleNo">-</div></div>
+        <div class="info-item"><div class="info-label">Driver</div><div class="info-value" id="driverName">-</div></div>
+        <div class="info-item"><div class="info-label">Vehicle Type</div><div class="info-value" id="vehicleType">-</div></div>
+        <div class="info-item"><div class="info-label">Distance</div><div class="info-value" id="distance">-</div></div>
+        <div class="info-item"><div class="info-label">Start Date</div><div class="info-value" id="startDate">-</div></div>
+        <div class="info-item"><div class="info-label">ETA</div><div class="info-value" id="eta">-</div></div>
+      </div>
+
+      <div class="current-location">
+        <i class="fas fa-map-marker-alt"></i>
+        <span id="currentLocation">-</span>
+      </div>
+
+      <div class="payment-box">
+        <div class="payment-row">
+          <span>First Half (90%)</span>
+          <span id="firstHalfStatus" class="pending">₹0 Pending</span>
+        </div>
+        <div class="payment-row">
+          <span>Final Payment (10%)</span>
+          <span id="finalPaymentStatus" class="pending">₹0 Pending</span>
+        </div>
+      </div>
+
+      <h3 class="section-title" style="margin-top:28px;">Customer Details</h3>
+      <div class="detail-row"><span class="detail-label">Customer Name</span><span class="detail-value" id="customerName">-</span></div>
+      <div class="detail-row"><span class="detail-label">Customer Phone</span><span class="detail-value" id="customerPhone">-</span></div>
+      <div class="detail-row"><span class="detail-label">Contact Person</span><span class="detail-value" id="contactPerson">-</span></div>
+      <div class="detail-row"><span class="detail-label">Contact Person Phone</span><span class="detail-value" id="contactPersonPhone">-</span></div>
+
+      <h3 class="section-title" style="margin-top:28px;">Vendor Details</h3>
+      <div class="detail-row"><span class="detail-label">Vendor Name</span><span class="detail-value" id="vendorName">-</span></div>
+      <div class="detail-row"><span class="detail-label">Vendor Phone</span><span class="detail-value" id="vendorPhone">-</span></div>
+
+      <h3 class="section-title" style="margin-top:28px;">Assigned Driver</h3>
+      <div class="detail-row"><span class="detail-label">Driver Name</span><span class="detail-value" id="assignedDriverName">-</span></div>
+      <div class="detail-row"><span class="detail-label">Driver Phone</span><span class="detail-value" id="assignedDriverPhone">-</span></div>
+
+      <div class="progress-container">
+        <div class="progress-header">
+          <div class="progress-title">Trip Progress</div>
+          <div class="progress-percent" id="progressPercent">0% Complete</div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%;"></div></div>
+      </div>
+
+      <div class="timeline-section">
+        <h3 class="timeline-title">Trip Status Timeline</h3>
+        <div class="timeline" id="timelineContainer">
+          <!-- Timeline will be populated dynamically -->
+        </div>
+      </div>
     </div>
 
-    <div class="info-section">
-      <h4><i class="fas fa-route"></i> Trip Route</h4>
-      <div class="info-row"><span class="info-label">From</span><span id="pickup"></span></div>
-      <div class="info-row"><span class="info-label">To</span><span id="drop"></span></div>
+    <div class="chat-section">
+      <h3 class="chat-title">Chat</h3>
+      
+      <div class="chat-messages-container" id="chatMessagesContainer">
+        <div class="no-messages" id="noMessages">No messages yet</div>
+      </div>
+      
+      <div class="chat-input-wrapper">
+        <input type="text" class="chat-input" id="commentInput" placeholder="Type a message...">
+        <button class="send-rocket" id="sendComment"><i class="fas fa-paper-plane"></i></button>
+      </div>
+      
+      <div class="chat-buttons">
+        <button class="btn-update" id="btnUpdateStatus">Update Status</button>
+        <button class="btn-upload-lr" id="btnUploadLR" style="display: none;">Upload LR</button>
+        <button class="btn-upload-pod" id="btnUploadPOD" style="display: none;">Upload POD</button>
+        <button class="btn-add-comment" id="btnAddComment">Add Comment</button>
+      </div>
+      <button class="btn-close-trip" id="btnCloseTrip">Close Trip</button>
     </div>
+  </aside>
 
-    <div class="info-section">
-      <h4><i class="fas fa-user"></i> Customer</h4>
-      <div class="info-row"><span class="info-label">Name</span><span id="customerName"></span></div>
-      <div class="info-row"><span class="info-label">Email</span><span id="customerEmail"></span></div>
-    </div>
-
-    <div class="info-section">
-      <h4><i class="fas fa-truck"></i> Driver & Vehicle</h4>
-      <div class="info-row"><span class="info-label">Driver</span><span id="driverName"></span></div>
-      <div class="info-row"><span class="info-label">Phone</span><span id="driverPhone"></span></div>
-      <div class="info-row"><span class="info-label">Vehicle</span><span id="vehicle"></span></div>
-    </div>
-
-    <div class="info-section">
-      <h4><i class="fas fa-credit-card"></i> Payment</h4>
-      <div class="info-row"><span class="info-label">Amount</span><span class="amount" id="amount"></span></div>
-      <div class="info-row"><span class="info-label">Status</span><span id="paymentStatus"></span></div>
-      <div class="info-row"><span class="info-label">Method</span><span id="paymentMethod"></span></div>
-      <div class="info-row"><span class="info-label">Payment ID</span><code id="paymentId" style="font-size:12px;"></code></div>
-    </div>
-
-    <div class="sidebar-actions">
-      <button class="sidebar-btn" style="background:#2563eb;"><i class="fas fa-history"></i> View History</button>
-      <button id="refundBtn" class="sidebar-btn" style="background:#dc2626; display:none;"><i class="fas fa-undo"></i> Refund Payment</button>
-      <button id="completeBtn" class="sidebar-btn" style="background:#16a34a; display:none;"><i class="fas fa-check-circle"></i> Mark Trip Complete</button>
-    </div>
-  </div>
   <div id="sidebarOverlay"></div>
 </div>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-
 <script>
-// Same powerful JS as before — now handles both payment refund & trip completion
+let currentTripId = null;
+let sidebarEventListenersAttached = false;
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+const csrftoken = getCookie('csrftoken');
+
+function showToast(message, type = 'success') {
+  const background = type === 'success' ? '#16a34a' : type === 'error' ? '#dc2626' : '#d97706';
+  
+  Toastify({
+    text: message,
+    duration: 3000,
+    gravity: "top",
+    position: "right",
+    backgroundColor: background,
+    stopOnFocus: true,
+    className: "toastify-custom",
+  }).showToast();
+}
+
+function attachSidebarEventListeners() {
+  if (sidebarEventListenersAttached) return;
+  
+  const sidebar = document.getElementById('profileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const closeBtn = document.getElementById('closeSidebar');
+
+  closeBtn.addEventListener('click', closeSidebar);
+  overlay.addEventListener('click', closeSidebar);
+
+  document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
+  document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
+  document.getElementById('btnUploadPOD').addEventListener('click', showPODUploadModal);
+  document.getElementById('btnAddComment').addEventListener('click', addComment);
+  document.getElementById('sendComment').addEventListener('click', addComment);
+  document.getElementById('btnCloseTrip').addEventListener('click', closeTrip);
+  
+  const commentInput = document.getElementById('commentInput');
+  commentInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      addComment();
+    }
+  });
+
+  sidebarEventListenersAttached = true;
+}
+
 document.addEventListener('DOMContentLoaded', function () {
-  // ... (same sidebar, search, pagination code as your original)
+  const tbody = document.querySelector('#tripsTable tbody');
+  let allRows = Array.from(document.querySelectorAll('.clickable-row'));
+  let filteredRows = [...allRows];
+  let currentPage = 1;
+  let perPage = 10;
 
-  let currentBookingId = null;
-  let currentPaymentStatus = '';
-  let currentTripStatus = '';
+  const entriesSelect = document.getElementById('entriesPerPage');
+  const showingStart = document.getElementById('showingStart');
+  const showingEnd = document.getElementById('showingEnd');
+  const totalEntries = document.getElementById('totalEntries');
+  const prevBtn = document.getElementById('prevPage');
+  const nextBtn = document.getElementById('nextPage');
+  const currentPageInfo = document.getElementById('currentPageInfo');
 
-  function openSidebar(row) {
-    const data = JSON.parse(row.dataset.booking);
-    currentBookingId = row.dataset.bookingId;
-    currentPaymentStatus = data.payment_status;
-    currentTripStatus = data.trip_status;
+  function renderPage() {
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    allRows.forEach(r => r.style.display = 'none');
+    filteredRows.slice(start, end).forEach(r => r.style.display = '');
 
-    document.getElementById('tripId').textContent = data.trip_id;
-    document.getElementById('pickup').textContent = data.pickup;
-    document.getElementById('drop').textContent = data.drop;
-    document.getElementById('customerName').textContent = data.customer;
-    document.getElementById('customerEmail').textContent = data.customer_email;
-    document.getElementById('driverName').textContent = data.driver;
-    document.getElementById('driverPhone').textContent = data.driver_phone;
-    document.getElementById('vehicle').textContent = data.vehicle;
-    document.getElementById('amount').textContent = '₹' + parseInt(data.amount).toLocaleString();
-    document.getElementById('paymentStatus').textContent = data.payment_status.charAt(0).toUpperCase() + data.payment_status.slice(1).replace(/_/g, ' ');
-    document.getElementById('paymentStatus').className = `status-badge payment-${data.payment_status}`;
-    document.getElementById('paymentMethod').textContent = data.payment_method + (data.last4 ? ' •••• ' + data.last4 : '');
-    document.getElementById('paymentId').textContent = data.payment_id;
+    const visibleEnd = Math.min(end, filteredRows.length);
+    showingStart.textContent = filteredRows.length ? start + 1 : 0;
+    showingEnd.textContent = visibleEnd;
+    totalEntries.textContent = filteredRows.length;
+    currentPageInfo.textContent = `Page ${currentPage}`;
 
-    document.getElementById('refundBtn').style.display = data.payment_status === 'succeeded' ? 'block' : 'none';
-    document.getElementById('completeBtn').style.display = ['assigned', 'ongoing'].includes(data.trip_status) ? 'block' : 'none';
-
-    document.getElementById('profileSidebar').style.transform = 'translateX(0)';
-    document.getElementById('sidebarOverlay').classList.add('show');
-    row.style.backgroundColor = '#f0fdf4';
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage >= Math.ceil(filteredRows.length / perPage);
   }
 
-  // Refund & Complete actions
-  document.getElementById('refundBtn').addEventListener('click', () => {
-    if (confirm('Issue full refund?')) {
-      fetch(`/bookings/${currentBookingId}/refund/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-      }).then(r => r.json()).then(d => {
-        if (d.success) {
-          Toastify({text: "Refund successful!", backgroundColor: "#16a34a"}).showToast();
-          setTimeout(() => location.reload(), 1500);
-        }
-      });
-    }
+  entriesSelect.addEventListener('change', () => {
+    perPage = parseInt(entriesSelect.value);
+    currentPage = 1;
+    renderPage();
   });
 
-  document.getElementById('completeBtn').addEventListener('click', () => {
-    if (confirm('Mark this trip as completed?')) {
-      fetch(`/trips/${currentBookingId}/complete/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-      }).then(r => r.json()).then(d => {
-        if (d.success) {
-          Toastify({text: "Trip completed!", backgroundColor: "#16a34a"}).showToast();
-          setTimeout(() => location.reload(), 1500);
-        }
-      });
-    }
+  prevBtn.addEventListener('click', () => { 
+    if (currentPage > 1) { 
+      currentPage--; 
+      renderPage(); 
+    } 
+  });
+  
+  nextBtn.addEventListener('click', () => { 
+    if (currentPage < Math.ceil(filteredRows.length / perPage)) { 
+      currentPage++; 
+      renderPage(); 
+    } 
   });
 
-  // Keep your existing search + pagination + row click logic here...
+  document.getElementById('searchInput').addEventListener('input', function() {
+    const term = this.value.toLowerCase();
+    filteredRows = allRows.filter(row => row.textContent.toLowerCase().includes(term));
+    currentPage = 1;
+    renderPage();
+  });
+
+  attachRowClickListeners();
+  attachSidebarEventListeners();
+  initializeLRModal();
+  initializePODModal();
+  renderPage();
 });
+
+function attachRowClickListeners() {
+  document.querySelectorAll('.clickable-row').forEach(row => {
+    row.addEventListener('click', function(e) {
+      if (!e.target.closest('.action-col')) {
+        const tripId = this.dataset.tripId;
+        loadTripDetails(tripId);
+      }
+    });
+  });
+}
+
+function initializeLRModal() {
+  if (document.getElementById('lrModal')) return;
+  
+  const modalHTML = `
+  <div class="lr-modal" id="lrModal">
+    <div class="lr-modal-content">
+      <div class="lr-modal-header">
+        <h3>Upload LR Document</h3>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="upload-area" id="modalUploadArea">
+        <input type="file" id="modalFileInput" accept=".pdf,.jpg,.jpeg,.png" style="display: none;">
+        <div class="upload-placeholder">
+          <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: #6b7280; margin-bottom: 16px;"></i>
+          <p style="color: #6b7280; margin-bottom: 16px;">Click to upload LR document</p>
+          <p style="font-size: 12px; color: #9ca3af;">Supported formats: PDF, JPG, PNG (Max 10MB)</p>
+        </div>
+      </div>
+      <div class="file-preview" id="modalFilePreview">
+        <div class="file-info">
+          <div class="file-name">
+            <i class="fas fa-file-pdf" style="color: #ef4444;"></i>
+            <span id="modalFileName">file.pdf</span>
+          </div>
+          <button type="button" class="remove-file">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelUpload">Cancel</button>
+        <button class="btn-submit-lr" id="btnSubmitLR" disabled>Upload Document</button>
+      </div>
+    </div>
+  </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  document.querySelector('#lrModal .close-modal').addEventListener('click', closeLRModal);
+  document.querySelector('#lrModal #btnCancelUpload').addEventListener('click', closeLRModal);
+  document.querySelector('#lrModal #modalUploadArea').addEventListener('click', () => document.querySelector('#lrModal #modalFileInput').click());
+  document.querySelector('#lrModal #modalFileInput').addEventListener('change', handleLRFileSelect);
+  document.querySelector('#lrModal .remove-file').addEventListener('click', removeSelectedLRFile);
+  document.querySelector('#lrModal #btnSubmitLR').addEventListener('click', uploadLRDocument);
+
+  const modalUploadArea = document.querySelector('#lrModal #modalUploadArea');
+  modalUploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    modalUploadArea.classList.add('dragover');
+  });
+
+  modalUploadArea.addEventListener('dragleave', () => {
+    modalUploadArea.classList.remove('dragover');
+  });
+
+  modalUploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    modalUploadArea.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleLRFileSelection(files[0]);
+    }
+  });
+}
+
+function initializePODModal() {
+  if (document.getElementById('podModal')) return;
+  
+  const modalHTML = `
+  <div class="pod-modal" id="podModal">
+    <div class="pod-modal-content">
+      <div class="pod-modal-header">
+        <h3>Upload POD Document</h3>
+        <button class="close-pod-modal">&times;</button>
+      </div>
+      <div class="upload-area" id="podModalUploadArea">
+        <input type="file" id="podModalFileInput" accept=".pdf,.jpg,.jpeg,.png" style="display: none;">
+        <div class="upload-placeholder">
+          <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: #6b7280; margin-bottom: 16px;"></i>
+          <p style="color: #6b7280; margin-bottom: 16px;">Click to upload POD document</p>
+          <p style="font-size: 12px; color: #9ca3af;">Supported formats: PDF, JPG, PNG (Max 10MB)</p>
+        </div>
+      </div>
+      <div class="file-preview" id="podModalFilePreview">
+        <div class="file-info">
+          <div class="file-name">
+            <i class="fas fa-file-pdf" style="color: #2563eb;"></i>
+            <span id="podModalFileName">file.pdf</span>
+          </div>
+          <button type="button" class="remove-pod-file">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelPODUpload">Cancel</button>
+        <button class="btn-submit-pod" id="btnSubmitPOD" disabled>Upload Document</button>
+      </div>
+    </div>
+  </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  document.querySelector('#podModal .close-pod-modal').addEventListener('click', closePODModal);
+  document.querySelector('#podModal #btnCancelPODUpload').addEventListener('click', closePODModal);
+  document.querySelector('#podModal #podModalUploadArea').addEventListener('click', () => document.querySelector('#podModal #podModalFileInput').click());
+  document.querySelector('#podModal #podModalFileInput').addEventListener('change', handlePODFileSelect);
+  document.querySelector('#podModal .remove-pod-file').addEventListener('click', removeSelectedPODFile);
+  document.querySelector('#podModal #btnSubmitPOD').addEventListener('click', uploadPODDocument);
+
+  const podModalUploadArea = document.querySelector('#podModal #podModalUploadArea');
+  podModalUploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    podModalUploadArea.classList.add('dragover');
+  });
+
+  podModalUploadArea.addEventListener('dragleave', () => {
+    podModalUploadArea.classList.remove('dragover');
+  });
+
+  podModalUploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    podModalUploadArea.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handlePODFileSelection(files[0]);
+    }
+  });
+}
+
+function showLRUploadModal() {
+  document.getElementById('lrModal').style.display = 'flex';
+  resetLRModal();
+}
+
+function closeLRModal() {
+  document.getElementById('lrModal').style.display = 'none';
+  resetLRModal();
+}
+
+function resetLRModal() {
+  document.querySelector('#lrModal #modalFileInput').value = '';
+  document.querySelector('#lrModal #modalFilePreview').style.display = 'none';
+  document.querySelector('#lrModal #btnSubmitLR').disabled = true;
+  document.querySelector('#lrModal #modalUploadArea').style.display = 'block';
+  document.querySelector('#lrModal #btnSubmitLR').textContent = 'Upload Document';
+}
+
+function showPODUploadModal() {
+  document.getElementById('podModal').style.display = 'flex';
+  resetPODModal();
+}
+
+function closePODModal() {
+  document.getElementById('podModal').style.display = 'none';
+  resetPODModal();
+}
+
+function resetPODModal() {
+  document.querySelector('#podModal #podModalFileInput').value = '';
+  document.querySelector('#podModal #podModalFilePreview').style.display = 'none';
+  document.querySelector('#podModal #btnSubmitPOD').disabled = true;
+  document.querySelector('#podModal #podModalUploadArea').style.display = 'block';
+  document.querySelector('#podModal #btnSubmitPOD').textContent = 'Upload Document';
+}
+
+function handleLRFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) {
+    handleLRFileSelection(file);
+  }
+}
+
+function handleLRFileSelection(file) {
+  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+  if (!allowedTypes.includes(file.type)) {
+    showToast('Please select a PDF, JPG, or PNG file', 'error');
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('File size must be less than 10MB', 'error');
+    return;
+  }
+
+  document.querySelector('#lrModal #modalFileName').textContent = file.name;
+  document.querySelector('#lrModal #modalFilePreview').style.display = 'block';
+  document.querySelector('#lrModal #btnSubmitLR').disabled = false;
+
+  const fileIcon = document.querySelector('#lrModal .file-name i');
+  if (file.type === 'application/pdf') {
+    fileIcon.className = 'fas fa-file-pdf';
+    fileIcon.style.color = '#ef4444';
+  } else {
+    fileIcon.className = 'fas fa-file-image';
+    fileIcon.style.color = '#16a34a';
+  }
+}
+
+function handlePODFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) {
+    handlePODFileSelection(file);
+  }
+}
+
+function handlePODFileSelection(file) {
+  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+  if (!allowedTypes.includes(file.type)) {
+    showToast('Please select a PDF, JPG, or PNG file', 'error');
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('File size must be less than 10MB', 'error');
+    return;
+  }
+
+  document.querySelector('#podModal #podModalFileName').textContent = file.name;
+  document.querySelector('#podModal #podModalFilePreview').style.display = 'block';
+  document.querySelector('#podModal #btnSubmitPOD').disabled = false;
+
+  const fileIcon = document.querySelector('#podModal .file-name i');
+  if (file.type === 'application/pdf') {
+    fileIcon.className = 'fas fa-file-pdf';
+    fileIcon.style.color = '#2563eb';
+  } else {
+    fileIcon.className = 'fas fa-file-image';
+    fileIcon.style.color = '#16a34a';
+  }
+}
+
+function removeSelectedLRFile() {
+  resetLRModal();
+}
+
+function removeSelectedPODFile() {
+  resetPODModal();
+}
+
+function uploadLRDocument() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+
+  const fileInput = document.querySelector('#lrModal #modalFileInput');
+  if (!fileInput.files.length) {
+    showToast('Please select a file to upload', 'error');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('lr_document', file);
+
+  const submitBtn = document.querySelector('#lrModal #btnSubmitLR');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Uploading...';
+
+  fetch(`/api/trip/${currentTripId}/upload-lr/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': csrftoken
+    },
+    body: formData
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('LR document uploaded successfully!', 'success');
+      closeLRModal();
+      loadTripDetails(currentTripId);
+    } else {
+      showToast('Error: ' + result.error, 'error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Upload Document';
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to upload LR document', 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Upload Document';
+  });
+}
+
+function uploadPODDocument() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+
+  const fileInput = document.querySelector('#podModal #podModalFileInput');
+  if (!fileInput.files.length) {
+    showToast('Please select a file to upload', 'error');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('pod_document', file);
+
+  const submitBtn = document.querySelector('#podModal #btnSubmitPOD');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Uploading...';
+
+  fetch(`/api/trip/${currentTripId}/upload-pod/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': csrftoken
+    },
+    body: formData
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('POD document uploaded successfully!', 'success');
+      closePODModal();
+      loadTripDetails(currentTripId);
+    } else {
+      showToast('Error: ' + result.error, 'error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Upload Document';
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to upload POD document', 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Upload Document';
+  });
+}
+
+function viewTrip(event, tripId) {
+  event.stopPropagation();
+  loadTripDetails(tripId);
+}
+
+function loadTripDetails(tripId) {
+  currentTripId = tripId;
+  const sidebar = document.getElementById('profileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  
+  document.getElementById('sidebarTripId').textContent = 'Loading...';
+  
+  sidebar.classList.add('open');
+  overlay.classList.add('show');
+  
+  document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('selected'));
+  const selectedRow = document.querySelector(`[data-trip-id="${tripId}"]`);
+  if (selectedRow) selectedRow.classList.add('selected');
+  
+  fetch(`/api/trip/${tripId}/details/`, {
+    method: 'GET',
+    headers: {
+      'X-CSRFToken': csrftoken,
+      'Content-Type': 'application/json'
+    },
+    credentials: 'same-origin'
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(result => {
+    if (result.success) {
+      populateSidebar(result.data);
+    } else {
+      showToast('Error loading trip details: ' + (result.error || 'Unknown error'), 'error');
+      closeSidebar();
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+  
+    closeSidebar();
+  });
+}
+
+function populateSidebar(data) {
+  document.getElementById('sidebarTripId').textContent = data.load_id;
+  const statusBadge = document.getElementById('sidebarStatusBadge');
+  statusBadge.textContent = data.trip_status_display;
+  statusBadge.className = 'status-badge status-' + data.trip_status;
+  
+  document.getElementById('routeFrom').textContent = data.pickup_location;
+  document.getElementById('routeTo').textContent = data.drop_location;
+  
+  document.getElementById('vehicleNo').textContent = data.vehicle_no;
+  document.getElementById('driverName').textContent = data.driver_name;
+  document.getElementById('vehicleType').textContent = data.vehicle_type;
+  document.getElementById('distance').textContent = data.distance;
+  document.getElementById('startDate').textContent = data.pickup_date;
+  document.getElementById('eta').textContent = data.drop_date;
+  document.getElementById('currentLocation').textContent = data.current_location;
+  
+  const firstHalfStatus = document.getElementById('firstHalfStatus');
+  const finalPaymentStatus = document.getElementById('finalPaymentStatus');
+  
+  if (data.first_half_paid) {
+    firstHalfStatus.textContent = `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
+    firstHalfStatus.className = 'paid';
+  } else {
+    firstHalfStatus.textContent = `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Pending`;
+    firstHalfStatus.className = 'pending';
+  }
+  
+  if (data.final_payment_paid) {
+    finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
+    finalPaymentStatus.className = 'paid';
+  } else {
+    finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Pending`;
+    finalPaymentStatus.className = 'pending';
+  }
+  
+  document.getElementById('customerName').textContent = data.customer_name;
+  document.getElementById('customerPhone').textContent = data.customer_phone;
+  document.getElementById('contactPerson').textContent = data.contact_person;
+  document.getElementById('contactPersonPhone').textContent = data.contact_person_phone;
+  
+  document.getElementById('vendorName').textContent = data.vendor_name;
+  document.getElementById('vendorPhone').textContent = data.vendor_phone;
+  
+  document.getElementById('assignedDriverName').textContent = data.driver_name;
+  document.getElementById('assignedDriverPhone').textContent = data.driver_phone;
+  
+  document.getElementById('progressPercent').textContent = `${data.progress}% Complete`;
+  document.getElementById('progressFill').style.width = `${data.progress}%`;
+  
+  renderTimeline(data);
+  renderChatMessages(data.comments || []);
+  
+  const uploadLRBtn = document.getElementById('btnUploadLR');
+  if (data.trip_status === 'loaded' && !data.lr_document) {
+    uploadLRBtn.style.display = 'inline-block';
+  } else {
+    uploadLRBtn.style.display = 'none';
+  }
+  
+  const uploadPODBtn = document.getElementById('btnUploadPOD');
+  if (data.trip_status === 'unloading' && !data.pod_document) {
+    uploadPODBtn.style.display = 'inline-block';
+  } else {
+    uploadPODBtn.style.display = 'none';
+  }
+  
+  const btnCloseTrip = document.getElementById('btnCloseTrip');
+  btnCloseTrip.disabled = data.trip_status !== 'payment_completed';
+  btnCloseTrip.style.opacity = data.trip_status !== 'payment_completed' ? '0.5' : '1';
+  btnCloseTrip.style.cursor = data.trip_status !== 'payment_completed' ? 'not-allowed' : 'pointer';
+}
+
+function renderChatMessages(comments) {
+  const container = document.getElementById('chatMessagesContainer');
+  const noMessages = document.getElementById('noMessages');
+  
+  if (!comments || comments.length === 0) {
+    noMessages.style.display = 'block';
+    container.querySelectorAll('.chat-message').forEach(msg => msg.remove());
+    return;
+  }
+  
+  noMessages.style.display = 'none';
+  container.innerHTML = '';
+  
+  comments.forEach(comment => {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
+    
+    const senderName = comment.sender_type === 'admin' ? 'Admin' : 'Driver';
+    const timestamp = new Date(comment.created_at).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+    
+    messageDiv.innerHTML = `
+      <div class="chat-message-header">
+        <span class="chat-message-sender">${senderName}</span>
+        <span class="chat-message-time">${timestamp}</span>
+      </div>
+      <div class="chat-message-content">${comment.comment}</div>
+    `;
+    
+    container.appendChild(messageDiv);
+  });
+  
+  container.scrollTop = container.scrollHeight;
+}
+
+function renderTimeline(data) {
+  const container = document.getElementById('timelineContainer');
+  container.innerHTML = '';
+  
+  const statusOrder = [
+    'pending',
+    'loaded', 
+    'lr_uploaded',
+    'first_half_payment',
+    'in_transit',
+    'unloading',
+    'pod_uploaded',
+    'payment_completed'
+  ];
+  
+  const currentStatusIndex = statusOrder.indexOf(data.trip_status);
+  
+  statusOrder.forEach((status, index) => {
+    let isCompleted = index < currentStatusIndex;
+    let isCurrent = index === currentStatusIndex;
+    let isPending = index > currentStatusIndex;
+    
+    if (status === 'first_half_payment' || status === 'in_transit') {
+      if (currentStatusIndex > 4) {
+        isCompleted = true;
+        isCurrent = false;
+        isPending = false;
+      } else if (currentStatusIndex >= 3 && currentStatusIndex <= 4) {
+        isCompleted = true;
+        isCurrent = false;
+        isPending = false;
+      }
+    }
+    
+    if ((data.trip_status === 'first_half_payment' || data.trip_status === 'in_transit') && status === 'unloading') {
+      isCurrent = true;
+      isCompleted = false;
+      isPending = false;
+    }
+    
+    const timelineItem = createTimelineItem(status, isCompleted, isCurrent, isPending, data);
+    container.appendChild(timelineItem);
+  });
+}
+
+function createTimelineItem(status, isCompleted, isCurrent, isPending, data) {
+  const timelineItem = document.createElement('div');
+  timelineItem.className = 'timeline-item';
+  
+  let dotClass = 'pending';
+  let mainClass = 'pending';
+  
+  if (isCompleted) {
+    dotClass = 'completed';
+    mainClass = 'completed';
+  } else if (isCurrent) {
+    dotClass = 'current';
+    mainClass = 'current';
+  }
+  
+  const statusInfo = getStatusInfo(status, data);
+  
+  let fileButton = '';
+  if (statusInfo.hasFile && statusInfo.fileUrl) {
+    fileButton = `
+      <button class="view-file-btn" onclick="window.open('${statusInfo.fileUrl}', '_blank')" title="View ${statusInfo.fileName || 'document'}">
+        <i class="fas fa-file-pdf"></i> View Document
+      </button>
+    `;
+  }
+  
+  timelineItem.innerHTML = `
+    <div class="timeline-dot ${dotClass}">
+      <i class="fas ${statusInfo.icon}"></i>
+    </div>
+    <div class="timeline-content">
+      <div class="timeline-main ${mainClass}">${statusInfo.title}</div>
+      <div class="timeline-sub">${statusInfo.description}</div>
+      ${fileButton}
+    </div>
+    <div class="timeline-time">${statusInfo.timestamp}</div>
+  `;
+  
+  return timelineItem;
+}
+
+function getStatusInfo(status, data) {
+  const formatTimestamp = (timestampStr) => {
+    if (!timestampStr) return 'Pending';
+    try {
+      return new Date(timestampStr).toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: 'numeric', 
+        minute: 'numeric',
+        hour12: true 
+      });
+    } catch (e) {
+      return 'Pending';
+    }
+  };
+
+  const statusConfig = {
+    pending: {
+      icon: 'fa-clipboard-check',
+      title: 'Trip Confirmed',
+      description: 'Trip booking confirmed by admin',
+      timestamp: formatTimestamp(data.pending_at),
+      hasFile: false
+    },
+    loaded: {
+      icon: 'fa-box',
+      title: 'Loaded',
+      description: 'Cargo loaded successfully',
+      timestamp: formatTimestamp(data.loaded_at),
+      hasFile: false
+    },
+    lr_uploaded: {
+      icon: 'fa-file-invoice',
+      title: 'LR Uploaded',
+      description: 'Loading receipt document uploaded',
+      timestamp: formatTimestamp(data.lr_uploaded_at),
+      hasFile: !!data.lr_document,
+      fileUrl: data.lr_document,
+      fileName: data.lr_document_name
+    },
+    first_half_payment: {
+      icon: 'fa-money-bill-wave',
+      title: 'First Half Payment',
+      description: `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} paid to driver`,
+      timestamp: formatTimestamp(data.first_half_payment_at),
+      hasFile: false
+    },
+    in_transit: {
+      icon: 'fa-truck-moving',
+      title: 'In Transit',
+      description: 'Vehicle on route to destination',
+      timestamp: formatTimestamp(data.in_transit_at),
+      hasFile: false
+    },
+    unloading: {
+      icon: 'fa-box-open',
+      title: 'Unloading',
+      description: 'Cargo being unloaded at destination',
+      timestamp: formatTimestamp(data.unloading_at),
+      hasFile: false
+    },
+    pod_uploaded: {
+      icon: 'fa-file-signature',
+      title: 'POD Uploaded',
+      description: 'Proof of delivery document uploaded',
+      timestamp: formatTimestamp(data.pod_uploaded_at),
+      hasFile: !!data.pod_document,
+      fileUrl: data.pod_document,
+      fileName: data.pod_document_name
+    },
+    payment_completed: {
+      icon: 'fa-credit-card',
+      title: 'Payment Completed',
+      description: 'Final payment processed',
+      timestamp: formatTimestamp(data.payment_completed_at),
+      hasFile: false
+    }
+  };
+  
+  return statusConfig[status] || { icon: 'fa-circle', title: status, description: '', timestamp: 'Pending', hasFile: false };
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('profileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  
+  sidebar.classList.remove('open');
+  overlay.classList.remove('show');
+  
+  document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('selected'));
+  currentTripId = null;
+}
+
+function updateTripStatus() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+  
+  if (!confirm('Are you sure you want to update the trip status to the next stage?')) {
+    return;
+  }
+  
+  fetch(`/api/trip/${currentTripId}/update-status/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify({})
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      let message = result.message;
+      
+      if (result.special_case) {
+        if (result.new_status === 'first_half_payment') {
+          message = 'First Half Payment and In Transit statuses updated successfully!';
+        } else if (result.new_status === 'in_transit') {
+          message = 'In Transit and First Half Payment statuses updated successfully!';
+        }
+      }
+      
+      showToast(message, 'success');
+      loadTripDetails(currentTripId);
+      updateTableRow(currentTripId, result.new_status, result.new_status_display);
+    } else {
+      if (result.requires_lr_upload) {
+        showToast('Please upload LR document before updating status', 'error');
+      } else if (result.requires_pod_upload) {
+        showToast('Please upload POD document before updating status', 'error');
+      } else {
+        showToast('Error: ' + result.error, 'error');
+      }
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to update trip status', 'error');
+  });
+}
+
+function addComment() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+  
+  const commentInput = document.getElementById('commentInput');
+  const comment = commentInput.value.trim();
+  
+  if (!comment) {
+    showToast('Please enter a comment', 'error');
+    return;
+  }
+  
+  fetch(`/api/trip/${currentTripId}/add-comment/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify({ comment: comment })
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Comment added successfully', 'success');
+      commentInput.value = '';
+      loadTripDetails(currentTripId);
+    } else {
+      showToast('Error: ' + result.error, 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to add comment', 'error');
+  });
+}
+
+function closeTrip() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+  
+  if (!confirm('Are you sure you want to close this trip? This action cannot be undone.')) {
+    return;
+  }
+  
+  fetch(`/api/trip/${currentTripId}/close/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': csrftoken
+    }
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Trip closed successfully', 'success');
+      closeSidebar();
+      location.reload();
+    } else {
+      showToast('Error: ' + result.error, 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to close trip', 'error');
+  });
+}
+
+function updateTableRow(tripId, newStatus, newStatusDisplay) {
+  const row = document.querySelector(`[data-trip-id="${tripId}"]`);
+  if (row) {
+    const statusBadge = row.querySelector('.status-badge');
+    if (statusBadge) {
+      statusBadge.textContent = newStatusDisplay;
+      statusBadge.className = 'status-badge status-' + newStatus;
+    }
+  }
+}
 </script>
+
 </body>
 </html>
 {% endblock %}

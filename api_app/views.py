@@ -5,7 +5,7 @@ from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .serializers import RegisterSerializer, VehicleTypeSerializer, VehicleSerializer, DriverSerializer, LoadDetailsSerializer, LoadRequestSerializer, PhoneNumberTokenObtainPairSerializer, TripCommentSerializer
-from .serializers import VendorAcceptedLoadDetailsSerializer, VendorTripDetailsSerializer, LRUploadSerializer, PODUploadSerializer
+from .serializers import VendorAcceptedLoadDetailsSerializer, VendorTripDetailsSerializer, LRUploadSerializer, PODUploadSerializer, VendorProfileUpdateSerializer
 from rest_framework.generics import RetrieveAPIView
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
@@ -14,6 +14,7 @@ from logistics_app.models import CustomUser, VehicleType, Vehicle, Driver, Load,
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 # views.py
 
@@ -202,6 +203,7 @@ def update_vehicle(request, vehicle_id):
             "message": "Vehicle not found."
         }, status=404)
 
+    # partial=True so user can update only location
     serializer = VehicleSerializer(vehicle, data=request.data, partial=True)
     
     if serializer.is_valid():
@@ -422,31 +424,70 @@ class VendorLRUploadView(APIView):
             requests__status="accepted"
         )
 
-        serializer = LRUploadSerializer(load, data=request.data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-
-            # Update timeline & status
-            load.update_trip_status(
-                new_status="lr_uploaded",
-                user=vendor,
-                lr_number=request.data.get("lr_number")
-            )
-
+        # Check if LR is already uploaded
+        if load.lr_document:
             return Response({
-                "message": "LR uploaded successfully",
-                "lr_document": load.lr_document.url if load.lr_document else None,
-                "lr_number": load.lr_number,
-                "lr_uploaded_at": load.lr_uploaded_at
-            }, status=200)
+                "success": False,
+                "message": "LR document already uploaded"
+            }, status=400)
 
-        return Response(serializer.errors, status=400)
+        # Only allow upload if status is 'loaded'
+        if load.trip_status != 'loaded':
+            return Response({
+                "success": False,
+                "message": "LR can only be uploaded when trip status is 'Loaded'"
+            }, status=400)
+
+        # Check if file is provided
+        if 'lr_document' not in request.FILES:
+            return Response({
+                "success": False,
+                "message": "No file provided"
+            }, status=400)
+
+        lr_document = request.FILES['lr_document']
+        
+        # Validate file type
+        allowed_types = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+        if lr_document.content_type not in allowed_types:
+            return Response({
+                "success": False,
+                "message": "File must be PDF, JPG, or PNG"
+            }, status=400)
+        
+        # Validate file size (max 10MB)
+        if lr_document.size > 10 * 1024 * 1024:
+            return Response({
+                "success": False,
+                "message": "File size must be less than 10MB"
+            }, status=400)
+
+        # Save the file to the model
+        load.lr_document = lr_document
+        load.lr_uploaded_at = timezone.now()
+        load.lr_uploaded_by = vendor
+        
+        # Get LR number if provided
+        lr_number = request.data.get("lr_number", "").strip()
+        if lr_number:
+            load.lr_number = lr_number
+
+        # Update trip status to lr_uploaded
+        load.update_trip_status(
+            new_status="lr_uploaded",
+            user=vendor,
+            lr_number=lr_number
+        )
+
+        return Response({
+            "success": True,
+            "message": "LR uploaded successfully",
+            "lr_document": load.lr_document.url if load.lr_document else None,
+            "lr_number": load.lr_number,
+            "lr_uploaded_at": load.lr_uploaded_at.isoformat() if load.lr_uploaded_at else None
+        }, status=200)
 
 
-# -----------------------------
-# 2️⃣  POD UPLOAD API
-# -----------------------------
 class VendorPODUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -461,21 +502,76 @@ class VendorPODUploadView(APIView):
             requests__status="accepted"
         )
 
-        serializer = PODUploadSerializer(load, data=request.data, partial=True)
+        # Check if POD is already uploaded
+        if load.pod_document:
+            return Response({
+                "success": False,
+                "message": "POD document already uploaded"
+            }, status=400)
+
+        # Only allow upload if status is 'unloading'
+        if load.trip_status != 'unloading':
+            return Response({
+                "success": False,
+                "message": "POD can only be uploaded when trip status is 'Unloading'"
+            }, status=400)
+
+        # Check if file is provided
+        if 'pod_document' not in request.FILES:
+            return Response({
+                "success": False,
+                "message": "No file provided"
+            }, status=400)
+
+        pod_document = request.FILES['pod_document']
+        
+        # Validate file type
+        allowed_types = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+        if pod_document.content_type not in allowed_types:
+            return Response({
+                "success": False,
+                "message": "File must be PDF, JPG, or PNG"
+            }, status=400)
+        
+        # Validate file size (max 10MB)
+        if pod_document.size > 10 * 1024 * 1024:
+            return Response({
+                "success": False,
+                "message": "File size must be less than 10MB"
+            }, status=400)
+
+        # Save the file to the model
+        load.pod_document = pod_document
+        load.pod_uploaded_at = timezone.now()
+        load.pod_uploaded_by = vendor
+
+        # Update trip status to pod_uploaded
+        load.update_trip_status(
+            new_status="pod_uploaded",
+            user=vendor
+        )
+
+        return Response({
+            "success": True,
+            "message": "POD uploaded successfully",
+            "pod_document": load.pod_document.url if load.pod_document else None,
+            "pod_uploaded_at": load.pod_uploaded_at.isoformat() if load.pod_uploaded_at else None
+        }, status=200)
+    
+class VendorProfileUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, *args, **kwargs):
+        serializer = VendorProfileUpdateSerializer(
+            data=request.data,
+            context={"request": request}
+        )
 
         if serializer.is_valid():
             serializer.save()
-
-            # Update timeline & status
-            load.update_trip_status(
-                new_status="pod_uploaded",
-                user=vendor
+            return Response(
+                {"message": "Vendor profile updated successfully"},
+                status=status.HTTP_200_OK
             )
 
-            return Response({
-                "message": "POD uploaded successfully",
-                "pod_document": load.pod_document.url if load.pod_document else None,
-                "pod_uploaded_at": load.pod_uploaded_at
-            }, status=200)
-
-        return Response(serializer.errors, status=400)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
