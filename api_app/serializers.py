@@ -393,3 +393,8 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
         user.save()
         return user
 
+class LoadFilterOptionsSerializer(serializers.Serializer):
+    locations = serializers.ListField(child=serializers.CharField())
+    destinations = serializers.ListField(child=serializers.CharField())
+    vehicle_types = serializers.ListField(child=serializers.CharField())
+    load_capacities = serializers.ListField(child=serializers.CharField())

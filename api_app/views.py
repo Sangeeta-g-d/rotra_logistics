@@ -5,7 +5,7 @@ from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .serializers import RegisterSerializer, VehicleTypeSerializer, VehicleSerializer, DriverSerializer, LoadDetailsSerializer, LoadRequestSerializer, PhoneNumberTokenObtainPairSerializer, TripCommentSerializer
-from .serializers import VendorAcceptedLoadDetailsSerializer, VendorTripDetailsSerializer, LRUploadSerializer, PODUploadSerializer, VendorProfileUpdateSerializer
+from .serializers import VendorAcceptedLoadDetailsSerializer, VendorTripDetailsSerializer, LRUploadSerializer, PODUploadSerializer, VendorProfileUpdateSerializer, LoadFilterOptionsSerializer
 from rest_framework.generics import RetrieveAPIView
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
@@ -575,3 +575,131 @@ class VendorProfileUpdateView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoadFilterOptionsView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Get all available filter options for loads dynamically from database
+        """
+        try:
+            # Get unique locations (from pickup_location)
+            locations = Load.objects.filter(
+                pickup_location__isnull=False
+            ).exclude(
+                pickup_location=''
+            ).values_list(
+                'pickup_location', flat=True
+            ).distinct().order_by('pickup_location')
+            
+            # Get unique destinations (from drop_location)
+            destinations = Load.objects.filter(
+                drop_location__isnull=False
+            ).exclude(
+                drop_location=''
+            ).values_list(
+                'drop_location', flat=True
+            ).distinct().order_by('drop_location')
+            
+            # Get unique vehicle types
+            vehicle_types = VehicleType.objects.all().values_list('name', flat=True).order_by('name')
+            
+            # Get unique load capacities from weight field
+            load_capacities = Load.objects.filter(
+                weight__isnull=False
+            ).exclude(
+                weight=''
+            ).values_list(
+                'weight', flat=True
+            ).distinct().order_by('weight')
+            
+            # Prepare response data
+            data = {
+                'locations': list(locations),
+                'destinations': list(destinations),
+                'vehicle_types': list(vehicle_types),
+                'load_capacities': list(load_capacities),
+            }
+            
+            serializer = LoadFilterOptionsSerializer(data)
+            
+            return Response({
+                'status': True,
+                'message': 'Filter options retrieved successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error retrieving filter options: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class FilteredLoadsView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Get loads with optional filters
+        Use consistent parameter names:
+        - from_location (for pickup_location)
+        - to_location (for drop_location)
+        - vehicle_type
+        - load_capacity
+        """
+        try:
+            # Get filter parameters from query params
+            from_location = request.GET.get('from_location')
+            to_location = request.GET.get('to_location')  # Use this instead of drop_location
+            vehicle_type = request.GET.get('vehicle_type')
+            load_capacity = request.GET.get('load_capacity')
+            
+            # Start with all loads
+            loads = Load.objects.all()
+            
+            # Apply filters only if they are provided
+            if from_location:
+                loads = loads.filter(pickup_location__icontains=from_location)
+            
+            if to_location:
+                loads = loads.filter(drop_location__icontains=to_location)
+            
+            if vehicle_type:
+                # Filter by vehicle type name
+                loads = loads.filter(vehicle_type__name__icontains=vehicle_type)
+            
+            if load_capacity:
+                # Exact match for weight since we're using values from dropdown
+                loads = loads.filter(weight=load_capacity)
+            
+            # Order by creation date (newest first)
+            loads = loads.order_by('-created_at')
+            
+            serializer = LoadDetailsSerializer(
+                loads, 
+                many=True,
+                context={"vendor": request.user}
+            )
+            
+            return Response({
+                'status': True,
+                'message': 'Filtered loads retrieved successfully',
+                'data': {
+                    'filters_applied': {
+                        'from_location': from_location,
+                        'to_location': to_location,
+                        'vehicle_type': vehicle_type,
+                        'load_capacity': load_capacity,
+                    },
+                    'loads': serializer.data,
+                    'total_count': loads.count()
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error filtering loads: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
