@@ -6,7 +6,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
+firebase-service-account.json
 # Ignore Django migration files (optional)
 *.sqlite3
 db.sqlite3
