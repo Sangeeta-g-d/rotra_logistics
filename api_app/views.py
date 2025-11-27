@@ -17,7 +17,6 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 # views.py
-
 @method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(APIView):
     permission_classes = [AllowAny]   # Anyone can access
