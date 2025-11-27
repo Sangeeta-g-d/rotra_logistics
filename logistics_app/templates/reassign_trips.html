@@ -1,0 +1,830 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Reassign Selected Trips{% endblock %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Reassign Selected Trips</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer" />
+
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+  <style>
+    .dashboard {
+      padding: 20px;
+      background: #f8fafc;
+      min-height: 100vh;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .top-bar h2 {
+      margin: 0;
+      color: #1f2937;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .table-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 500;
+      color: #374151;
+      font-size: 14px;
+    }
+
+    td {
+      padding: 16px;
+      border-bottom: 1px solid #e5e7eb;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .trip-checkbox {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      cursor: pointer;
+    }
+
+    .trip-checkbox:checked {
+      background-color: #dc2626;
+      border-color: #dc2626;
+    }
+
+    .selected-count {
+      background: #f8fafc;
+      padding: 16px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .selected-count input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+    }
+
+    .trip-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .trip-id {
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .trip-route {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .trip-vehicle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .vehicle-type {
+      background: #f3f4f6;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #374151;
+      font-size: 12px;
+    }
+
+    .reassign-section {
+      padding: 24px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #374151;
+      font-size: 14px;
+    }
+
+    .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #374151;
+      background: white;
+    }
+
+    .form-select:focus {
+      outline: none;
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+
+    .form-textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #374151;
+      resize: vertical;
+      min-height: 80px;
+      font-family: inherit;
+    }
+
+    .form-textarea:focus {
+      outline: none;
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    .action-buttons {
+      padding: 24px;
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      background: #f9fafb;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-cancel {
+      background: white;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+
+    .btn-cancel:hover {
+      background: #f9fafb;
+    }
+
+    .btn-reassign {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-reassign:hover {
+      background: #b91c1c;
+    }
+
+    .btn-reassign:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .no-trips {
+      padding: 40px;
+      text-align: center;
+      color: #6b7280;
+    }
+
+    .driver-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .driver-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #dc2626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .modal-actions {
+      padding: 24px;
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      background: #f9fafb;
+    }
+
+    .save-btn {
+      background: #dc2626;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .save-btn:hover {
+      background: #b91c1c;
+    }
+
+    .save-btn:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .cancel-btn {
+      background: white;
+      color: #374151;
+      padding: 10px 20px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .cancel-btn:hover {
+      background: #f9fafb;
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard">
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <h2>Reassign Selected Trips</h2>
+  </div>
+
+  <!-- TABLE CARD -->
+  <div class="table-card">
+    <!-- SELECTED COUNT -->
+    <div class="selected-count">
+      <input type="checkbox" id="selectAllTrips">
+      <span id="selectedCountText">0 trips selected</span>
+    </div>
+
+    <!-- TRIPS TABLE -->
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 40px;"></th>
+          <th>Trip Details</th>
+          <th>Vehicle & Driver</th>
+          <th>Current Assignee</th>
+        </tr>
+      </thead>
+      <tbody id="tripsTableBody">
+        {% if trips %}
+          {% for trip in trips %}
+          <tr data-trip-id="{{ trip.id }}">
+            <td>
+              <input type="checkbox" class="trip-checkbox" value="{{ trip.id }}">
+            </td>
+            <td>
+              <div class="trip-info">
+                <span class="trip-id">#{{ trip.load_id }}</span>
+                <span class="trip-route">{{ trip.pickup_location }} – {{ trip.drop_location }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="trip-vehicle">
+                <span class="vehicle-type">{{ trip.vehicle_type.name }}</span>
+                {% if trip.driver %}
+                <div class="driver-info">
+                  <div class="driver-avatar">
+                    {{ trip.driver.full_name|slice:":1"|upper }}
+                  </div>
+                  {{ trip.driver.full_name }}
+                </div>
+                {% else %}
+                <span>No driver assigned</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              {% if trip.created_by %}
+                {{ trip.created_by.full_name }}
+              {% else %}
+                <span style="color: #9ca3af;">Unassigned</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="4" class="no-trips">
+              No assigned trips available for reassignment.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+      {% if trips %}
+    <div class="reassign-section">
+      <h3 class="section-title">Select a traffic person to manage these trips</h3>
+      
+      <div class="form-group">
+        <label for="trafficPersonSelect">Traffic Person</label>
+        <select id="trafficPersonSelect" class="form-select">
+          <option value="" disabled selected>Choose a traffic person...</option>
+          {% for person in traffic_persons %}
+          <option value="{{ person.id }}" 
+                  data-has-token="{% if person.fcm_token and person.fcm_token|length > 100 %}true{% else %}false{% endif %}">
+            {{ person.full_name }} 
+            {% if person.fcm_token and person.fcm_token|length > 100 %}
+            ✅ (Notifications enabled)
+            {% else %}
+            ❌ (Notifications disabled)
+            {% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-hint" id="tokenStatus">
+          Select a traffic person to see notification status
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="reassignNote">Add Note (Optional)</label>
+        <textarea 
+          id="reassignNote" 
+          class="form-textarea" 
+          placeholder="Enter remarks for reassignment..."
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- ACTION BUTTONS -->
+    <div class="modal-actions">
+      <button class="save-btn" id="reassignBtn" disabled>Reassign Trips</button>
+      <button class="cancel-btn" onclick="window.history.back()">Cancel</button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  trafficPersonSelect.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const hasToken = selectedOption.getAttribute('data-has-token') === 'true';
+    const tokenStatus = document.getElementById('tokenStatus');
+    
+    if (hasToken) {
+        tokenStatus.innerHTML = '✅ This user can receive push notifications';
+        tokenStatus.style.color = '#16a34a';
+    } else {
+        tokenStatus.innerHTML = '❌ This user cannot receive push notifications. Ask them to log in and allow notifications.';
+        tokenStatus.style.color = '#dc2626';
+    }
+    
+    // Enable/disable reassign button based on selection
+    const selectedCount = document.querySelectorAll('.trip-checkbox:checked').length;
+    reassignBtn.disabled = selectedCount === 0 || this.value === '';
+});
+</script>
+<!-- Toastify CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // === TOAST HELPER ===
+  function showToast(text, type = 'info') {
+    const colors = {
+      success: '#16a34a',
+      error: '#dc2626',
+      info: '#2563eb',
+      warning: '#d97706'
+    };
+    Toastify({
+      text: text,
+      duration: 3500,
+      close: true,
+      gravity: "top",
+      position: "right",
+      backgroundColor: colors[type],
+      stopOnFocus: true,
+    }).showToast();
+  }
+
+  // === ELEMENTS ===
+  const selectAllCheckbox = document.getElementById('selectAllTrips');
+  const selectedCountText = document.getElementById('selectedCountText');
+  const tripCheckboxes = document.querySelectorAll('.trip-checkbox');
+  const trafficPersonSelect = document.getElementById('trafficPersonSelect');
+  const reassignBtn = document.getElementById('reassignBtn');
+  const reassignNote = document.getElementById('reassignNote');
+
+  // === CSRF TOKEN ===
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  // === SELECT ALL FUNCTIONALITY ===
+  selectAllCheckbox.addEventListener('change', function() {
+    const isChecked = this.checked;
+    tripCheckboxes.forEach(checkbox => {
+      checkbox.checked = isChecked;
+    });
+    updateSelectedCount();
+  });
+
+  // === UPDATE SELECTED COUNT ===
+  function updateSelectedCount() {
+    const selectedCount = document.querySelectorAll('.trip-checkbox:checked').length;
+    selectedCountText.textContent = `${selectedCount} trip${selectedCount !== 1 ? 's' : ''} selected`;
+    
+    // Enable/disable reassign button
+    const trafficPersonSelected = trafficPersonSelect.value !== '';
+    reassignBtn.disabled = selectedCount === 0 || !trafficPersonSelected;
+  }
+
+  // === INDIVIDUAL CHECKBOX HANDLING ===
+  tripCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectedCount);
+  });
+
+  // === TRAFFIC PERSON SELECTION ===
+  trafficPersonSelect.addEventListener('change', function() {
+    const selectedCount = document.querySelectorAll('.trip-checkbox:checked').length;
+    reassignBtn.disabled = selectedCount === 0 || this.value === '';
+  });
+
+  // === REASSIGN ACTION ===
+// In your reassign_trips.html template - update the fetch response handling
+reassignBtn.addEventListener('click', function() {
+    const selectedTrips = Array.from(document.querySelectorAll('.trip-checkbox:checked'))
+      .map(checkbox => checkbox.value);
+    
+    const trafficPersonId = trafficPersonSelect.value;
+    const note = reassignNote.value.trim();
+
+    if (selectedTrips.length === 0) {
+        showToast('Please select at least one trip', 'error');
+        return;
+    }
+
+    if (!trafficPersonId) {
+        showToast('Please select a traffic person', 'error');
+        return;
+    }
+
+    // Disable button during processing
+    reassignBtn.disabled = true;
+    reassignBtn.textContent = 'Reassigning...';
+
+    // Send reassignment request
+    fetch('{% url "reassign_trips_action" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({
+            trip_ids: selectedTrips,
+            traffic_person_id: trafficPersonId,
+            note: note
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let successMessage = data.message;
+            
+            // Show appropriate notification status
+            if (data.notification_sent) {
+                showToast(successMessage, 'success');
+            } else {
+                // Show warning if notification wasn't sent
+                showToast(successMessage, 'warning');
+                console.log('Notification not sent reason:', data.notification_reason);
+            }
+            
+            // Remove reassigned trips from the table
+            selectedTrips.forEach(tripId => {
+                const row = document.querySelector(`tr[data-trip-id="${tripId}"]`);
+                if (row) row.remove();
+            });
+
+            // Reset form
+            resetForm();
+
+            // Check if no trips left
+            const remainingTrips = document.querySelectorAll('#tripsTableBody tr[data-trip-id]').length;
+            if (remainingTrips === 0) {
+                document.querySelector('.reassign-section').style.display = 'none';
+                document.querySelector('.modal-actions').style.display = 'none';
+                document.querySelector('#tripsTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="no-trips">
+                            No assigned trips available for reassignment.
+                        </td>
+                    </tr>
+                `;
+            }
+        } else {
+            showToast(data.error || 'Failed to reassign trips', 'error');
+            reassignBtn.disabled = false;
+            reassignBtn.textContent = 'Reassign Trips';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Network error occurred', 'error');
+        reassignBtn.disabled = false;
+        reassignBtn.textContent = 'Reassign Trips';
+    });
+});
+
+  // === RESET FORM ===
+  function resetForm() {
+    selectAllCheckbox.checked = false;
+    trafficPersonSelect.value = '';
+    reassignNote.value = '';
+    reassignBtn.disabled = true;
+    reassignBtn.textContent = 'Reassign Trips';
+    updateSelectedCount();
+  }
+
+  // Initialize selected count
+  updateSelectedCount();
+});
+// Request notification permission
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("This browser does not support notifications");
+        return false;
+    }
+
+    if (Notification.permission === "granted") {
+        console.log("Notification permission already granted");
+        return true;
+    } else if (Notification.permission !== "denied") {
+        return Notification.requestPermission().then(function(permission) {
+            if (permission === "granted") {
+                console.log("Notification permission granted");
+                return true;
+            }
+            return false;
+        });
+    }
+    return false;
+}
+
+// Initialize service worker and FCM
+async function initializePushNotifications() {
+    if (!('serviceWorker' in navigator)) {
+        console.log('Service Worker not supported');
+        return;
+    }
+
+    try {
+        // Register service worker
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('Service Worker registered:', registration);
+
+        // Request notification permission
+        const permissionGranted = await requestNotificationPermission();
+        if (!permissionGranted) {
+            console.log('Notification permission not granted');
+            return;
+        }
+
+        // Get FCM token (you'll need to implement this based on your Firebase setup)
+        // This would typically be done when the user logs in
+        console.log('Push notifications initialized');
+        
+    } catch (error) {
+        console.error('Error initializing push notifications:', error);
+    }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Only initialize for traffic persons
+    if (document.body.classList.contains('traffic-person-view')) {
+        initializePushNotifications();
+    }
+});
+</script>
+
+<script>
+  // firebase-init.js
+import { initializeApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDLUJ032wDFTw53XbmxbW2bJNJ6iWeRpQs",
+    authDomain: "rotra-45d3e.firebaseapp.com",
+    projectId: "rotra-45d3e",
+    storageBucket: "rotra-45d3e.firebasestorage.app",
+    messagingSenderId: "915855872468",
+    appId: "1:915855872468:web:6aacfc0f601e9323150641",
+    measurementId: "G-3RZX6MRHWG"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const messaging = getMessaging(app);
+
+// Function to request permission and get FCM token
+async function requestFCMToken() {
+    try {
+        // Request notification permission
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            console.log('Notification permission granted.');
+            
+            // Get FCM token
+            const token = await getToken(messaging, {
+                vapidKey: 'BM9uJoRKfeEIPzixk1AijFRVAqBUcqskf9RqicJ2k1uEIy1xnSWA0JuAwyq0IwwQ1dZcPt-uOsno3er_RqetWFE', // You need to generate this
+                serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+            });
+            
+            if (token) {
+                console.log('FCM token:', token);
+                // Send token to your Django backend
+                await saveTokenToServer(token);
+                return token;
+            } else {
+                console.log('No registration token available.');
+                return null;
+            }
+        } else {
+            console.log('Unable to get permission to notify.');
+            return null;
+        }
+    } catch (error) {
+        console.error('An error occurred while retrieving token:', error);
+        return null;
+    }
+}
+
+// Save token to Django backend
+async function saveTokenToServer(token) {
+    try {
+        const response = await fetch('/save_fcm_token/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                fcm_token: token
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            console.log('Token saved successfully:', data.message);
+        } else {
+            console.error('Failed to save token:', data.error);
+        }
+    } catch (error) {
+        console.error('Error saving token:', error);
+    }
+}
+
+// Handle incoming messages when app is in foreground
+onMessage(messaging, (payload) => {
+    console.log('Message received in foreground:', payload);
+    // Display notification
+    showCustomNotification(payload);
+});
+
+function showCustomNotification(payload) {
+    const notificationTitle = payload.notification?.title || 'New Notification';
+    const notificationOptions = {
+        body: payload.notification?.body || 'You have a new message',
+        icon: '/static/images/logo.png',
+        badge: '/static/images/badge.png',
+        data: payload.data || {}
+    };
+    
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(notificationTitle, notificationOptions);
+    }
+}
+
+// Get CSRF token function
+function getCSRFToken() {
+    const name = 'csrftoken';
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if service workers are supported
+    if ('serviceWorker' in navigator) {
+        // Initialize FCM
+        initializeFCM();
+    }
+});
+
+async function initializeFCM() {
+    try {
+        // Register service worker first
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('Service Worker registered successfully:', registration);
+        
+        // Then request FCM token
+        await requestFCMToken();
+    } catch (error) {
+        console.error('Service Worker registration failed:', error);
+    }
+}
+</script>
+
+</body>
+</html>
+
+{% endblock %}

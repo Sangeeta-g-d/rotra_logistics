@@ -286,85 +286,111 @@
   <div class="logo">
     <div class="logo-icon">R</div>
     <div class="logo-text">
-      <h3>RoadFleet</h3>
-      <p>Admin Panel</p>
+      {% if user.role == 'admin' or user.is_staff %}
+        <h3>RoadFleet</h3>
+        <p>Admin Panel</p>
+      {% elif user.role == 'traffic_person' %}
+        <h3>RoadFleet</h3>
+        <p>Traffic Person Panel</p>
+      {% endif %}
     </div>
   </div>
 
   <div class="menu">
-    <a href="/dashboard/" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-      Dashboard
-    </a>
+    <!-- FIXED: All users go to /dashboard/ -->
+    {% if user.role == 'admin' or user.is_staff or user.role == 'traffic_person' %}
+      <a href="/dashboard/" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+        Dashboard
+      </a>
+    {% endif %}
 
-    <a href="/loads/" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M4 6h16M4 12h16m-7 6h7" />
-      </svg>
-      Load Management
-    </a>
+    {% if user.role == 'admin' or user.is_staff or user.role == 'traffic_person' %}
+      <a href="/loads/" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+        Load Management
+      </a>
+    {% endif %}
 
-    <a href="/trips/" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M16 11V7a4 4 0 10-8 0v4M5 11h14v10H5z" />
-      </svg>
-       Trip Management
-    </a>
+    {% if user.role == 'admin' or user.is_staff or user.role == 'traffic_person' %}
+      <a href="/trips/" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M16 11V7a4 4 0 10-8 0v4M5 11h14v10H5z" />
+        </svg>
+        Trip Management
+      </a>
+    {% endif %}
 
-    <a href="/drivers/" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M16 11V7a4 4 0 10-8 0v4M5 11h14v10H5z" />
-      </svg>
-      Driver Management
-    </a>
+    {% if user.role == 'admin' or user.is_staff or user.role == 'traffic_person' %}
+      <a href="/payments/" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M16 11V7a4 4 0 10-8 0v4M5 11h14v10H5z" />
+        </svg>
+        Payment Management
+      </a>
+    {% endif %}
 
-    <a href="{% url 'vehicle_list' %}" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M3 13h18l-1 7H4l-1-7zm5-8h8l1 5H7l1-5z" />
-      </svg>
-      Vehicle Management
-    </a>
+    <!-- Admin Only Menu Items -->
+    {% if user.role == 'admin' or user.is_staff %}
+      <a href="/drivers/" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M16 11V7a4 4 0 10-8 0v4M5 11h14v10H5z" />
+        </svg>
+        Driver Management
+      </a>
 
-    <a href="/payments/" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M16 11V7a4 4 0 10-8 0v4M5 11h14v10H5z" />
-      </svg>
-       Payment Management
-    </a>
+      <a href="{% url 'vehicle_list' %}" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 13h18l-1 7H4l-1-7zm5-8h8l1 5H7l1-5z" />
+        </svg>
+        Vehicle Management
+      </a>
 
-    <a href="/customers/" 
-   class="menu-item {% if request.path == '/customers/' %}active{% endif %}">
-  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-      d="M1 20h5v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2h5M12 12a5 5 0 100-10 5 5 0 000 10z" />
-  </svg>
-  Customer Management
-</a>
+      <a href="/customers/" class="menu-item {% if request.path == '/customers/' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M1 20h5v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2h5M12 12a5 5 0 100-10 5 5 0 000 10z" />
+        </svg>
+        Customer Management
+      </a>
 
+      <a href="/vendor/" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        Vendor Management
+      </a>
 
-    <a href="/vendor/" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-      </svg>
-      Vendor Management
-    </a>
+      <a href="/employees/" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4zm6 8v-2a4 4 0 00-4-4H10a4 4 0 00-4 4v2h12z" />
+        </svg>
+        Employee Management
+      </a>
+    {% endif %}
 
-    <a href="/employees/" class="menu-item">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4zm6 8v-2a4 4 0 00-4-4H10a4 4 0 00-4 4v2h12z" />
-      </svg>
-      Employee
-    </a>
+    <!-- FIXED: Reassign Trips visible to both Admin and Traffic Person -->
+    {% if user.role == 'admin' or user.is_staff or user.role == 'traffic_person' %}
+      <a href="{% url 'reassign_trips' %}" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+        Reassign Trips
+      </a>
+    {% endif %}
 
     <!-- Settings with onclick to open modal -->
     <div class="menu-item" onclick="openSettingsModal()">
@@ -374,6 +400,15 @@
       </svg>
       Settings
     </div>
+
+    <!-- Logout -->
+    <a href="/logout/" class="menu-item">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+      </svg>
+      Logout
+    </a>
   </div>
 </div>
 
@@ -401,6 +436,13 @@
         <div class="profile-info">
           <h3 id="profileName">{{ user.full_name }}</h3>
           <p id="profileEmail">{{ user.email }}</p>
+          <p id="profileRole" style="font-size: 12px; color: #888;">
+            {% if user.role == 'admin' or user.is_staff %}
+              Admin User
+            {% elif user.role == 'traffic_person' %}
+              Traffic Person
+            {% endif %}
+          </p>
         </div>
       </div>
 
@@ -424,10 +466,13 @@
           </div>
           <div class="form-group">
             <label for="role">Role</label>
-            <select id="role" name="role">
-              <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+            <select id="role" name="role" {% if user.role == 'traffic_person' %}disabled{% endif %}>
+              <option value="admin" {% if user.role == 'admin' or user.is_staff %}selected{% endif %}>Admin</option>
               <option value="traffic_person" {% if user.role == 'traffic_person' %}selected{% endif %}>Traffic Person</option>
             </select>
+            {% if user.role == 'traffic_person' %}
+              <small style="color: #666; font-size: 12px;">Role cannot be changed</small>
+            {% endif %}
           </div>
         </div>
 

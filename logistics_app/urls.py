@@ -63,6 +63,14 @@ path('payments/', views.payment_management, name='payment_management'),
 path('api/payment/<int:trip_id>/details/', views.get_payment_details_api, name='get_payment_details_api'),
 path('api/payment/<int:trip_id>/mark-first-half-paid/', views.mark_first_half_paid_api, name='mark_first_half_paid'),
 path('api/payment/<int:trip_id>/mark-final-payment-paid/', views.mark_final_payment_paid_api, name='mark_final_payment_paid'),
+path('reassign-trips/', views.reassign_trips, name='reassign_trips'),
+path('reassign-trips/action/', views.reassign_trips_action, name='reassign_trips_action'),
+path('save-fcm-token/', views.save_fcm_token, name='save_fcm_token'),
+path('update-fcm-token/', views.update_fcm_token, name='update_fcm_token'),
+path('firebase-messaging-sw.js', views.service_worker, name='service_worker'),
+path('debug-fcm-tokens/', views.debug_fcm_tokens, name='debug_fcm_tokens'),
+path('test-fcm/', views.test_fcm_notification, name='test_fcm'),
+path('fcm-status/', views.fcm_status, name='fcm_status'),
 
     
     

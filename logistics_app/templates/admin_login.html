@@ -257,6 +257,12 @@
             box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
         }
 
+        .login-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .security-note {
             text-align: center;
             margin-top: 25px;
@@ -358,13 +364,22 @@
             <div class="login-title">Admin Login</div>
             <div class="login-subtitle">Access your logistics dashboard</div>
 
-            <form method="post" action="{% url 'admin_login' %}">
+            {% if error %}
+            <div class="error-message">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="post" action="{% url 'admin_login' %}" id="loginForm">
                 {% csrf_token %}
+                <!-- Hidden FCM Token Field -->
+                <input type="hidden" name="fcm_token" id="fcm_token_input">
+                
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
                     <div class="input-wrapper">
                         <span class="input-icon">📧</span>
-                        <input type="email" name="email" class="form-input" placeholder="admin@roadfleet.com" required>
+                        <input type="email" name="email" class="form-input" placeholder="admin@roadfleet.com" required value="{% if request.POST.email %}{{ request.POST.email }}{% endif %}">
                     </div>
                 </div>
 
@@ -385,7 +400,7 @@
                     <a href="/admin/forgot-password/" class="forgot-link">Forgot Password?</a>
                 </div>
 
-                <button type="submit" class="login-btn">
+                <button type="submit" class="login-btn" id="loginButton">
                     <span>→</span>
                     <span>Login to Dashboard</span>
                 </button>
@@ -408,7 +423,23 @@
         </div>
     </div>
 
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js"></script>
+
     <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDlJUO3ZwDfIw53XbmxbW2bIWJ0iWeRpQs",
+            authDomain: "rotra-45d3e.firebaseapp.com",
+            projectId: "rotra-45d3e",
+            storageBucket: "rotra-45d3e.firebasestorage.app",
+            messagingSenderId: "915855872468",
+            appId: "1:915855872468:web:6aacfc0f601e9323150641",
+            measurementId: "G-3RZX6MRHWG"
+        };
+
+        let messaging = null;
+
         function togglePassword() {
             const passwordInput = document.getElementById('password');
             const toggleIcon = document.querySelector('.password-toggle');
@@ -421,6 +452,92 @@
                 toggleIcon.textContent = '👁️';
             }
         }
+
+        // Simple FCM token retrieval without debug messages
+        async function getRealFCMToken() {
+            try {
+                // Check basic requirements
+                if (!('Notification' in window)) {
+                    throw new Error('Notifications not supported');
+                }
+
+                if (typeof firebase === 'undefined') {
+                    throw new Error('Firebase not loaded');
+                }
+
+                // Initialize Firebase
+                firebase.initializeApp(firebaseConfig);
+                messaging = firebase.messaging();
+
+                // Request permission
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    throw new Error('Permission denied');
+                }
+
+                // Get token
+                const token = await messaging.getToken();
+                
+                if (token && token.length > 50) {
+                    return token;
+                } else {
+                    throw new Error('Invalid token');
+                }
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // Generate a mock FCM token for fallback
+        function generateMockFCMToken() {
+            return 'fcm_mock_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+        }
+
+        // Set FCM token
+        async function setFCMToken() {
+            const fcmInput = document.getElementById('fcm_token_input');
+            
+            try {
+                const realToken = await getRealFCMToken();
+                fcmInput.value = realToken;
+                return true;
+            } catch (error) {
+                // Fallback to mock token silently
+                const mockToken = generateMockFCMToken();
+                fcmInput.value = mockToken;
+                return true;
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('loginForm');
+            const loginButton = document.getElementById('loginButton');
+
+            // Handle form submission
+            loginForm.addEventListener('submit', async function(e) {
+                // Prevent default submission temporarily
+                e.preventDefault();
+                
+                // Show loading state
+                loginButton.disabled = true;
+                loginButton.innerHTML = '<span>⏳</span><span>Logging in...</span>';
+                
+                try {
+                    // Ensure FCM token is set
+                    await setFCMToken();
+                    
+                    // Submit the form
+                    setTimeout(() => {
+                        loginForm.submit();
+                    }, 500);
+                    
+                } catch (error) {
+                    loginButton.disabled = false;
+                    loginButton.innerHTML = '<span>→</span><span>Login to Dashboard</span>';
+                }
+            });
+        });
     </script>
 </body>
 </html>

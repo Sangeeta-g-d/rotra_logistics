@@ -82,6 +82,7 @@ class CustomUser(AbstractUser):
     address = models.TextField(max_length=255, blank=True, null=True)
     phone_number = models.CharField(max_length=15, unique=True)
     pan_number = models.CharField(max_length=10, unique=True, blank=True, null=True)
+    fcm_token = models.TextField(blank=True, null=True, verbose_name='FCM Token')
     
     # TDS Declaration
     tds_declaration = models.FileField(
@@ -521,3 +522,40 @@ class TripComment(models.Model):
             elif self.sender.role == 'vendor':
                 self.sender_type = 'vendor'
         super().save(*args, **kwargs)
+
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('trip_reassigned', 'Trip Reassigned'),
+        ('trip_assigned', 'Trip Assigned'),
+        ('payment_received', 'Payment Received'),
+        ('trip_status_updated', 'Trip Status Updated'),
+    ]
+
+    recipient = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='notifications'
+    )
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    related_trip = models.ForeignKey(
+        'Load',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='notifications'
+    )
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.recipient.full_name}"
+
+    def mark_as_read(self):
+        self.is_read = True
+        self.save()
