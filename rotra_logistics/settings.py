@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-kqadhzrc*%i5auptz93gqn_)!54@p2**6pl1gcjv+ik%kb5w)_'
+SECRET_KEY =os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -103,6 +103,14 @@ DATABASES = {
     }
 }
 
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'vasant@crawlerstechnologies.com'  # Your actual email
+EMAIL_HOST_PASSWORD = 'fjhq iiim zmwx czys'  # Your app password
+DEFAULT_FROM_EMAIL = 'vasant@crawlerstechnologies.com'  # Should match your email
+SERVER_EMAIL = 'vasant@crawlerstechnotechnologies.com'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -144,7 +152,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-
+FIREBASE_SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, 'firebase-service-account.json')
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 

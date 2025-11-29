@@ -654,6 +654,8 @@ class FilteredLoadsView(APIView):
             to_location = request.GET.get('to_location')  # Use this instead of drop_location
             vehicle_type = request.GET.get('vehicle_type')
             load_capacity = request.GET.get('load_capacity')
+            pickup_date = request.GET.get('pickup_date')  # Add date filtering
+            drop_date = request.GET.get('drop_date')
             
             # Start with all loads
             loads = Load.objects.all()
@@ -672,6 +674,12 @@ class FilteredLoadsView(APIView):
             if load_capacity:
                 # Exact match for weight since we're using values from dropdown
                 loads = loads.filter(weight=load_capacity)
+
+            if pickup_date:
+                loads = loads.filter(pickup_date=pickup_date)
+            
+            if drop_date:
+                loads = loads.filter(drop_date=drop_date)
             
             # Order by creation date (newest first)
             loads = loads.order_by('-created_at')
@@ -702,3 +710,26 @@ class FilteredLoadsView(APIView):
                 'status': False,
                 'message': f'Error filtering loads: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+        
+class SaveFCMTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        fcm_token = request.data.get('fcm_token')
+        
+        if not fcm_token:
+            return Response({
+                "status": False,
+                "message": "FCM token is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Save token to user
+        request.user.fcm_token = fcm_token
+        request.user.save()
+        
+        return Response({
+            "status": True,
+            "message": "FCM token saved successfully"
+        }, status=status.HTTP_200_OK)

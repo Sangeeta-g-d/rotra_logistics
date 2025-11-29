@@ -168,6 +168,9 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "vehicle_type_name",
             "pickup_location",
             "drop_location",
+            "pickup_date",
+            "drop_date",
+            "time",
             "weight",
             "price_per_unit",
             "trip_status",
@@ -282,6 +285,9 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
 
     documents = serializers.SerializerMethodField()
     timeline = serializers.SerializerMethodField()
+    
+    # Add this field to get last 2 comments
+    recent_comments = serializers.SerializerMethodField()
 
     class Meta:
         model = Load
@@ -317,6 +323,9 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             # timeline
             "timeline",
 
+            # recent comments (last 2)
+            "recent_comments",
+
             "created_at",
         ]
 
@@ -343,6 +352,18 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "pod_uploaded": obj.pod_uploaded_at,
             "payment_completed": obj.payment_completed_at,
         }
+    
+    # Add this method to get last 2 comments
+    def get_recent_comments(self, obj):
+        # Get the last 2 comments for this load, ordered by latest first
+        recent_comments = TripComment.objects.filter(
+            load=obj
+        ).order_by('-created_at')[:2]  # Get last 2 comments
+        
+        # Serialize the comments
+        serializer = TripCommentSerializer(recent_comments, many=True)
+        return serializer.data
+    
 
 class LRUploadSerializer(serializers.ModelSerializer):
     class Meta:

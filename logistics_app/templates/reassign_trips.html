@@ -394,20 +394,11 @@
         <select id="trafficPersonSelect" class="form-select">
           <option value="" disabled selected>Choose a traffic person...</option>
           {% for person in traffic_persons %}
-          <option value="{{ person.id }}" 
-                  data-has-token="{% if person.fcm_token and person.fcm_token|length > 100 %}true{% else %}false{% endif %}">
-            {{ person.full_name }} 
-            {% if person.fcm_token and person.fcm_token|length > 100 %}
-            ✅ (Notifications enabled)
-            {% else %}
-            ❌ (Notifications disabled)
-            {% endif %}
+          <option value="{{ person.id }}">
+            {{ person.full_name }}
           </option>
           {% endfor %}
         </select>
-        <div class="form-hint" id="tokenStatus">
-          Select a traffic person to see notification status
-        </div>
       </div>
 
       <div class="form-group">
@@ -429,25 +420,6 @@
   </div>
 </div>
 
-<script>
-  trafficPersonSelect.addEventListener('change', function() {
-    const selectedOption = this.options[this.selectedIndex];
-    const hasToken = selectedOption.getAttribute('data-has-token') === 'true';
-    const tokenStatus = document.getElementById('tokenStatus');
-    
-    if (hasToken) {
-        tokenStatus.innerHTML = '✅ This user can receive push notifications';
-        tokenStatus.style.color = '#16a34a';
-    } else {
-        tokenStatus.innerHTML = '❌ This user cannot receive push notifications. Ask them to log in and allow notifications.';
-        tokenStatus.style.color = '#dc2626';
-    }
-    
-    // Enable/disable reassign button based on selection
-    const selectedCount = document.querySelectorAll('.trip-checkbox:checked').length;
-    reassignBtn.disabled = selectedCount === 0 || this.value === '';
-});
-</script>
 <!-- Toastify CDN -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
@@ -529,8 +501,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // === REASSIGN ACTION ===
-// In your reassign_trips.html template - update the fetch response handling
-reassignBtn.addEventListener('click', function() {
+  reassignBtn.addEventListener('click', function() {
     const selectedTrips = Array.from(document.querySelectorAll('.trip-checkbox:checked'))
       .map(checkbox => checkbox.value);
     
@@ -567,16 +538,7 @@ reassignBtn.addEventListener('click', function() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            let successMessage = data.message;
-            
-            // Show appropriate notification status
-            if (data.notification_sent) {
-                showToast(successMessage, 'success');
-            } else {
-                // Show warning if notification wasn't sent
-                showToast(successMessage, 'warning');
-                console.log('Notification not sent reason:', data.notification_reason);
-            }
+            showToast(data.message, 'success');
             
             // Remove reassigned trips from the table
             selectedTrips.forEach(tripId => {
@@ -627,201 +589,6 @@ reassignBtn.addEventListener('click', function() {
   // Initialize selected count
   updateSelectedCount();
 });
-// Request notification permission
-function requestNotificationPermission() {
-    if (!("Notification" in window)) {
-        console.log("This browser does not support notifications");
-        return false;
-    }
-
-    if (Notification.permission === "granted") {
-        console.log("Notification permission already granted");
-        return true;
-    } else if (Notification.permission !== "denied") {
-        return Notification.requestPermission().then(function(permission) {
-            if (permission === "granted") {
-                console.log("Notification permission granted");
-                return true;
-            }
-            return false;
-        });
-    }
-    return false;
-}
-
-// Initialize service worker and FCM
-async function initializePushNotifications() {
-    if (!('serviceWorker' in navigator)) {
-        console.log('Service Worker not supported');
-        return;
-    }
-
-    try {
-        // Register service worker
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('Service Worker registered:', registration);
-
-        // Request notification permission
-        const permissionGranted = await requestNotificationPermission();
-        if (!permissionGranted) {
-            console.log('Notification permission not granted');
-            return;
-        }
-
-        // Get FCM token (you'll need to implement this based on your Firebase setup)
-        // This would typically be done when the user logs in
-        console.log('Push notifications initialized');
-        
-    } catch (error) {
-        console.error('Error initializing push notifications:', error);
-    }
-}
-
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Only initialize for traffic persons
-    if (document.body.classList.contains('traffic-person-view')) {
-        initializePushNotifications();
-    }
-});
-</script>
-
-<script>
-  // firebase-init.js
-import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-
-const firebaseConfig = {
-    apiKey: "AIzaSyDLUJ032wDFTw53XbmxbW2bJNJ6iWeRpQs",
-    authDomain: "rotra-45d3e.firebaseapp.com",
-    projectId: "rotra-45d3e",
-    storageBucket: "rotra-45d3e.firebasestorage.app",
-    messagingSenderId: "915855872468",
-    appId: "1:915855872468:web:6aacfc0f601e9323150641",
-    measurementId: "G-3RZX6MRHWG"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
-
-// Function to request permission and get FCM token
-async function requestFCMToken() {
-    try {
-        // Request notification permission
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-            console.log('Notification permission granted.');
-            
-            // Get FCM token
-            const token = await getToken(messaging, {
-                vapidKey: 'BM9uJoRKfeEIPzixk1AijFRVAqBUcqskf9RqicJ2k1uEIy1xnSWA0JuAwyq0IwwQ1dZcPt-uOsno3er_RqetWFE', // You need to generate this
-                serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js')
-            });
-            
-            if (token) {
-                console.log('FCM token:', token);
-                // Send token to your Django backend
-                await saveTokenToServer(token);
-                return token;
-            } else {
-                console.log('No registration token available.');
-                return null;
-            }
-        } else {
-            console.log('Unable to get permission to notify.');
-            return null;
-        }
-    } catch (error) {
-        console.error('An error occurred while retrieving token:', error);
-        return null;
-    }
-}
-
-// Save token to Django backend
-async function saveTokenToServer(token) {
-    try {
-        const response = await fetch('/save_fcm_token/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken(),
-            },
-            body: JSON.stringify({
-                fcm_token: token
-            })
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-            console.log('Token saved successfully:', data.message);
-        } else {
-            console.error('Failed to save token:', data.error);
-        }
-    } catch (error) {
-        console.error('Error saving token:', error);
-    }
-}
-
-// Handle incoming messages when app is in foreground
-onMessage(messaging, (payload) => {
-    console.log('Message received in foreground:', payload);
-    // Display notification
-    showCustomNotification(payload);
-});
-
-function showCustomNotification(payload) {
-    const notificationTitle = payload.notification?.title || 'New Notification';
-    const notificationOptions = {
-        body: payload.notification?.body || 'You have a new message',
-        icon: '/static/images/logo.png',
-        badge: '/static/images/badge.png',
-        data: payload.data || {}
-    };
-    
-    if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(notificationTitle, notificationOptions);
-    }
-}
-
-// Get CSRF token function
-function getCSRFToken() {
-    const name = 'csrftoken';
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if service workers are supported
-    if ('serviceWorker' in navigator) {
-        // Initialize FCM
-        initializeFCM();
-    }
-});
-
-async function initializeFCM() {
-    try {
-        // Register service worker first
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('Service Worker registered successfully:', registration);
-        
-        // Then request FCM token
-        await requestFCMToken();
-    } catch (error) {
-        console.error('Service Worker registration failed:', error);
-    }
-}
 </script>
 
 </body>

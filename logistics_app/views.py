@@ -19,6 +19,12 @@ from .firebase_service import FirebaseService
 from django.http import HttpResponse
 import os
 from django.conf import settings
+import secrets
+import string
+import hashlib
+import hmac
+from django.core.mail import send_mail
+from datetime import timedelta
 
 
 
@@ -33,12 +39,6 @@ def admin_login_view(request):
     if request.method == 'POST':
         email = request.POST.get('email')
         password = request.POST.get('password')
-        fcm_token = request.POST.get('fcm_token')
-
-        print(f"=== LOGIN DEBUG ===")
-        print(f"Email: {email}")
-        print(f"FCM Token received: {fcm_token}")
-        print(f"All POST data: {dict(request.POST)}")
 
         if not email or not password:
             return render(request, 'admin_login.html', {'error': 'Email and password are required.'})
@@ -48,21 +48,6 @@ def admin_login_view(request):
         
         if user is not None:
             if user.is_staff or user.role == 'admin' or user.role == 'traffic_person':
-                # Save FCM token if provided
-                if fcm_token:
-                    print(f"Before save - User FCM token: {user.fcm_token}")
-                    user.fcm_token = fcm_token
-                    user.save()
-                    
-                    # Verify the save
-                    from django.contrib.auth import get_user_model
-                    User = get_user_model()
-                    updated_user = User.objects.get(id=user.id)
-                    print(f"After save - User FCM token: {updated_user.fcm_token}")
-                    print(f"✅ FCM token saved for user {user.email} during login")
-                else:
-                    print("⚠️ No FCM token provided during login")
-                
                 login(request, user)
                 return redirect('admin_dashboard')
             else:
@@ -2442,7 +2427,6 @@ def reassign_trips(request):
     return render(request, 'reassign_trips.html', context)
 
 
-# views.py - Update the reassign_trips_action function
 @login_required
 @require_http_methods(["POST"])
 def reassign_trips_action(request):
@@ -2468,43 +2452,18 @@ def reassign_trips_action(request):
         except CustomUser.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Invalid traffic person selected'}, status=400)
 
-        # Debug: Check FCM token status
-        print(f"=== REASSIGNMENT DEBUG ===")
-        print(f"Traffic Person: {traffic_person.full_name} ({traffic_person.email})")
-        print(f"FCM Token: {traffic_person.fcm_token}")
-        print(f"Token Length: {len(traffic_person.fcm_token) if traffic_person.fcm_token else 0}")
-        print(f"Is Mock: {traffic_person.fcm_token.startswith('fcm_mock_') if traffic_person.fcm_token else False}")
-
-        # Reassign trips and create notifications
+        # Reassign trips
         reassigned_count = 0
-        reassigned_trips_info = []
         
         with transaction.atomic():
             for trip_id in trip_ids:
                 try:
                     trip = Load.objects.get(id=trip_id)
-                    old_assignee = trip.created_by
                     
                     # Update the created_by field to reassign
                     trip.created_by = traffic_person
                     trip.save()
                     reassigned_count += 1
-                    
-                    # Store trip info for notification
-                    reassigned_trips_info.append({
-                        'load_id': trip.load_id,
-                        'pickup': trip.pickup_location,
-                        'drop': trip.drop_location
-                    })
-                    
-                    # Create notification in database
-                    notification = Notification.objects.create(
-                        recipient=traffic_person,
-                        notification_type='trip_reassigned',
-                        title='Trip Reassigned',
-                        message=f'Trip #{trip.load_id} has been reassigned to you. Route: {trip.pickup_location} → {trip.drop_location}',
-                        related_trip=trip
-                    )
                     
                     # Add note if provided
                     if note:
@@ -2518,46 +2477,10 @@ def reassign_trips_action(request):
                 except Load.DoesNotExist:
                     continue
 
-        # Send web push notification to the assigned traffic person
-        notification_sent = False
-        notification_reason = "No FCM token available"
-        
-        if reassigned_count > 0:
-            if traffic_person.fcm_token:
-                # Validate it's not a mock token
-                if (traffic_person.fcm_token.startswith('fcm_mock_') or 
-                    traffic_person.fcm_token.startswith('mock_') or
-                    len(traffic_person.fcm_token) < 100):
-                    
-                    notification_reason = "Invalid/mock FCM token"
-                    print(f"❌ Invalid FCM token for {traffic_person.email}: {traffic_person.fcm_token[:50]}...")
-                else:
-                    # Send real notification
-                    notification_sent = FirebaseService.send_reassignment_notification(
-                        traffic_person=traffic_person,
-                        trip_count=reassigned_count,
-                        reassigned_trips_info=reassigned_trips_info,
-                        assigned_by=request.user.full_name
-                    )
-                    notification_reason = "Notification sent successfully" if notification_sent else "Failed to send notification"
-            else:
-                notification_reason = "No FCM token available for user"
-        
-        print(f"📱 Notification Status: {notification_sent} - Reason: {notification_reason}")
-
-        # Build success message
-        success_message = f'Successfully reassigned {reassigned_count} trip(s) to {traffic_person.full_name}'
-        if notification_sent:
-            success_message += ' 📱 Notification sent'
-        else:
-            success_message += f' (User notification not available - {notification_reason})'
-
         return JsonResponse({
             'success': True,
-            'message': success_message,
+            'message': f'Successfully reassigned {reassigned_count} trip(s) to {traffic_person.full_name}',
             'reassigned_count': reassigned_count,
-            'notification_sent': notification_sent,
-            'notification_reason': notification_reason
         })
 
     except Exception as e:
@@ -2565,202 +2488,162 @@ def reassign_trips_action(request):
         return JsonResponse({'success': False, 'error': 'Server error while reassigning trips'}, status=500)
     
 
-@csrf_exempt
-@require_http_methods(["POST"])
-@login_required
-def save_fcm_token(request):
-    """Save FCM token for push notifications with proper validation"""
-    try:
-        data = json.loads(request.body)
-        fcm_token = data.get('fcm_token')
+def forgot_password_view(request):
+    """Handle forgot password request"""
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip().lower()
         
-        print(f"=== FCM TOKEN SAVE REQUEST ===")
-        print(f"User: {request.user.email}")
-        print(f"Token length: {len(fcm_token) if fcm_token else 0}")
-        
-        if not fcm_token:
-            return JsonResponse({'success': False, 'error': 'FCM token is required'}, status=400)
-        
-        # Basic validation - accept any non-empty token
-        if len(fcm_token.strip()) < 10:
-            return JsonResponse({
-                'success': False, 
-                'error': 'FCM token appears to be invalid'
-            }, status=400)
-        
-        # Save the token
-        print(f"Before save - User FCM token: {request.user.fcm_token}")
-        request.user.fcm_token = fcm_token.strip()
-        request.user.save()
-        
-        # Verify save
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        updated_user = User.objects.get(id=request.user.id)
-        
-        print(f"After save - User FCM token: {updated_user.fcm_token}")
-        print(f"Token saved successfully for {request.user.email}")
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'FCM token saved successfully',
-            'token_preview': fcm_token[:20] + '...',
-            'user_email': request.user.email
-        })
-            
-    except Exception as e:
-        print(f"❌ Error saving FCM token: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-
-@login_required
-@require_http_methods(["POST"])
-@csrf_exempt
-def update_fcm_token(request):
-    """Update FCM token for logged-in user"""
-    try:
-        if not request.user.is_authenticated:
-            return JsonResponse({'success': False, 'error': 'User not authenticated'}, status=401)
-        
-        data = json.loads(request.body)
-        fcm_token = data.get('fcm_token')
-        
-        if not fcm_token:
-            return JsonResponse({'success': False, 'error': 'FCM token is required'}, status=400)
-        
-        # Save the token
-        print(f"Updating FCM token for user: {request.user.email}")
-        print(f"Old token: {request.user.fcm_token}")
-        print(f"New token: {fcm_token}")
-        
-        request.user.fcm_token = fcm_token
-        request.user.save()
-        
-        # Verify save
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        updated_user = User.objects.get(id=request.user.id)
-        
-        print(f"✅ FCM token updated successfully for {request.user.email}")
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'FCM token updated successfully',
-            'user_email': request.user.email,
-            'token_preview': fcm_token[:50] + '...' if len(fcm_token) > 50 else fcm_token
-        })
-        
-    except Exception as e:
-        print(f"❌ Error updating FCM token: {e}")
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-@csrf_exempt
-def service_worker(request):
-    """Serve the Firebase service worker file from the correct location"""
-    try:
-        # Get the path to your service worker in logistic_app
-        sw_path = os.path.join(settings.BASE_DIR, 'logistics_app', 'firebase-messaging-sw.js')
-        
-        print(f"=== SERVING SERVICE WORKER ===")
-        print(f"Path: {sw_path}")
-        print(f"File exists: {os.path.exists(sw_path)}")
-        
-        if os.path.exists(sw_path):
-            with open(sw_path, 'r') as f:
-                content = f.read()
-            
-            response = HttpResponse(content, content_type='application/javascript')
-            response['Service-Worker-Allowed'] = '/'
-            print("✅ Service worker served successfully")
-            return response
-        else:
-            print(f"❌ Service worker not found at: {sw_path}")
-            # List files to debug
-            app_dir = os.path.join(settings.BASE_DIR, 'logistic_app')
-            if os.path.exists(app_dir):
-                files = os.listdir(app_dir)
-                print(f"Files in logistic_app: {files}")
-            
-            return HttpResponse('Service worker not found', status=404)
-            
-    except Exception as e:
-        print(f"❌ Error serving service worker: {str(e)}")
-        return HttpResponse('Server error', status=500)
-    
-@login_required
-def debug_fcm_tokens(request):
-    """Debug view to check FCM token status"""
-    users = CustomUser.objects.filter(
-        role__in=['traffic_person', 'admin']
-    ).values('id', 'email', 'full_name', 'role', 'fcm_token')
-    
-    token_status = []
-    for user in users:
-        token_status.append({
-            'user': f"{user['full_name']} ({user['email']})",
-            'role': user['role'],
-            'has_token': bool(user['fcm_token']),
-            'token_preview': user['fcm_token'][:50] + '...' if user['fcm_token'] else 'None',
-            'token_length': len(user['fcm_token']) if user['fcm_token'] else 0,
-            'is_mock': user['fcm_token'].startswith('fcm_mock_') if user['fcm_token'] else False
-        })
-    
-    return JsonResponse({'users': token_status})
-
-@login_required
-def test_fcm_notification(request):
-    """Test FCM notification for current user"""
-    try:
-        from .firebase_service import FirebaseService
-        
-        if not request.user.fcm_token or request.user.fcm_token.startswith('fcm_mock_'):
-            return JsonResponse({
-                'success': False, 
-                'error': 'No valid FCM token found for your account. Please make sure push notifications are enabled.'
+        if not email:
+            return render(request, 'forgot_password.html', {
+                'error': 'Please enter your email address'
             })
         
-        success = FirebaseService.test_notification(request.user.fcm_token)
-        
-        if success:
-            return JsonResponse({
-                'success': True,
-                'message': 'Test notification sent successfully! Check your browser for the notification.'
-            })
-        else:
-            return JsonResponse({
-                'success': False,
-                'error': 'Failed to send test notification. Check server logs for details.'
-            })
+        try:
+            # Find user by email
+            user = CustomUser.objects.get(email=email)
             
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': f'Error: {str(e)}'
+            # Build reset URL - simple user ID based
+            reset_url = request.build_absolute_uri(
+                f'/reset-password/{user.id}/'
+            )
+            
+            # Send email
+            subject = "Password Reset Request - RoadFleet"
+            message = f"""
+Hello {user.full_name or 'User'},
+
+You requested a password reset for your RoadFleet account.
+
+Please click the link below to reset your password:
+{reset_url}
+
+If you didn't request this reset, please ignore this email.
+
+Best regards,
+RoadFleet Team
+"""
+            
+            try:
+                # Print to console for debugging
+                print(f"Sending reset email to: {user.email}")
+                print(f"Reset URL: {reset_url}")
+                
+                # Send actual email
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    fail_silently=False,
+                )
+                
+                print(f"Reset email sent successfully to: {user.email}")
+                
+                return render(request, 'forgot_password.html', {
+                    'success': 'Password reset instructions have been sent to your email. Please check your inbox.'
+                })
+                
+            except Exception as e:
+                print(f"Email error: {e}")
+                return render(request, 'forgot_password.html', {
+                    'error': 'Failed to send email. Please try again later.'
+                })
+                
+        except CustomUser.DoesNotExist:
+            # Don't reveal whether email exists
+            return render(request, 'forgot_password.html', {
+                'success': 'If the email exists, password reset instructions have been sent to your email.'
+            })
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return render(request, 'forgot_password.html', {
+                'error': 'An unexpected error occurred. Please try again.'
+            })
+    
+    # GET request - show forgot password form
+    return render(request, 'forgot_password.html')
+
+def reset_password_view(request, user_id):
+    """Handle password reset - simple user ID based"""
+    try:
+        print(f"DEBUG: Reset password attempt - user_id: {user_id}")
+        
+        # Get user
+        user = CustomUser.objects.get(id=user_id)
+        print(f"DEBUG: Found user: {user.email}")
+        
+        if request.method == 'POST':
+            password = request.POST.get('password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            print(f"DEBUG: POST request - password: {bool(password)}, confirm_password: {bool(confirm_password)}")
+            
+            if not password or not confirm_password:
+                return render(request, 'reset_password.html', {
+                    'error': 'Please fill in all fields',
+                    'user_id': user_id
+                })
+            
+            if password != confirm_password:
+                return render(request, 'reset_password.html', {
+                    'error': 'Passwords do not match',
+                    'user_id': user_id
+                })
+            
+            if len(password) < 6:
+                return render(request, 'reset_password.html', {
+                    'error': 'Password must be at least 6 characters long',
+                    'user_id': user_id
+                })
+            
+            # Update password
+            user.set_password(password)
+            user.save()
+            
+            print(f"DEBUG: Password reset successful for user: {user.email}")
+            
+            # Send confirmation email
+            subject = "Password Reset Successful - RoadFleet"
+            message = f"""
+Hello {user.full_name or 'User'},
+
+Your RoadFleet password has been successfully reset.
+
+If you did not make this change, please contact support immediately.
+
+Best regards,
+RoadFleet Team
+"""
+            try:
+                # Send confirmation email
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    fail_silently=True,
+                )
+                print("DEBUG: Confirmation email sent")
+            except Exception as e:
+                print(f"DEBUG: Confirmation email error: {e}")
+            
+            return render(request, 'reset_password.html', {
+                'success': 'Password has been reset successfully! You can now login with your new password.',
+                'show_login_link': True
+            })
+        
+        # GET request - show reset form
+        return render(request, 'reset_password.html', {
+            'user_id': user_id
         })
-
-@login_required
-def fcm_status(request):
-    """Check FCM status for current user"""
-    from .firebase_service import firebase_initialized
-    
-    has_valid_token = (
-        request.user.fcm_token and 
-        not request.user.fcm_token.startswith('fcm_mock_')
-    )
-    
-    return JsonResponse({
-        'user': request.user.email,
-        'has_fcm_token': bool(request.user.fcm_token),
-        'has_valid_token': has_valid_token,
-        'token_preview': request.user.fcm_token[:50] + '...' if request.user.fcm_token else None,
-        'is_mock': request.user.fcm_token.startswith('fcm_mock_') if request.user.fcm_token else False,
-        'firebase_initialized': firebase_initialized,
-        'token_length': len(request.user.fcm_token) if request.user.fcm_token else 0,
-    })
-    
-
-
+        
+    except CustomUser.DoesNotExist:
+        print(f"DEBUG: User not found with ID: {user_id}")
+        return render(request, 'reset_password.html', {
+            'error': 'Invalid reset link'
+        })
+    except Exception as e:
+        print(f"DEBUG: Unexpected error in reset_password_view: {e}")
+        return render(request, 'reset_password.html', {
+            'error': 'An error occurred. Please try again.'
+        })

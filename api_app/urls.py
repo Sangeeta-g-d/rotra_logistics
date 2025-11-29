@@ -4,6 +4,7 @@ from .views import RegisterView, LoginView, VehicleTypeListView, AddVehicleView,
 from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
 
+
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),  # Use custom LoginView
@@ -29,6 +30,7 @@ urlpatterns = [
     path("change_password/", VendorProfileUpdateView.as_view(), name="vendor-change-password"),
     path('loads/filter_options/', LoadFilterOptionsView.as_view(), name='load-filter-options'),
     path('loads/filtered/', FilteredLoadsView.as_view(), name='filtered-loads'),
+    path('save-fcm-token/', SaveFCMTokenView.as_view(), name='save-fcm-token'),
 
  
 ]

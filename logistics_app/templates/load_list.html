@@ -40,6 +40,265 @@
       font-size: 12px;
       color: #6b7280;
     }
+    
+    /* Modal Styling Improvements */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 800px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: between;
+      align-items: center;
+      padding: 24px 32px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .modal-header h3 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      color: #111827;
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6b7280;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-close:hover {
+      color: #374151;
+    }
+    
+    .modal-subtitle {
+      padding: 0 32px 24px;
+      margin: 0;
+      color: #6b7280;
+      font-size: 14px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: #374151;
+      margin: 24px 32px 16px;
+      font-size: 16px;
+    }
+    
+    .section-header i {
+      color: #dc2626;
+    }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 0 32px 20px;
+    }
+    
+    .form-row.single-column {
+      grid-template-columns: 1fr;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+    
+    .form-group label {
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    
+    .required {
+      color: #dc2626;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+    
+    .form-group input[readonly] {
+      background-color: #f9fafb;
+      color: #6b7280;
+    }
+    
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 24px 32px;
+      border-top: 1px solid #e5e7eb;
+      margin-top: 20px;
+    }
+    
+    .cancel-btn {
+      padding: 10px 20px;
+      border: 1px solid #d1d5db;
+      background: white;
+      color: #374151;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .cancel-btn:hover {
+      background: #f9fafb;
+    }
+    
+    .save-btn {
+      padding: 10px 24px;
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .save-btn:hover:not(:disabled) {
+      background: #b91c1c;
+    }
+    
+    .save-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    /* Payment Section Styling */
+    .payment-display {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 8px 0;
+    }
+    
+    .payment-display input {
+      background: transparent;
+      border: none;
+      font-weight: 600;
+      color: inherit;
+    }
+    
+    .first-half-payment {
+      background: #f0fdf4;
+      color: #16a34a;
+      border-color: #bbf7d0;
+    }
+    
+    .final-payment {
+      background: #fef2f2;
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+    
+    /* Time Input Styling */
+    .time-input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .time-input-group input {
+      width: 100px;
+    }
+    
+    .time-input-group select {
+      width: 80px;
+    }
+    
+    /* File Upload Styling */
+    .file-upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: 6px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .file-upload-area:hover {
+      border-color: #dc2626;
+    }
+    
+    .file-upload-area i {
+      font-size: 24px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+    
+    .file-upload-area p {
+      margin: 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+    
+    .browse-link {
+      color: #dc2626;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    
+    .file-name {
+      display: block;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #6b7280;
+    }
   </style>
 </head>
 <body>
@@ -258,7 +517,7 @@
   <div id="sidebarOverlay"></div>
 </div>
 
-<!-- ====================== ADD LOAD MODAL (FINAL VERSION) ====================== -->
+<!-- ====================== ADD LOAD MODAL (CORRECTED UI) ====================== -->
 <div id="addLoadModal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
     <div class="modal-header">
@@ -270,9 +529,9 @@
     <form id="addLoadForm" enctype="multipart/form-data">
       {% csrf_token %}
 
-      <!-- Load Info -->
-      <div class="section-header" style="margin: 0 32px 20px;">
-        <i class="fas fa-info-circle"></i> Load Info
+      <!-- Load Info Section -->
+      <div class="section-header">
+        <i class="fas fa-info-circle"></i> Load Information
       </div>
 
       <div class="form-row">
@@ -291,14 +550,14 @@
         </div>
         <div class="form-group">
           <label>Contact Person</label>
-          <input type="text" name="contactPersonName" id="contactPersonName" readonly style="background:#f9fafb;">
+          <input type="text" name="contactPersonName" id="contactPersonName" readonly>
         </div>
       </div>
 
       <div class="form-row">
         <div class="form-group">
           <label>Contact Phone</label>
-          <input type="tel" name="contactPersonPhone" id="contactPersonPhone" readonly style="background:#f9fafb;">
+          <input type="tel" name="contactPersonPhone" id="contactPersonPhone" readonly>
         </div>
         <div class="form-group">
           <label>Vehicle Type <span class="required">*</span></label>
@@ -311,8 +570,8 @@
         </div>
       </div>
 
-      <!-- Route & Schedule -->
-      <div class="section-header" style="margin: 24px 32px 20px;">
+      <!-- Route & Schedule Section -->
+      <div class="section-header">
         <i class="fas fa-route"></i> Route & Schedule
       </div>
 
@@ -334,15 +593,15 @@
         </div>
         <div class="form-group">
           <label>Drop Date</label>
-          <input type="date" name="dropDate">
+          <input type="date" name="dropDate" id="dropDate">
         </div>
       </div>
 
       <div class="form-row">
         <div class="form-group">
           <label>Time <span class="required">*</span></label>
-          <div style="display:flex; gap:10px; align-items:center;">
-            <input type="text" id="timeInput" placeholder="02:30" maxlength="5" style="width:100px;" required>
+          <div class="time-input-group">
+            <input type="text" id="timeInput" placeholder="02:30" maxlength="5" required>
             <select id="ampmSelect">
               <option value="AM">AM</option>
               <option value="PM" selected>PM</option>
@@ -356,23 +615,19 @@
         </div>
       </div>
 
-      <!-- Weight (Just for reference) -->
+      <!-- Weight Section -->
       <div class="form-row">
         <div class="form-group">
           <label>Weight (Optional)</label>
           <input type="text" name="weight" placeholder="e.g. 20 Ton">
-          <small style="color:#6b7280;">Only for display</small>
+          <small style="color:#6b7280; font-size: 12px; margin-top: 4px;">Only for display purposes</small>
         </div>
         <div class="form-group"></div>
       </div>
 
-      <!-- TOTAL AMOUNT INPUT (This is what user enters) -->
-      <div class="section-header" style="margin: 24px 32px 20px; color:#16a34a;">
-        <i class="fas fa-rupee-sign"></i> Trip Amount (90-10 Split)
-      </div>
-
+    
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group full-width">
           <label>Total Trip Amount <span class="required">*</span></label>
           <input type="number" 
                  name="total_amount" 
@@ -380,46 +635,45 @@
                  step="1" 
                  min="1000" 
                  required 
-                 placeholder="100000"
-                 style="font-size:18px; font-weight:600;">
-          <small style="color:#374151;">Enter full freight amount</small>
+                 placeholder="Enter full freight amount"
+                 style="font-size:16px; font-weight:600; padding: 12px;">
+          <small style="color:#6b7280; font-size: 12px; margin-top: 4px;">Enter the complete freight amount for the trip</small>
         </div>
       </div>
 
-      <!-- Auto-calculated 90-10 Split -->
+      <!-- Auto-calculated Payment Split -->
       <div class="form-row">
         <div class="form-group">
           <label>First Half Payment (90%)</label>
-          <input type="text" id="firstHalfDisplay" readonly 
-                 value="₹ 0" 
-                 style="background:#f0fdf4; color:#16a34a; font-weight:bold; font-size:16px;">
+          <div class="payment-display first-half-payment">
+            <input type="text" id="firstHalfDisplay" readonly value="₹ 0">
+          </div>
+          <input type="hidden" name="first_half_payment" id="hiddenFirstHalf">
         </div>
         <div class="form-group">
           <label>Final Payment (10%)</label>
-          <input type="text" id="finalPaymentDisplay" readonly 
-                 value="₹ 0" 
-                 style="background:#fef2f2; color:#dc2626; font-weight:bold; font-size:16px;">
+          <div class="payment-display final-payment">
+            <input type="text" id="finalPaymentDisplay" readonly value="₹ 0">
+          </div>
+          <input type="hidden" name="final_payment" id="hiddenFinalPayment">
         </div>
       </div>
 
-      <!-- Hidden fields for backend -->
-      <input type="hidden" name="first_half_payment" id="hiddenFirstHalf">
-      <input type="hidden" name="final_payment" id="hiddenFinalPayment">
-
-      <!-- Notes -->
-      <div class="section-header" style="margin: 24px 32px 20px;">
-        <i class="fas fa-sticky-note"></i> Notes
+      <!-- Notes Section -->
+      <div class="section-header">
+        <i class="fas fa-sticky-note"></i> Additional Notes
       </div>
       <div class="form-row single-column">
         <div class="form-group full-width">
-          <label>Additional Notes</label>
-          <textarea name="notes" rows="3" placeholder="Any special instructions..."></textarea>
+          <label>Notes</label>
+          <textarea name="notes" rows="3" placeholder="Any special instructions or additional information..."></textarea>
         </div>
       </div>
 
+      <!-- Form Actions -->
       <div class="modal-actions">
         <button type="button" class="cancel-btn" id="cancelLoadModal">Cancel</button>
-        <button type="submit" class="save-btn">Save Load</button>
+        <button type="submit" class="save-btn">Create Load</button>
       </div>
     </form>
   </div>
@@ -439,33 +693,24 @@
       <input type="hidden" name="vendor_id" id="quickDriverVendorId">
 
       <!-- Personal Info Section -->
-      <div class="section-header" style="margin: 0 32px 20px;">
-        <i class="fas fa-user"></i>
-        Personal Information
+      <div class="section-header">
+        <i class="fas fa-user"></i> Personal Information
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label>
-            Full Name <span class="required">*</span>
-          </label>
+          <label>Full Name <span class="required">*</span></label>
           <input type="text" name="full_name" required placeholder="Enter driver's full name">
         </div>
         <div class="form-group">
-          <label>
-            Phone Number <span class="required">*</span>
-          </label>
+          <label>Phone Number <span class="required">*</span></label>
           <input type="tel" name="phone_number" required placeholder="10-digit mobile number">
         </div>
-        
       </div>
 
-    
-
       <!-- Documents Section -->
-      <div class="section-header" style="margin: 24px 32px 20px;">
-        <i class="fas fa-file-alt"></i>
-        Documents
+      <div class="section-header">
+        <i class="fas fa-file-alt"></i> Documents
       </div>
 
       <div class="form-row single-column">
@@ -505,14 +750,8 @@
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="cancel-btn" id="cancelDriverModal">
-          <i class="fas fa-times"></i>
-          Cancel
-        </button>
-        <button type="submit" class="save-btn">
-          <i class="fas fa-check"></i>
-          Save Driver
-        </button>
+        <button type="button" class="cancel-btn" id="cancelDriverModal">Cancel</button>
+        <button type="submit" class="save-btn">Save Driver</button>
       </div>
     </form>
   </div>
@@ -532,22 +771,17 @@
       <input type="hidden" name="vendor_id" id="quickVehicleVendorId">
 
       <!-- Vehicle Details Section -->
-      <div class="section-header" style="margin: 0 32px 20px;">
-        <i class="fas fa-truck"></i>
-        Vehicle Details
+      <div class="section-header">
+        <i class="fas fa-truck"></i> Vehicle Details
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label>
-            Registration Number <span class="required">*</span>
-          </label>
+          <label>Registration Number <span class="required">*</span></label>
           <input type="text" name="reg_no" required placeholder="e.g. TN45AB1234" style="text-transform: uppercase;">
         </div>
         <div class="form-group">
-          <label>
-            Vehicle Type <span class="required">*</span>
-          </label>
+          <label>Vehicle Type <span class="required">*</span></label>
           <select name="vehicle_type" required>
             <option value="">Select Vehicle Type</option>
             {% for vehicle_type in vehicle_types %}
@@ -558,9 +792,8 @@
       </div>
 
       <!-- Documents Section -->
-      <div class="section-header" style="margin: 24px 32px 20px;">
-        <i class="fas fa-file-alt"></i>
-        Vehicle Documents
+      <div class="section-header">
+        <i class="fas fa-file-alt"></i> Vehicle Documents
       </div>
 
       <div class="form-row single-column">
@@ -588,14 +821,8 @@
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="cancel-btn" id="cancelVehicleModal">
-          <i class="fas fa-times"></i>
-          Cancel
-        </button>
-        <button type="submit" class="save-btn">
-          <i class="fas fa-check"></i>
-          Save Vehicle
-        </button>
+        <button type="button" class="cancel-btn" id="cancelVehicleModal">Cancel</button>
+        <button type="submit" class="save-btn">Save Vehicle</button>
       </div>
     </form>
   </div>
@@ -634,52 +861,36 @@ document.addEventListener('DOMContentLoaded', function () {
     Toastify({ text, duration: 3000, gravity: "top", position: "right", backgroundColor: colors[type] }).showToast();
   }
 
-  // ====================== 90-10 PAYMENT SPLIT (CORRECTED IDs) ======================
-function calculatePaymentSplit() {
-  const totalInput = document.getElementById('totalAmountInput');
-  const firstHalfDisplay = document.getElementById('firstHalfDisplay');        // ← Fixed
-  const finalDisplay = document.getElementById('finalPaymentDisplay');         // ← Fixed
-  const hiddenFirstHalf = document.getElementById('hiddenFirstHalf');          // ← Fixed
-  const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');    // ← Fixed
-
-  if (!totalInput || !firstHalfDisplay || !finalDisplay) return;
-
-  const total = parseFloat(totalInput.value) || 0;
-
-  if (total > 0) {
-    const firstHalf = Math.round(total * 0.9);
-    const finalPayment = total - firstHalf; // exact 10%
-
-    firstHalfDisplay.value = '₹ ' + firstHalf.toLocaleString('en-IN');
-    finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN');
-
-    hiddenFirstHalf.value = firstHalf;
-    hiddenFinalPayment.value = finalPayment;
-  } else {
-    firstHalfDisplay.value = '₹ 0';
-    finalDisplay.value = '₹ 0';
-    hiddenFirstHalf.value = '';
-    hiddenFinalPayment.value = '';
-  }
-}
-
-// Trigger on modal open + real-time typing
-document.getElementById('openAddModal')?.addEventListener('click', function () {
-  document.getElementById('addLoadModal').style.display = 'flex';
-  
-  setTimeout(() => {
+  // ====================== 90-10 PAYMENT SPLIT CALCULATION ======================
+  function calculatePaymentSplit() {
     const totalInput = document.getElementById('totalAmountInput');
-    if (totalInput) {
-      totalInput.focus();
-      // Remove old listener if exists
-      totalInput.removeEventListener('input', calculatePaymentSplit);
-      totalInput.addEventListener('input', calculatePaymentSplit);
-      calculatePaymentSplit(); // initial
-    }
-  }, 150);
-});
+    const firstHalfDisplay = document.getElementById('firstHalfDisplay');
+    const finalDisplay = document.getElementById('finalPaymentDisplay');
+    const hiddenFirstHalf = document.getElementById('hiddenFirstHalf');
+    const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
 
-  // Trigger calculation when modal opens & on input
+    if (!totalInput || !firstHalfDisplay || !finalDisplay) return;
+
+    const total = parseFloat(totalInput.value) || 0;
+
+    if (total > 0) {
+      const firstHalf = Math.round(total * 0.9);
+      const finalPayment = total - firstHalf; // exact 10%
+
+      firstHalfDisplay.value = '₹ ' + firstHalf.toLocaleString('en-IN');
+      finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN');
+
+      hiddenFirstHalf.value = firstHalf;
+      hiddenFinalPayment.value = finalPayment;
+    } else {
+      firstHalfDisplay.value = '₹ 0';
+      finalDisplay.value = '₹ 0';
+      hiddenFirstHalf.value = '';
+      hiddenFinalPayment.value = '';
+    }
+  }
+
+  // Initialize payment calculation when modal opens
   openAddModalBtn?.addEventListener('click', function () {
     addLoadModal.style.display = 'flex';
     setTimeout(() => {
@@ -687,7 +898,7 @@ document.getElementById('openAddModal')?.addEventListener('click', function () {
       if (totalInput) {
         totalInput.focus();
         totalInput.addEventListener('input', calculatePaymentSplit);
-        calculatePaymentSplit(); // Initial calc
+        calculatePaymentSplit(); // Initial calculation
       }
     }, 100);
   });
@@ -935,7 +1146,104 @@ document.getElementById('openAddModal')?.addEventListener('click', function () {
       });
   });
 
-  // Pagination & Search (unchanged)
+  // File Upload Handlers
+  document.querySelectorAll('.browse-link').forEach(link => {
+    link.addEventListener('click', function () {
+      const inputId = this.dataset.input;
+      document.getElementById(inputId)?.click();
+    });
+  });
+
+  document.querySelectorAll('input[type="file"]').forEach(input => {
+    input.addEventListener('change', function () {
+      const fileName = this.files[0]?.name || '';
+      const display = this.parentElement.querySelector('.file-name');
+      if (display) {
+        display.textContent = fileName || 'No file chosen';
+        display.style.color = fileName ? '#16a34a' : '#6b7280';
+      }
+    });
+  });
+
+  // Quick Add Driver Form
+  document.getElementById('quickAddDriverForm')?.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const btn = this.querySelector('.save-btn');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = 'Saving...'; btn.disabled = true;
+
+    fetch('/loads/add-driver/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrftoken },
+      body: formData
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        showToast('Driver added successfully!', 'success');
+        addDriverModal.style.display = 'none';
+        this.reset();
+        document.querySelectorAll('.file-name').forEach(el => el.textContent = '');
+        fetch(`/api/vendors/${currentVendorId}/drivers/`)
+          .then(r => r.json())
+          .then(drivers => {
+            driverSelect.innerHTML = '<option value="">Select Driver</option>';
+            drivers.forEach(driver => {
+              const opt = new Option(`${driver.full_name} - ${driver.phone_number}`, driver.id);
+              driverSelect.add(opt);
+            });
+            if (d.driver_id) driverSelect.value = d.driver_id;
+          });
+      } else {
+        showToast(d.error || 'Failed to add driver', 'error');
+      }
+    })
+    .finally(() => {
+      btn.innerHTML = oldText; btn.disabled = false;
+    });
+  });
+
+  // Quick Add Vehicle Form
+  document.getElementById('quickAddVehicleForm')?.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const btn = this.querySelector('.save-btn');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = 'Saving...'; btn.disabled = true;
+
+    fetch('/loads/add-vehicle/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrftoken },
+      body: formData
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        showToast('Vehicle added successfully!', 'success');
+        addVehicleModal.style.display = 'none';
+        this.reset();
+        document.querySelectorAll('.file-name').forEach(el => el.textContent = '');
+        fetch(`/api/vendors/${currentVendorId}/vehicles/`)
+          .then(r => r.json())
+          .then(vehicles => {
+            vehicleTypeSelect.innerHTML = '<option value="">Select Vehicle</option>';
+            vehicles.forEach(vehicle => {
+              const opt = new Option(vehicle.reg_no, vehicle.id);
+              vehicleTypeSelect.add(opt);
+            });
+            if (d.vehicle_id) vehicleTypeSelect.value = d.vehicle_id;
+          });
+      } else {
+        showToast(d.error || 'Failed to add vehicle', 'error');
+      }
+    })
+    .finally(() => {
+      btn.innerHTML = oldText; btn.disabled = false;
+    });
+  });
+
+  // Pagination & Search
   const allRows = Array.from(document.querySelectorAll('tr.clickable-row'));
   let filteredRows = [...allRows];
   let currentPage = 1;
@@ -971,148 +1279,6 @@ document.getElementById('openAddModal')?.addEventListener('click', function () {
   document.getElementById('nextPage')?.addEventListener('click', () => { if (currentPage * perPage < filteredRows.length) { currentPage++; renderPage(); } });
 
   renderPage();
-});
-// ====================== FILE UPLOAD HANDLERS (Browse Files) ======================
-document.querySelectorAll('.browse-link').forEach(link => {
-    link.addEventListener('click', function () {
-        const inputId = this.dataset.input;
-        document.getElementById(inputId)?.click();
-    });
-});
-
-// Show selected file name
-document.querySelectorAll('input[type="file"]').forEach(input => {
-    input.addEventListener('change', function () {
-        const fileName = this.files[0]?.name || '';
-        const display = this.parentElement.querySelector('.file-name');
-        if (display) {
-            display.textContent = fileName || 'No file chosen';
-            display.style.color = fileName ? '#16a34a' : '#6b7280';
-        }
-    });
-});
-
-// ====================== QUICK ADD DRIVER (FIXED & IMPROVED) ======================
-document.getElementById('quickAddDriverForm')?.addEventListener('submit', function (e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const btn = this.querySelector('.save-btn');
-    const oldText = btn.innerHTML;
-    btn.innerHTML = 'Saving...';
-    btn.disabled = true;
-
-    fetch('/loads/add-driver/', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrftoken },
-        body: formData
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (d.success) {
-            showToast('Driver added successfully!', 'success');
-            
-            // Close modal and reset form
-            addDriverModal.style.display = 'none';
-            this.reset();
-            document.querySelectorAll('.file-name').forEach(el => el.textContent = '');
-
-            // CRITICAL: Re-fetch drivers and repopulate BOTH dropdowns
-            fetch(`/api/vendors/${currentVendorId}/drivers/`)
-                .then(r => r.json())
-                .then(drivers => {
-                    // Clear and repopulate driver dropdown
-                    driverSelect.innerHTML = '<option value="">Select Driver</option>';
-                    drivers.forEach(driver => {
-                        const opt = new Option(`${driver.full_name} - ${driver.phone_number}`, driver.id);
-                        driverSelect.add(opt);
-                    });
-
-                    // Auto-select the newly added driver if returned from backend
-                    if (d.driver_id) {
-                        driverSelect.value = d.driver_id;
-                    } else if (d.driver) {
-                        // In case backend returns full object
-                        const newDriver = d.driver;
-                        const opt = new Option(`${newDriver.full_name} - ${newDriver.phone_number}`, newDriver.id);
-                        driverSelect.add(opt);
-                        driverSelect.value = newDriver.id;
-                    }
-
-                  
-                });
-        } else {
-            showToast(d.error || 'Failed to add driver', 'error');
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        showToast('Network error', 'error');
-    })
-    .finally(() => {
-        btn.innerHTML = oldText;
-        btn.disabled = false;
-    });
-});
-
-// ====================== QUICK ADD VEHICLE (FIXED & IMPROVED) ======================
-document.getElementById('quickAddVehicleForm')?.addEventListener('submit', function (e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const btn = this.querySelector('.save-btn');
-    const oldText = btn.innerHTML;
-    btn.innerHTML = 'Saving...';
-    btn.disabled = true;
-
-    fetch('/loads/add-vehicle/', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrftoken },
-        body: formData
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (d.success) {
-            showToast('Vehicle added successfully!', 'success');
-            
-            addVehicleModal.style.display = 'none';
-            this.reset();
-            document.querySelectorAll('.file-name').forEach(el => el.textContent = '');
-
-            // Re-fetch vehicles and repopulate vehicle dropdown
-            fetch(`/api/vendors/${currentVendorId}/vehicles/`)
-                .then(r => r.json())
-                .then(vehicles => {
-                    vehicleTypeSelect.innerHTML = '<option value="">Select Vehicle</option>';
-                    vehicles.forEach(vehicle => {
-                        const opt = new Option(vehicle.reg_no, vehicle.id);
-                        vehicleTypeSelect.add(opt);
-                    });
-
-                    // Auto-select the newly added vehicle
-                    if (d.vehicle_id) {
-                        vehicleTypeSelect.value = d.vehicle_id;
-                    } else if (d.vehicle) {
-                        const newVehicle = d.vehicle;
-                        const opt = new Option(newVehicle.reg_no, newVehicle.id);
-                        vehicleTypeSelect.add(opt);
-                        vehicleTypeSelect.value = newVehicle.id;
-                    }
-
-                  
-                });
-        } else {
-            showToast(d.error || 'Failed to add vehicle', 'error');
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        showToast('Network error', 'error');
-    })
-    .finally(() => {
-        btn.innerHTML = oldText;
-        btn.disabled = false;
-    });
 });
 </script>
 </body>
