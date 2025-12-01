@@ -270,6 +270,7 @@ class Vehicle(models.Model):
     
     
 
+# models.py - Load model only
 class Load(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -330,6 +331,13 @@ class Load(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     trip_status = models.CharField(max_length=20, choices=TRIP_STATUS_CHOICES, default='pending')
 
+    # TRACKING DETAILS (NEW FIELD)
+    tracking_details = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Tracking details added by vendor during POD upload or later"
+    )
+
     # LR DOCUMENTS
     lr_document = models.FileField(upload_to='lr_documents/', null=True, blank=True)
     lr_number = models.CharField(max_length=100, blank=True, null=True)
@@ -364,7 +372,13 @@ class Load(models.Model):
         # Generate Load ID
         if not self.load_id:
             last = Load.objects.order_by('-id').first()
-            num = int(last.load_id.split('-')[1]) + 1 if last and last.load_id and '-' in last.load_id else 1001
+            if last and last.load_id and '-' in last.load_id:
+                try:
+                    num = int(last.load_id.split('-')[1]) + 1
+                except (ValueError, IndexError):
+                    num = 1001
+            else:
+                num = 1001
             self.load_id = f"L-{num}"
 
         # Initial timestamp
@@ -384,7 +398,7 @@ class Load(models.Model):
 
         super().save(*args, **kwargs)
 
-    def update_trip_status(self, new_status, user=None, lr_number=None):
+    def update_trip_status(self, new_status, user=None, lr_number=None, tracking_details=None):
         """Update trip status and timestamps"""
         self.trip_status = new_status
 
@@ -410,10 +424,13 @@ class Load(models.Model):
                 self.lr_uploaded_by = user
                 self.lr_uploaded_at = timezone.now()
 
-        # POD Logic
+        # POD Logic - Store tracking details
         if new_status == 'pod_uploaded' and user:
             self.pod_uploaded_by = user
             self.pod_uploaded_at = timezone.now()
+            # Save tracking details if provided
+            if tracking_details:
+                self.tracking_details = tracking_details
 
         # Sync main status
         if new_status == 'in_transit':

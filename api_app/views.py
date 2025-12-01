@@ -15,6 +15,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Q
 
 # views.py
 @method_decorator(csrf_exempt, name='dispatch')
@@ -414,15 +415,48 @@ class VendorLRUploadView(APIView):
 
     def post(self, request, id):
         vendor = request.user
-
-        # Verify vendor is owner of this load request
-        load = get_object_or_404(
-            Load, 
-            id=id, 
-            requests__vendor=vendor, 
-            requests__status="accepted"
-        )
-
+        
+        try:
+            # First check if load exists
+            load = Load.objects.get(id=id)
+        except Load.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": f"Load with ID {id} does not exist"
+            }, status=404)
+        
+        # Check ALL possible ways vendor can be authorized
+        # 1. Check LoadRequest (vendor sent request - accept ANY status for testing)
+        load_request = LoadRequest.objects.filter(
+            load=load,
+            vendor=vendor,
+            # Accept ANY status for now - remove "accepted" filter
+        ).first()
+        
+        # 2. Check if load is assigned to vendor's vehicle
+        vehicle_assigned = load.vehicle and load.vehicle.owner == vendor
+        
+        # 3. Check if load is assigned to vendor's driver
+        driver_assigned = load.driver and load.driver.owner == vendor
+        
+        # Vendor is NOT authorized through any method
+        if not load_request and not vehicle_assigned and not driver_assigned:
+            return Response({
+                "success": False,
+                "message": "You are not authorized to upload LR for this load. No request or assignment found."
+            }, status=403)
+        
+        # If we have a load_request, check its status
+        if load_request:
+            print(f"DEBUG: LoadRequest found with status: {load_request.status}")
+            # For now, accept ANY status (pending, accepted, etc.)
+            # Remove this check temporarily:
+            # if load_request.status != "accepted":
+            #     return Response({
+            #         "success": False,
+            #         "message": f"Your request for this load is {load_request.status}, not accepted"
+            #     }, status=403)
+        
         # Check if LR is already uploaded
         if load.lr_document:
             return Response({
@@ -434,7 +468,7 @@ class VendorLRUploadView(APIView):
         if load.trip_status != 'loaded':
             return Response({
                 "success": False,
-                "message": "LR can only be uploaded when trip status is 'Loaded'"
+                "message": f"LR can only be uploaded when trip status is 'Loaded'. Current status: {load.trip_status}"
             }, status=400)
 
         # Check if file is provided
@@ -461,46 +495,76 @@ class VendorLRUploadView(APIView):
                 "message": "File size must be less than 10MB"
             }, status=400)
 
-        # Save the file to the model
-        load.lr_document = lr_document
-        load.lr_uploaded_at = timezone.now()
-        load.lr_uploaded_by = vendor
-        
-        # Get LR number if provided
-        lr_number = request.data.get("lr_number", "").strip()
-        if lr_number:
-            load.lr_number = lr_number
+        try:
+            # Save the file to the model
+            load.lr_document = lr_document
+            load.lr_uploaded_at = timezone.now()
+            load.lr_uploaded_by = vendor
+            
+            # Get LR number if provided
+            lr_number = request.data.get("lr_number", "").strip()
+            if lr_number:
+                load.lr_number = lr_number
 
-        # Update trip status to lr_uploaded
-        load.update_trip_status(
-            new_status="lr_uploaded",
-            user=vendor,
-            lr_number=lr_number
-        )
+            # Update trip status to lr_uploaded
+            load.update_trip_status(
+                new_status="lr_uploaded",
+                user=vendor,
+                lr_number=lr_number
+            )
+            
+            load.save()
 
-        return Response({
-            "success": True,
-            "message": "LR uploaded successfully",
-            "lr_document": load.lr_document.url if load.lr_document else None,
-            "lr_number": load.lr_number,
-            "lr_uploaded_at": load.lr_uploaded_at.isoformat() if load.lr_uploaded_at else None
-        }, status=200)
+            return Response({
+                "success": True,
+                "message": "LR uploaded successfully",
+                "data": {
+                    "load_id": load.id,
+                    "lr_document": load.lr_document.url if load.lr_document else None,
+                    "lr_number": load.lr_number,
+                    "lr_uploaded_at": load.lr_uploaded_at.isoformat() if load.lr_uploaded_at else None,
+                    "trip_status": load.trip_status,
+                    "uploaded_by": vendor.full_name,
+                    "load_request_status": load_request.status if load_request else "direct_assignment"
+                }
+            }, status=200)
 
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": f"Error uploading LR: {str(e)}"
+            }, status=500)
 
 class VendorPODUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, id):
         vendor = request.user
-
-        # Verify vendor is allowed to upload POD
-        load = get_object_or_404(
-            Load, 
-            id=id, 
-            requests__vendor=vendor, 
-            requests__status="accepted"
-        )
-
+        
+        try:
+            load = Load.objects.get(id=id)
+        except Load.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": f"Load with ID {id} does not exist"
+            }, status=404)
+        
+        # Check ALL possible ways vendor can be authorized
+        load_request = LoadRequest.objects.filter(
+            load=load,
+            vendor=vendor,
+        ).first()
+        
+        vehicle_assigned = load.vehicle and load.vehicle.owner == vendor
+        driver_assigned = load.driver and load.driver.owner == vendor
+        
+        # Vendor is NOT authorized through any method
+        if not load_request and not vehicle_assigned and not driver_assigned:
+            return Response({
+                "success": False,
+                "message": "You are not authorized to upload POD for this load. No request or assignment found."
+            }, status=403)
+        
         # Check if POD is already uploaded
         if load.pod_document:
             return Response({
@@ -508,12 +572,37 @@ class VendorPODUploadView(APIView):
                 "message": "POD document already uploaded"
             }, status=400)
 
-        # Only allow upload if status is 'unloading'
-        if load.trip_status != 'unloading':
-            return Response({
-                "success": False,
-                "message": "POD can only be uploaded when trip status is 'Unloading'"
-            }, status=400)
+        # Define the required workflow sequence
+        required_status_sequence = ['loaded', 'lr_uploaded', 'in_transit', 'unloading']
+        
+        # Get the current status index
+        current_status = load.trip_status
+        current_index = required_status_sequence.index(current_status) if current_status in required_status_sequence else -1
+        
+        # Check if current status is valid for POD upload
+        if current_status != 'unloading':
+            # Provide helpful message about what needs to be completed first
+            if current_status == 'loaded':
+                return Response({
+                    "success": False,
+                    "message": "Cannot upload POD yet. LR needs to be uploaded first."
+                }, status=400)
+            elif current_status == 'lr_uploaded':
+                return Response({
+                    "success": False,
+                    "message": "Cannot upload POD yet. Trip must be 'In Transit' first."
+                }, status=400)
+            elif current_status == 'in_transit':
+                return Response({
+                    "success": False,
+                    "message": "Cannot upload POD yet. Trip status must be 'Unloading' first."
+                }, status=400)
+            else:
+                # For any other status, show what's expected
+                return Response({
+                    "success": False,
+                    "message": f"Cannot upload POD. Current status is '{current_status}'. Expected workflow: loaded → lr_uploaded → in_transit → unloading → pod_uploaded"
+                }, status=400)
 
         # Check if file is provided
         if 'pod_document' not in request.FILES:
@@ -539,23 +628,45 @@ class VendorPODUploadView(APIView):
                 "message": "File size must be less than 10MB"
             }, status=400)
 
-        # Save the file to the model
-        load.pod_document = pod_document
-        load.pod_uploaded_at = timezone.now()
-        load.pod_uploaded_by = vendor
+        try:
+            # Save the file to the model
+            load.pod_document = pod_document
+            load.pod_uploaded_at = timezone.now()
+            load.pod_uploaded_by = vendor
+            
+            # Get tracking details if provided - store exactly as provided
+            tracking_details = request.data.get("tracking_details", "").strip()
+            if tracking_details:
+                # Store exactly what user provided
+                load.tracking_details = tracking_details
 
-        # Update trip status to pod_uploaded
-        load.update_trip_status(
-            new_status="pod_uploaded",
-            user=vendor
-        )
+            # Update trip status to pod_uploaded
+            load.update_trip_status(
+                new_status="pod_uploaded",
+                user=vendor
+            )
+            
+            load.save()
 
-        return Response({
-            "success": True,
-            "message": "POD uploaded successfully",
-            "pod_document": load.pod_document.url if load.pod_document else None,
-            "pod_uploaded_at": load.pod_uploaded_at.isoformat() if load.pod_uploaded_at else None
-        }, status=200)
+            return Response({
+                "success": True,
+                "message": "POD uploaded successfully",
+                "data": {
+                    "load_id": load.id,
+                    "pod_document": load.pod_document.url if load.pod_document else None,
+                    "pod_uploaded_at": load.pod_uploaded_at.isoformat() if load.pod_uploaded_at else None,
+                    "trip_status": load.trip_status,
+                    "tracking_details": load.tracking_details,
+                    "uploaded_by": vendor.full_name,
+                    "load_request_status": load_request.status if load_request else "direct_assignment"
+                }
+            }, status=200)
+
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": f"Error uploading POD: {str(e)}"
+            }, status=500)
     
 class VendorProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -733,3 +844,140 @@ class SaveFCMTokenView(APIView):
             "status": True,
             "message": "FCM token saved successfully"
         }, status=status.HTTP_200_OK)
+    
+class VendorProfileView(APIView):
+    """
+    API endpoint to get vendor profile details from CustomUser model only
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            user = request.user
+            
+            # Check if user is a vendor
+            if user.role != 'vendor':
+                return Response({
+                    'status': False,
+                    'message': 'Access denied. Vendor role required.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Get profile image URL
+            profile_image_url = None
+            if user.profile_image and hasattr(user.profile_image, 'url'):
+                if user.profile_image.url:
+                    # Build absolute URL for the image
+                    profile_image_url = request.build_absolute_uri(user.profile_image.url)
+            
+            # Prepare response data matching your UI design
+            profile_data = {
+                'status': True,
+                'message': 'Profile fetched successfully',
+                'data': {
+                    # Main profile info (matching your UI)
+                    'full_name': user.full_name or '',
+                    'email': user.email,
+                    'phone_number': user.phone_number or '',
+                    
+                    # Role info
+                    'role': user.role,
+                    'role_display': user.get_role_display(),
+                    
+                    # Profile image
+                    'profile_image': profile_image_url,
+                    
+                    # Additional info from CustomUser
+                    'address': user.address or '',
+                    'pan_number': user.pan_number or '',
+                    
+                    # TDS declaration if exists
+                    'tds_declaration': request.build_absolute_uri(user.tds_declaration.url) if user.tds_declaration and hasattr(user.tds_declaration, 'url') else None,
+                    
+                    # Account status
+                    'is_active': user.is_active,
+                    'date_joined': user.date_joined.strftime('%Y-%m-%d %H:%M:%S') if user.date_joined else None,
+                    'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else None,
+                    
+                    # App version (static - you can make this dynamic from settings)
+                    'app_version': 'RoadFleet v2.0.0',
+                    'support_contact': '+91 XXXXXXXXXX'  # Add your support contact
+                }
+            }
+            
+            return Response(profile_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error fetching profile: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class VendorDashboardCountsDetailedView(APIView):
+    """
+    Alternative: Count ALL vendor-related loads (requests + assignments)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            vendor = request.user
+            
+            if vendor.role != 'vendor':
+                return Response({
+                    'status': False,
+                    'message': 'Access denied. Vendor role required.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            from django.db.models import Q
+            
+            # 1. ACTIVE TRIPS: Loads with ACCEPTED requests
+            active_trips_count = Load.objects.filter(
+                requests__vendor=vendor,
+                requests__status="accepted"
+            ).distinct().count()
+            
+            # 2. ALL VENDOR LOADS: Includes:
+            #    - Loads vendor has requested (any status)
+            #    - Loads assigned to vendor's vehicles
+            #    - Loads assigned to vendor's drivers
+            all_vendor_loads_count = Load.objects.filter(
+                Q(requests__vendor=vendor) |  # Any request from vendor
+                Q(driver__owner=vendor) |     # OR driver belongs to vendor
+                Q(vehicle__owner=vendor)      # OR vehicle belongs to vendor
+            ).distinct().count()
+            
+            # 3. (Optional) Count loads by request status
+            pending_requests = LoadRequest.objects.filter(
+                vendor=vendor,
+                status='pending'
+            ).count()
+            
+            accepted_requests = LoadRequest.objects.filter(
+                vendor=vendor,
+                status='accepted'
+            ).count()
+            
+            rejected_requests = LoadRequest.objects.filter(
+                vendor=vendor,
+                status='rejected'
+            ).count()
+            
+            return Response({
+                'status': True,
+                'message': 'Dashboard counts fetched successfully',
+                'data': {
+                    'active_trips': active_trips_count,
+                    'new_loads': all_vendor_loads_count,  # ALL vendor-related loads
+                    'counts_by_status': {
+                        'pending_requests': pending_requests,
+                        'accepted_requests': accepted_requests,
+                        'rejected_requests': rejected_requests,
+                    }
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error fetching dashboard counts: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

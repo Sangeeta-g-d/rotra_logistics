@@ -31,6 +31,8 @@ urlpatterns = [
     path('loads/filter_options/', LoadFilterOptionsView.as_view(), name='load-filter-options'),
     path('loads/filtered/', FilteredLoadsView.as_view(), name='filtered-loads'),
     path('save-fcm-token/', SaveFCMTokenView.as_view(), name='save-fcm-token'),
+    path('vendor/profile/', VendorProfileView.as_view(), name='vendor-profile'),
+    path('vendor/dashboard/counts/', VendorDashboardCountsDetailedView.as_view(), name='vendor-dashboard-counts'),
 
  
 ]
