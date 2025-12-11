@@ -860,7 +860,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function attachActionListeners(row) {
     row.querySelector('.action-view')?.addEventListener('click', e => { e.stopPropagation(); openSidebar(row); });
-    row.querySelector('.action-edit')?.addEventListener('click', e => { e.stopPropagation(); showToast('Edit coming soon!', 'info'); });
+    row.querySelector('.action-edit')?.addEventListener('click', e => { 
+    e.stopPropagation(); 
+    window.location.href = `/drivers/${row.dataset.driverId}/edit/`;
+});
     row.querySelector('.action-delete')?.addEventListener('click', e => {
       e.stopPropagation();
       if (!confirm('Delete this driver?')) return;

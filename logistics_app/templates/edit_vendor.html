@@ -1,0 +1,978 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Edit Vendor - {{ vendor.full_name }}{% endblock %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Edit Vendor - {{ vendor.full_name }}</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            color: #111827;
+        }
+
+        .dashboard {
+            padding: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* TOP BAR */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 16px 24px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .top-bar h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #111827;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .top-bar h2 i {
+            color: #dc2626;
+        }
+
+        .back-button {
+            padding: 10px 20px;
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .back-button:hover {
+            background: #e5e7eb;
+        }
+
+        /* FORM CARD */
+        .form-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            padding: 32px;
+            margin-top: 16px;
+        }
+
+        .form-header {
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .form-header h3 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+
+        .form-header p {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        /* Profile Section */
+        .profile-section {
+            display: flex;
+            align-items: flex-start;
+            gap: 30px;
+            margin-bottom: 32px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: 600;
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-upload {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .profile-upload label {
+            font-weight: 500;
+            color: #374151;
+            font-size: 14px;
+        }
+
+        /* Current file display */
+        .current-file {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .current-file a {
+            color: #dc2626;
+            text-decoration: none;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .current-file a:hover {
+            text-decoration: underline;
+        }
+
+        .remove-file {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .remove-file:hover {
+            background: #fecaca;
+        }
+
+        /* File upload area */
+        .file-upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            background-color: #f9fafb;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .file-upload-area:hover,
+        .file-upload-area.dragover {
+            border-color: #dc2626;
+            background-color: #fef2f2;
+        }
+        
+        .file-upload-area i {
+            font-size: 24px;
+            color: #dc2626;
+            margin-bottom: 12px;
+        }
+        
+        .file-upload-area p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .browse-link {
+            color: #dc2626;
+            cursor: pointer;
+            text-decoration: underline;
+            font-weight: 500;
+        }
+        
+        .browse-link:hover {
+            color: #b91c1c;
+        }
+        
+        .file-name {
+            display: block;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #6b7280;
+            padding: 4px 8px;
+            background: #f1f5f9;
+            border-radius: 4px;
+            text-align: left;
+        }
+
+        .file-name.uploaded {
+            color: #16a34a;
+            font-weight: 500;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+        }
+
+        .password-note {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .password-note i {
+            color: #d97706;
+        }
+
+        /* Form Grid */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .profile-section {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .required {
+            color: #dc2626;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 12px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #dc2626;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+
+        .form-group input[readonly] {
+            background-color: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Form Actions */
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 16px;
+            margin-top: 40px;
+            padding-top: 32px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .cancel-btn {
+            padding: 12px 24px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cancel-btn:hover {
+            background: #f9fafb;
+        }
+
+        .save-btn {
+            padding: 12px 28px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .save-btn:hover:not(:disabled) {
+            background: #b91c1c;
+            transform: translateY(-1px);
+        }
+
+        .save-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-success {
+            background-color: #dcfce7;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+        }
+
+        .alert-error {
+            background-color: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+
+        small {
+            color: #6b7280;
+            font-size: 12px;
+            display: block;
+            margin-top: 6px;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <!-- TOP BAR -->
+    <div class="top-bar">
+        <h2>
+            <i class="fas fa-user-edit"></i>
+            Edit Vendor - {{ vendor.full_name }}
+        </h2>
+        <a href="{% url 'vendor_list' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i> Back to Vendors
+        </a>
+    </div>
+
+    <!-- Alert Messages -->
+    <div id="successAlert" class="alert alert-success" style="display: none;"></div>
+    <div id="errorAlert" class="alert alert-error" style="display: none;"></div>
+
+    <!-- FORM CARD -->
+    <div class="form-card">
+        <div class="form-header">
+            <h3>Update Vendor Details</h3>
+            <p>Edit the information below for vendor {{ vendor.full_name }}</p>
+        </div>
+
+        <form id="editVendorForm" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="vendor_id" value="{{ vendor.id }}">
+
+            <!-- Profile Photo Section -->
+            <div class="profile-section">
+                <div class="profile-avatar" id="profileAvatar">
+                    {% if vendor.profile_image %}
+                        <img src="{{ vendor.profile_image.url }}" alt="{{ vendor.full_name }}" id="profileImage">
+                    {% else %}
+                        <span id="avatarInitials">{{ vendor.full_name|slice:":2"|upper }}</span>
+                    {% endif %}
+                </div>
+                
+                <div class="profile-upload">
+                    <label>Profile Photo</label>
+                    
+                    <!-- Current Profile Photo -->
+                    {% if vendor.profile_image %}
+                    <div class="current-file" id="currentProfileDiv">
+                        <a href="{{ vendor.profile_image.url }}" target="_blank" id="currentProfileLink">
+                            <i class="fas fa-eye"></i> View Current Photo
+                        </a>
+                        <button type="button" class="remove-file" data-field="profile_image" id="removeProfileBtn">
+                            <i class="fas fa-times"></i> Remove
+                        </button>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- File Upload -->
+                    <div class="file-upload-area" id="profileUploadArea">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drag & drop or <span class="browse-link" data-input="profileImage">Browse</span> to upload new photo</p>
+                        <input type="file" id="profileImage" name="profile_image" 
+                               accept=".jpg,.jpeg,.png,.gif" style="display:none;">
+                        <span id="profileFileName" class="file-name"></span>
+                    </div>
+                    <small>Accepted formats: JPG, PNG, GIF. Max size: 5MB</small>
+                </div>
+            </div>
+
+            <!-- Vendor Information -->
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Full Name <span class="required">*</span></label>
+                    <input type="text" name="full_name" 
+                           value="{{ vendor.full_name }}" 
+                           placeholder="Enter vendor full name" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number <span class="required">*</span></label>
+                    <input type="tel" name="phone" 
+                           value="{{ vendor.phone_number|default:'' }}" 
+                           placeholder="Enter phone number" required>
+                    <small>10-digit mobile number</small>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Password (Leave blank to keep current)</label>
+                    <input type="password" name="password" 
+                           placeholder="Enter new password">
+                    <div class="password-note">
+                        <i class="fas fa-info-circle"></i> Only enter if you want to change the password
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>PAN Number</label>
+                    <input type="text" name="pan_number" 
+                           value="{{ vendor.pan_number|default:'' }}" 
+                           placeholder="Enter PAN number">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label>Address</label>
+                    <textarea name="address" rows="3" placeholder="Enter vendor address">{{ vendor.address|default:'' }}</textarea>
+                </div>
+            </div>
+
+            <!-- TDS Declaration Section -->
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label>TDS Declaration File</label>
+                    
+                    <!-- Current TDS File -->
+                    {% if vendor.tds_declaration %}
+                    <div class="current-file" id="currentTdsDiv">
+                        <a href="{{ vendor.tds_declaration.url }}" target="_blank" id="currentTdsLink">
+                            <i class="fas fa-file-pdf"></i> View Current TDS Declaration
+                        </a>
+                        <button type="button" class="remove-file" data-field="tds_declaration" id="removeTdsBtn">
+                            <i class="fas fa-times"></i> Remove
+                        </button>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- File Upload -->
+                    <div class="file-upload-area" id="tdsUploadArea">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drag & drop or <span class="browse-link" data-input="tdsFile">Browse</span> to upload new TDS declaration</p>
+                        <input type="file" id="tdsFile" name="tds_declaration" 
+                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display:none;">
+                        <span id="tdsFileName" class="file-name"></span>
+                    </div>
+                    <small>Accepted formats: PDF, DOC, DOCX, JPG, PNG. Max size: 10MB</small>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <a href="{% url 'vendor_list' %}" class="cancel-btn">Cancel</a>
+                <button type="submit" class="save-btn" id="saveButton">
+                    <i class="fas fa-save"></i> Update Vendor
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toastify -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const editVendorForm = document.getElementById('editVendorForm');
+    const successAlert = document.getElementById('successAlert');
+    const errorAlert = document.getElementById('errorAlert');
+    const saveBtn = document.getElementById('saveButton');
+    const profileAvatar = document.getElementById('profileAvatar');
+    const avatarInitials = document.getElementById('avatarInitials');
+    const profileImage = document.getElementById('profileImage');
+
+    // ====================== FILE UPLOAD HANDLING ======================
+    const fileFields = [
+        { 
+            inputId: 'profileImage', 
+            areaId: 'profileUploadArea', 
+            nameId: 'profileFileName', 
+            type: 'image',
+            maxSize: 5 * 1024 * 1024 // 5MB
+        },
+        { 
+            inputId: 'tdsFile', 
+            areaId: 'tdsUploadArea', 
+            nameId: 'tdsFileName', 
+            type: 'document',
+            maxSize: 10 * 1024 * 1024 // 10MB
+        }
+    ];
+
+    // Initialize all file upload fields
+    fileFields.forEach(field => {
+        const input = document.getElementById(field.inputId);
+        const area = document.getElementById(field.areaId);
+        const display = document.getElementById(field.nameId);
+
+        if (!input || !area || !display) return;
+
+        // Function to update file name display
+        const updateFileName = () => {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                display.textContent = `Selected: ${file.name} (${formatFileSize(file.size)})`;
+                display.className = 'file-name uploaded';
+                
+                // Preview image if it's a profile photo
+                if (field.type === 'image' && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        // Hide initials if they exist
+                        if (avatarInitials) {
+                            avatarInitials.style.display = 'none';
+                        }
+                        
+                        // Update or create profile image
+                        if (profileImage) {
+                            profileImage.src = e.target.result;
+                        } else {
+                            const img = document.createElement('img');
+                            img.id = 'profileImage';
+                            img.src = e.target.result;
+                            img.alt = 'Profile Preview';
+                            profileAvatar.innerHTML = '';
+                            profileAvatar.appendChild(img);
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            } else {
+                display.textContent = '';
+                display.className = 'file-name';
+            }
+        };
+
+        // Click on upload area to trigger file input
+        area.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-preview')) return;
+            input.click();
+        });
+
+        // File input change event
+        input.addEventListener('change', updateFileName);
+
+        // Drag and drop functionality
+        area.addEventListener('dragover', e => {
+            e.preventDefault();
+            area.classList.add('dragover');
+        });
+
+        area.addEventListener('dragleave', () => {
+            area.classList.remove('dragover');
+        });
+
+        area.addEventListener('drop', e => {
+            e.preventDefault();
+            area.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                const file = e.dataTransfer.files[0];
+                
+                // Validate file type
+                const allowedTypes = field.type === 'image' 
+                    ? ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+                    : ['application/pdf', 
+                       'application/msword', 
+                       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                       'image/jpeg', 'image/jpg', 'image/png'];
+                
+                if (allowedTypes.includes(file.type)) {
+                    // Validate file size
+                    if (file.size > field.maxSize) {
+                        showAlert(`${field.type === 'image' ? 'Profile photo' : 'TDS document'} must be less than ${field.maxSize / (1024 * 1024)}MB`, 'error');
+                        return;
+                    }
+                    
+                    // Create a new DataTransfer object and add the file
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    input.files = dt.files;
+                    updateFileName();
+                    
+                    showToast('File selected successfully', 'success');
+                } else {
+                    showAlert(`Please upload a valid ${field.type === 'image' ? 'image file (JPG, PNG, GIF)' : 'document (PDF, DOC, JPG, PNG)'}`, 'error');
+                }
+            }
+        });
+
+        // Trigger file input when clicking browse link
+        const browseLink = area.querySelector('.browse-link');
+        if (browseLink) {
+            browseLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                input.click();
+            });
+        }
+    });
+
+    // ====================== REMOVE FILE BUTTONS ======================
+    // Remove profile photo
+    const removeProfileBtn = document.getElementById('removeProfileBtn');
+    if (removeProfileBtn) {
+        removeProfileBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to remove the profile photo?')) {
+                const currentProfileDiv = document.getElementById('currentProfileDiv');
+                if (currentProfileDiv) {
+                    currentProfileDiv.style.display = 'none';
+                }
+                
+                // Add hidden input to mark file for removal
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'remove_profile_image';
+                hiddenInput.value = 'true';
+                editVendorForm.appendChild(hiddenInput);
+                
+                // Show placeholder initials
+                if (avatarInitials) {
+                    avatarInitials.style.display = 'flex';
+                }
+                
+                // Remove any preview image
+                const profileImg = document.getElementById('profileImage');
+                if (profileImg) {
+                    profileImg.remove();
+                }
+                
+                showToast('Profile photo will be removed on save', 'info');
+            }
+        });
+    }
+
+    // Remove TDS file
+    const removeTdsBtn = document.getElementById('removeTdsBtn');
+    if (removeTdsBtn) {
+        removeTdsBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to remove the TDS declaration?')) {
+                const currentTdsDiv = document.getElementById('currentTdsDiv');
+                if (currentTdsDiv) {
+                    currentTdsDiv.style.display = 'none';
+                }
+                
+                // Add hidden input to mark file for removal
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'remove_tds_declaration';
+                hiddenInput.value = 'true';
+                editVendorForm.appendChild(hiddenInput);
+                
+                showToast('TDS declaration will be removed on save', 'info');
+            }
+        });
+    }
+
+    // ====================== FORM VALIDATION ======================
+    function validateForm() {
+        const fullName = editVendorForm.querySelector('input[name="full_name"]').value.trim();
+        const phone = editVendorForm.querySelector('input[name="phone"]').value.trim();
+
+        // Validate required fields
+        if (!fullName) {
+            showAlert('Full name is required', 'error');
+            return false;
+        }
+
+        if (!phone) {
+            showAlert('Phone number is required', 'error');
+            return false;
+        }
+
+        // Validate phone number format
+        const phoneRegex = /^[0-9]{10}$/;
+        if (!phoneRegex.test(phone)) {
+            showAlert('Please enter a valid 10-digit phone number', 'error');
+            return false;
+        }
+
+        // Validate PAN number format (if provided)
+        const panNumber = editVendorForm.querySelector('input[name="pan_number"]').value.trim();
+        if (panNumber) {
+            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+            if (!panRegex.test(panNumber.toUpperCase())) {
+                showAlert('Please enter a valid PAN number (format: ABCDE1234F)', 'error');
+                return false;
+            }
+        }
+
+        // Validate file sizes
+        const profilePhoto = document.getElementById('profileImage');
+        const tdsFile = document.getElementById('tdsFile');
+        
+        if (profilePhoto.files && profilePhoto.files[0]) {
+            const file = profilePhoto.files[0];
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                showAlert('Profile photo must be less than 5MB', 'error');
+                return false;
+            }
+        }
+        
+        if (tdsFile.files && tdsFile.files[0]) {
+            const file = tdsFile.files[0];
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                showAlert('TDS document must be less than 10MB', 'error');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // ====================== FORM SUBMISSION ======================
+    editVendorForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        
+        if (!validateForm()) return;
+
+        // Show loading state
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+        saveBtn.disabled = true;
+
+        // Clear previous alerts
+        successAlert.style.display = 'none';
+        errorAlert.style.display = 'none';
+
+        try {
+            const formData = new FormData(this);
+            
+            // Get vendor ID from hidden field
+            const vendorId = formData.get('vendor_id');
+            
+            console.log('Updating vendor:', vendorId);
+            console.log('Form data:', Array.from(formData.entries()));
+            
+            const response = await fetch(`/vendor/${vendorId}/update/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+            console.log('Response:', data);
+
+            if (data.success) {
+                showAlert(data.message || 'Vendor updated successfully!', 'success');
+                showToast('Vendor updated successfully!', 'success');
+                
+                // Redirect after success
+                setTimeout(() => {
+                    window.location.href = '{% url "vendor_list" %}';
+                }, 1500);
+            } else {
+                showAlert(data.error || 'Failed to update vendor', 'error');
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('Network error. Please try again.', 'error');
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        }
+    });
+
+    // ====================== HELPER FUNCTIONS ======================
+    function showAlert(message, type) {
+        const alertDiv = type === 'success' ? successAlert : errorAlert;
+        alertDiv.textContent = message;
+        alertDiv.style.display = 'block';
+        
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            alertDiv.style.display = 'none';
+        }, 5000);
+    }
+
+    function showToast(text, type = 'info') {
+        const colors = { 
+            success: '#16a34a', 
+            error: '#dc2626', 
+            info: '#2563eb',
+            warning: '#d97706'
+        };
+        
+        Toastify({ 
+            text: text, 
+            duration: 3000, 
+            gravity: "top", 
+            position: "right", 
+            backgroundColor: colors[type] || colors.info,
+            close: true,
+            stopOnFocus: true
+        }).showToast();
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Phone number formatting - only allow numbers
+    const phoneInput = editVendorForm.querySelector('input[name="phone"]');
+    if (phoneInput) {
+        phoneInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').slice(0, 10);
+        });
+    }
+
+    // PAN number formatting - convert to uppercase
+    const panInput = editVendorForm.querySelector('input[name="pan_number"]');
+    if (panInput) {
+        panInput.addEventListener('input', function(e) {
+            this.value = this.value.toUpperCase();
+        });
+    }
+
+    // Prevent form submission on Enter key in text fields
+    editVendorForm.querySelectorAll('input, textarea').forEach(field => {
+        field.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey && field.type !== 'submit') {
+                e.preventDefault();
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>
+{% endblock %}

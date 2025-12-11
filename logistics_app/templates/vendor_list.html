@@ -110,61 +110,81 @@
   </div>
 
   <!-- ADD VENDOR MODAL -->
-  <div id="addModal" class="modal-overlay">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Add Vendor</h3>
-        <button class="modal-close" id="closeAddModal">×</button>
+<div id="addModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Add Vendor</h3>
+      <button class="modal-close" id="closeAddModal">×</button>
+    </div>
+
+    <p class="modal-subtitle">Fill the details below to add a new vendor.</p>
+
+    <form id="addVendorForm" class="modal-form" enctype="multipart/form-data">
+      {% csrf_token %}
+      
+      <!-- Profile Image Field - ADD THIS -->
+      <!-- Profile Image Field - UPDATED -->
+<div class="form-row">
+  <div class="form-group">
+    <label>Profile Image</label>
+    <div class="file-upload-wrapper">
+      <input type="file" name="profile_image" id="profile_image" 
+             accept=".jpg,.jpeg,.png,.gif" class="file-upload-input">
+      <div class="file-upload-preview" id="profilePreview" onclick="document.getElementById('profile_image').click()">
+        <div class="preview-placeholder">
+          <i class="fas fa-user-circle"></i>
+          <span>Click to upload</span>
+        </div>
       </div>
-
-      <p class="modal-subtitle">Fill the details below to add a new vendor.</p>
-
-      <form id="addVendorForm" class="modal-form">
-        {% csrf_token %}
-        <div class="form-row">
-          <div class="form-group">
-            <label>Full Name <span class="required">*</span></label>
-            <input type="text" name="full_name" id="full_name" placeholder="Enter vendor full name" required>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group half">
-            <label>Phone Number <span class="required">*</span></label>
-            <input type="tel" name="phone" id="phone" placeholder="Enter phone number" required>
-          </div>
-          <div class="form-group half">
-            <label>Password <span class="required">*</span></label>
-            <input type="password" name="password" id="password" placeholder="Enter password" required>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>PAN Number</label>
-            <input type="text" name="pan_number" id="pan_number" placeholder="Enter PAN number">
-          </div>
-          <div class="form-group">
-            <label>Address</label>
-            <input type="text" name="address" id="address" placeholder="Enter vendor address">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>TDS Declaration File</label>
-            <input type="file" name="tds_declaration" id="tds_declaration" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-            <small class="file-hint">Supported formats: PDF, DOC, JPG, PNG</small>
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button type="submit" class="save-btn" id="saveVendorBtn">Save Vendor</button>
-          <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
-        </div>
-      </form>
+      <small class="file-hint">Recommended: Square image, max 2MB (JPG, PNG, GIF)</small>
     </div>
   </div>
+</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name <span class="required">*</span></label>
+          <input type="text" name="full_name" id="full_name" placeholder="Enter vendor full name" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Phone Number <span class="required">*</span></label>
+          <input type="tel" name="phone" id="phone" placeholder="Enter phone number" required>
+        </div>
+        <div class="form-group half">
+          <label>Password <span class="required">*</span></label>
+          <input type="password" name="password" id="password" placeholder="Enter password" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>PAN Number</label>
+          <input type="text" name="pan_number" id="pan_number" placeholder="Enter PAN number">
+        </div>
+        <div class="form-group">
+          <label>Address</label>
+          <input type="text" name="address" id="address" placeholder="Enter vendor address">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>TDS Declaration File</label>
+          <input type="file" name="tds_declaration" id="tds_declaration" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+          <small class="file-hint">Supported formats: PDF, DOC, JPG, PNG</small>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="save-btn" id="saveVendorBtn">Save Vendor</button>
+        <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
 
   <!-- PROFILE SIDEBAR -->
   <div id="profileSidebar">
@@ -374,11 +394,11 @@ document.addEventListener('DOMContentLoaded', function () {
       openSidebar(row);
     });
 
-    row.querySelector('.action-edit')?.addEventListener('click', e => {
-      e.stopPropagation();
-      const name = row.querySelector('td:nth-child(1)').textContent.trim();
-      showToast(`Edit functionality for ${name} – coming soon!`, 'info');
-    });
+   row.querySelector('.action-edit')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const vendorId = row.dataset.vendorId;
+    window.location.href = `/vendor/${vendorId}/edit/`;
+});
 
     row.querySelector('.action-delete')?.addEventListener('click', e => {
       e.stopPropagation();
@@ -604,8 +624,134 @@ document.addEventListener('DOMContentLoaded', function () {
   console.log('✅ Initialization complete');
 });
 </script>
+<script>
+  const profileImageInput = document.getElementById('profile_image');
+const profilePreview = document.getElementById('profilePreview');
+
+profileImageInput.addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Validate file size (max 2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('File size must be less than 2MB', 'error');
+    this.value = '';
+    return;
+  }
+
+  // Validate file type
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+  if (!validTypes.includes(file.type)) {
+    showToast('File must be JPG, PNG, or GIF', 'error');
+    this.value = '';
+    return;
+  }
+
+  // Create preview
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    profilePreview.innerHTML = `
+      <div class="preview-image">
+        <img src="${e.target.result}" alt="Profile Preview">
+        <button type="button" class="remove-preview" title="Remove image">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+
+    // Add remove functionality
+    profilePreview.querySelector('.remove-preview').addEventListener('click', function() {
+      profileImageInput.value = '';
+      profilePreview.innerHTML = `
+        <div class="preview-placeholder">
+          <i class="fas fa-user-circle"></i>
+          <span>No image selected</span>
+        </div>
+      `;
+    });
+  };
+  reader.readAsDataURL(file);
+});
+</script>
 
 <style>
+  .file-upload-wrapper {
+  margin-top: 8px;
+}
+
+.file-upload-input {
+  display: none;
+}
+
+.file-upload-preview {
+  width: 120px;
+  height: 120px;
+  border-radius: 10px;
+  background: #f8f9fa;
+  border: 2px dashed #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+}
+
+.file-upload-preview:hover {
+  border-color: #3b82f6;
+}
+
+.preview-placeholder {
+  text-align: center;
+  color: #6b7280;
+}
+
+.preview-placeholder i {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 8px;
+  color: #9ca3af;
+}
+
+.preview-placeholder span {
+  font-size: 12px;
+  display: block;
+}
+
+.preview-image {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.remove-preview {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.remove-preview:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
 /* Modal styling */
 .modal-overlay {
   display: none;

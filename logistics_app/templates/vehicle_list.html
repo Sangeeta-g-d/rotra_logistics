@@ -745,9 +745,10 @@ document.addEventListener("DOMContentLoaded", function () {
             e.stopPropagation(); openSidebar(row);
         });
 
-        row.querySelector(".action-edit")?.addEventListener("click", e => {
-            e.stopPropagation(); showToast("Edit coming soon!", "info");
-        });
+       row.querySelector('.action-edit')?.addEventListener('click', e => { 
+    e.stopPropagation(); 
+    window.location.href = `/vehicle/${row.dataset.vehicleId}/edit/`;
+});
 
         row.querySelector(".action-delete")?.addEventListener("click", e => {
             e.stopPropagation();

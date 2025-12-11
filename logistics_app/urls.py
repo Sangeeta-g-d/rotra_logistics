@@ -57,6 +57,17 @@ urlpatterns = [
     path('api/trip/<int:trip_id>/upload-lr/', views.upload_lr_document_api, name='upload_lr_document'),
     path('api/trip/<int:trip_id>/view-lr/', views.view_lr_document_api, name='view_lr_document'),
     path('api/trip/<int:trip_id>/upload-pod/', views.upload_pod_document_api, name='upload_pod_document_api'),
+    path('loads/<int:load_id>/edit/', views.edit_load, name='edit_load'),
+    path('loads/<int:load_id>/update/', views.update_load, name='update_load'),
+    path('drivers/<int:driver_id>/edit/', views.edit_driver, name='edit_driver'),
+    path('drivers/<int:driver_id>/update/', views.update_driver, name='update_driver'),
+    path('vehicle/<int:vehicle_id>/edit/', views.edit_vehicle, name='edit_vehicle'),
+    path('vehicle/<int:vehicle_id>/update/', views.update_vehicle, name='update_vehicle'),
+    path('customers/<int:customer_id>/edit/', views.edit_customer, name='edit_customer'),
+    path('customers/<int:customer_id>/update/', views.update_customer, name='update_customer'),
+    path('vendor/<int:vendor_id>/edit/', views.edit_vendor, name='edit_vendor'),
+    path('vendor/<int:vendor_id>/update/', views.update_vendor, name='update_vendor'),
+    
 
 
 path('payments/', views.payment_management, name='payment_management'),

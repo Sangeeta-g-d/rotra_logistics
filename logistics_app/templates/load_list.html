@@ -365,7 +365,9 @@
     <td class="action-col">
         <div class="action-buttons">
             <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
-            <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+            <button class="action-edit" title="Edit" onclick="window.location.href='{% url 'edit_load' load.id %}'">
+  <i class="fas fa-edit"></i>
+</button>
             <button class="action-delete" data-load-id="{{ load.id }}" title="Delete"><i class="fas fa-trash"></i></button>
         </div>
     </td>
@@ -965,6 +967,7 @@ document.addEventListener('DOMContentLoaded', function () {
     row.classList.add('active');
   }
 
+  // Load trip requests for a specific load
   function loadTripRequests(loadId) {
     tripRequestsContainer.innerHTML = `<div style="text-align:center;padding:40px;color:#6b7280;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
 
@@ -1016,12 +1019,22 @@ document.addEventListener('DOMContentLoaded', function () {
         tripRequestsContainer.querySelectorAll('.reject-btn').forEach(btn => {
           btn.onclick = () => {
             if (confirm('Reject this request?')) {
-              fetch(`/loads/${loadId}/requests/${btn.dataset.id}/rejected/`, {
+              fetch(`/loads/${loadId}/requests/${btn.dataset.id}/reject/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrftoken }
-              }).then(() => {
-                showToast('Request rejected', 'success');
-                loadTripRequests(loadId);
+              })
+              .then(r => r.json())
+              .then(data => {
+                if (data.success) {
+                  showToast('Request rejected. Notification sent to vendor.', 'success');
+                  loadTripRequests(loadId);
+                } else {
+                  showToast(data.message || 'Failed to reject request', 'error');
+                }
+              })
+              .catch(error => {
+                console.error('Error rejecting request:', error);
+                showToast('Error rejecting request', 'error');
               });
             }
           };
@@ -1055,44 +1068,96 @@ document.addEventListener('DOMContentLoaded', function () {
         driverSelect.add(opt);
       });
       if (drivers.length === 0) driverSelect.add(new Option('No drivers', ''));
+    })
+    .catch(error => {
+      console.error('Error loading vehicles/drivers:', error);
+      showToast('Error loading vehicles/drivers', 'error');
     });
   }
 
+  // Final Assignment with Firebase Notification
   // Final Assignment
-  document.getElementById('finalConfirmBtn')?.addEventListener('click', function () {
+document.getElementById('finalConfirmBtn')?.addEventListener('click', function () {
     const vehicleId = vehicleTypeSelect.value;
     const driverId = driverSelect.value;
 
-    if (!vehicleId || !driverId) return showToast('Select vehicle & driver', 'error');
+    if (!vehicleId || !driverId) {
+        showToast('Please select both vehicle and driver', 'error');
+        return;
+    }
 
     this.innerHTML = 'Assigning...';
     this.disabled = true;
 
+    // Use the correct URL endpoint
     fetch(`/loads/${currentLoadId}/requests/${selectedRequestId}/accepted/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vehicle_id: vehicleId, driver_id: driverId })
+        method: 'POST',
+        headers: { 
+            'X-CSRFToken': csrftoken, 
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer YOUR_ADMIN_TOKEN'  // Add if using JWT
+        },
+        body: JSON.stringify({ 
+            vehicle_id: vehicleId, 
+            driver_id: driverId 
+        })
     })
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) {
+            throw new Error(`HTTP error! status: ${r.status}`);
+        }
+        return r.json();
+    })
     .then(data => {
-      if (data.success) {
-        showToast('Trip assigned successfully!', 'success');
-        document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"]`)?.remove();
-        sidebar.classList.remove('open');
-        overlay.classList.remove('show');
-      } else {
-        showToast(data.error || 'Failed', 'error');
-      }
-      this.innerHTML = 'Confirm Assignment';
-      this.disabled = false;
+        if (data.success) {
+            showToast('Trip assigned successfully! Notification sent to vendor.', 'success');
+            
+            // Remove the row from table
+            const assignedRow = document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"]`);
+            if (assignedRow) {
+                assignedRow.remove();
+                updatePaginationAfterRemoval();
+            }
+            
+            // Close sidebar
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+            
+            // Reset modal
+            confirmPanel.style.display = 'none';
+            vehicleTypeSelect.innerHTML = '<option value="">Select vehicle</option>';
+            driverSelect.innerHTML = '<option value="">Select Driver</option>';
+            
+        } else {
+            showToast(data.error || 'Failed to assign trip', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error assigning trip:', error);
+        showToast('Error assigning trip: ' + error.message, 'error');
+    })
+    .finally(() => {
+        this.innerHTML = 'Confirm Assignment';
+        this.disabled = false;
     });
-  });
+});
+
+  // Update pagination after removing a row
+  function updatePaginationAfterRemoval() {
+    const allRows = Array.from(document.querySelectorAll('tr.clickable-row'));
+    filteredRows = [...allRows];
+    if (currentPage > Math.ceil(filteredRows.length / perPage)) {
+      currentPage = Math.max(1, Math.ceil(filteredRows.length / perPage));
+    }
+    renderPage();
+  }
 
   // Close sidebar
   document.getElementById('closeSidebar')?.addEventListener('click', () => {
     sidebar.classList.remove('open');
     overlay.classList.remove('show');
   });
+  
   overlay.addEventListener('click', () => {
     sidebar.classList.remove('open');
     overlay.classList.remove('show');
@@ -1107,19 +1172,41 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Modal Close Buttons
-  closeLoadModal?.addEventListener('click', () => addLoadModal.style.display = 'none');
-  cancelLoadModal?.addEventListener('click', () => addLoadModal.style.display = 'none');
-  document.getElementById('closeDriverModal')?.addEventListener('click', () => addDriverModal.style.display = 'none');
-  document.getElementById('closeVehicleModal')?.addEventListener('click', () => addVehicleModal.style.display = 'none');
+  closeLoadModal?.addEventListener('click', () => {
+    addLoadModal.style.display = 'none';
+    document.getElementById('addLoadForm').reset();
+  });
+  
+  cancelLoadModal?.addEventListener('click', () => {
+    addLoadModal.style.display = 'none';
+    document.getElementById('addLoadForm').reset();
+  });
+  
+  document.getElementById('closeDriverModal')?.addEventListener('click', () => {
+    addDriverModal.style.display = 'none';
+    document.getElementById('quickAddDriverForm').reset();
+  });
+  
+  document.getElementById('closeVehicleModal')?.addEventListener('click', () => {
+    addVehicleModal.style.display = 'none';
+    document.getElementById('quickAddVehicleForm').reset();
+  });
 
   // Quick Add Driver/Vehicle Modals
   openAddDriverModalBtn?.addEventListener('click', () => {
-    if (!currentVendorId) return showToast('No vendor selected', 'error');
+    if (!currentVendorId) {
+      showToast('No vendor selected. Please select a trip request first.', 'error');
+      return;
+    }
     document.getElementById('quickDriverVendorId').value = currentVendorId;
     addDriverModal.style.display = 'flex';
   });
+  
   openAddVehicleModalBtn?.addEventListener('click', () => {
-    if (!currentVendorId) return showToast('No vendor selected', 'error');
+    if (!currentVendorId) {
+      showToast('No vendor selected. Please select a trip request first.', 'error');
+      return;
+    }
     document.getElementById('quickVehicleVendorId').value = currentVendorId;
     addVehicleModal.style.display = 'flex';
   });
@@ -1130,19 +1217,32 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(this);
     const btn = this.querySelector('.save-btn');
     const oldText = btn.innerHTML;
-    btn.innerHTML = 'Saving...'; btn.disabled = true;
+    btn.innerHTML = 'Saving...'; 
+    btn.disabled = true;
 
-    fetch('/loads/add/', { method: 'POST', headers: { 'X-CSRFToken': csrftoken }, body: formData })
+    fetch('/loads/add/', { 
+      method: 'POST', 
+      headers: { 'X-CSRFToken': csrftoken }, 
+      body: formData 
+    })
       .then(r => r.json())
       .then(d => {
         if (d.success) {
           showToast('Load created successfully!', 'success');
           addLoadModal.style.display = 'none';
+          this.reset();
           setTimeout(() => location.reload(), 1500);
         } else {
-          showToast(d.error || 'Failed', 'error');
+          showToast(d.error || 'Failed to create load', 'error');
         }
-        btn.innerHTML = oldText; btn.disabled = false;
+      })
+      .catch(error => {
+        console.error('Error creating load:', error);
+        showToast('Error creating load', 'error');
+      })
+      .finally(() => {
+        btn.innerHTML = oldText; 
+        btn.disabled = false;
       });
   });
 
@@ -1171,7 +1271,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(this);
     const btn = this.querySelector('.save-btn');
     const oldText = btn.innerHTML;
-    btn.innerHTML = 'Saving...'; btn.disabled = true;
+    btn.innerHTML = 'Saving...'; 
+    btn.disabled = true;
 
     fetch('/loads/add-driver/', {
       method: 'POST',
@@ -1185,6 +1286,8 @@ document.addEventListener('DOMContentLoaded', function () {
         addDriverModal.style.display = 'none';
         this.reset();
         document.querySelectorAll('.file-name').forEach(el => el.textContent = '');
+        
+        // Update driver dropdown
         fetch(`/api/vendors/${currentVendorId}/drivers/`)
           .then(r => r.json())
           .then(drivers => {
@@ -1193,14 +1296,22 @@ document.addEventListener('DOMContentLoaded', function () {
               const opt = new Option(`${driver.full_name} - ${driver.phone_number}`, driver.id);
               driverSelect.add(opt);
             });
-            if (d.driver_id) driverSelect.value = d.driver_id;
+            if (d.driver_id) {
+              driverSelect.value = d.driver_id;
+              showToast('Driver added and selected', 'success');
+            }
           });
       } else {
         showToast(d.error || 'Failed to add driver', 'error');
       }
     })
+    .catch(error => {
+      console.error('Error adding driver:', error);
+      showToast('Error adding driver', 'error');
+    })
     .finally(() => {
-      btn.innerHTML = oldText; btn.disabled = false;
+      btn.innerHTML = oldText; 
+      btn.disabled = false;
     });
   });
 
@@ -1210,7 +1321,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(this);
     const btn = this.querySelector('.save-btn');
     const oldText = btn.innerHTML;
-    btn.innerHTML = 'Saving...'; btn.disabled = true;
+    btn.innerHTML = 'Saving...'; 
+    btn.disabled = true;
 
     fetch('/loads/add-vehicle/', {
       method: 'POST',
@@ -1224,6 +1336,8 @@ document.addEventListener('DOMContentLoaded', function () {
         addVehicleModal.style.display = 'none';
         this.reset();
         document.querySelectorAll('.file-name').forEach(el => el.textContent = '');
+        
+        // Update vehicle dropdown
         fetch(`/api/vendors/${currentVendorId}/vehicles/`)
           .then(r => r.json())
           .then(vehicles => {
@@ -1232,14 +1346,55 @@ document.addEventListener('DOMContentLoaded', function () {
               const opt = new Option(vehicle.reg_no, vehicle.id);
               vehicleTypeSelect.add(opt);
             });
-            if (d.vehicle_id) vehicleTypeSelect.value = d.vehicle_id;
+            if (d.vehicle_id) {
+              vehicleTypeSelect.value = d.vehicle_id;
+              showToast('Vehicle added and selected', 'success');
+            }
           });
       } else {
         showToast(d.error || 'Failed to add vehicle', 'error');
       }
     })
+    .catch(error => {
+      console.error('Error adding vehicle:', error);
+      showToast('Error adding vehicle', 'error');
+    })
     .finally(() => {
-      btn.innerHTML = oldText; btn.disabled = false;
+      btn.innerHTML = oldText; 
+      btn.disabled = false;
+    });
+  });
+
+  // Delete Load Button
+  document.querySelectorAll('.action-delete').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const loadId = this.getAttribute('data-load-id');
+      
+      if (confirm('Are you sure you want to delete this load?')) {
+        fetch(`/loads/${loadId}/delete/`, {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast('Load deleted successfully', 'success');
+            // Remove the row from table
+            const row = this.closest('tr.clickable-row');
+            if (row) {
+              row.remove();
+              updatePaginationAfterRemoval();
+            }
+          } else {
+            showToast(data.message || 'Failed to delete load', 'error');
+          }
+        })
+        .catch(error => {
+          console.error('Error deleting load:', error);
+          showToast('Error deleting load', 'error');
+        });
+      }
     });
   });
 
@@ -1252,8 +1407,14 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderPage() {
     const start = (currentPage - 1) * perPage;
     const end = start + perPage;
+    
+    // Hide all rows first
     allRows.forEach(r => r.style.display = 'none');
+    
+    // Show only filtered rows for current page
     filteredRows.slice(start, end).forEach(r => r.style.display = '');
+    
+    // Update pagination info
     document.getElementById('showingStart').textContent = filteredRows.length ? start + 1 : 0;
     document.getElementById('showingEnd').textContent = Math.min(end, filteredRows.length);
     document.getElementById('totalEntries').textContent = filteredRows.length;
@@ -1262,23 +1423,130 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('currentPageInfo').textContent = `Page ${currentPage}`;
   }
 
+  // Search functionality
   document.getElementById('searchInput')?.addEventListener('input', function () {
-    const term = this.value.toLowerCase();
-    filteredRows = allRows.filter(r => r.textContent.toLowerCase().includes(term));
+    const term = this.value.toLowerCase().trim();
+    filteredRows = allRows.filter(row => {
+      const rowText = row.textContent.toLowerCase();
+      return rowText.includes(term);
+    });
     currentPage = 1;
     renderPage();
   });
 
+  // Entries per page
   document.getElementById('entriesPerPage')?.addEventListener('change', function () {
-    perPage = +this.value;
+    perPage = parseInt(this.value);
     currentPage = 1;
     renderPage();
   });
 
-  document.getElementById('prevPage')?.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderPage(); } });
-  document.getElementById('nextPage')?.addEventListener('click', () => { if (currentPage * perPage < filteredRows.length) { currentPage++; renderPage(); } });
+  // Previous page
+  document.getElementById('prevPage')?.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderPage();
+    }
+  });
 
+  // Next page
+  document.getElementById('nextPage')?.addEventListener('click', () => {
+    if (currentPage * perPage < filteredRows.length) {
+      currentPage++;
+      renderPage();
+    }
+  });
+
+  // Initialize pagination
   renderPage();
+
+  // Chat functionality
+  const chatInput = document.querySelector('.chat-input');
+  const chatSendBtn = document.querySelector('.chat-send-btn');
+  
+  if (chatSendBtn && chatInput) {
+    chatSendBtn.addEventListener('click', function() {
+      const message = chatInput.value.trim();
+      if (message && currentLoadId) {
+        // Send chat message
+        fetch(`/loads/${currentLoadId}/chat/`, {
+          method: 'POST',
+          headers: { 
+            'X-CSRFToken': csrftoken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message: message })
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            // Add message to chat UI
+            const chatMessages = document.querySelector('.chat-messages');
+            const newMessage = document.createElement('div');
+            newMessage.className = 'chat-message';
+            newMessage.innerHTML = `
+              <div class="chat-label">Admin</div>
+              <div class="chat-bubble admin">${message}</div>
+              <div class="chat-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+            `;
+            chatMessages.appendChild(newMessage);
+            chatInput.value = '';
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }
+        })
+        .catch(error => console.error('Chat error:', error));
+      }
+    });
+    
+    // Send message on Enter key
+    chatInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        chatSendBtn.click();
+      }
+    });
+  }
+
+  // Close Trip Button
+  const closeTripBtn = document.querySelector('.close-trip-btn');
+  if (closeTripBtn) {
+    closeTripBtn.addEventListener('click', function() {
+      if (!currentLoadId) {
+        showToast('Please select a load first', 'error');
+        return;
+      }
+      
+      if (confirm('Are you sure you want to close this trip?')) {
+        fetch(`/loads/${currentLoadId}/close/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast('Trip closed successfully', 'success');
+            // Update UI
+            document.getElementById('sidebarStatus').textContent = 'Closed';
+            document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"] .status-badge`).textContent = 'Closed';
+            document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"] .status-badge`).className = 'status-badge status-delivered';
+            
+            // Close sidebar
+            setTimeout(() => {
+              sidebar.classList.remove('open');
+              overlay.classList.remove('show');
+            }, 1500);
+          } else {
+            showToast(data.message || 'Failed to close trip', 'error');
+          }
+        })
+        .catch(error => {
+          console.error('Error closing trip:', error);
+          showToast('Error closing trip', 'error');
+        });
+      }
+    });
+  }
 });
 </script>
 </body>

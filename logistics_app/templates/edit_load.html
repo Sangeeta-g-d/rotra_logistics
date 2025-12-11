@@ -1,0 +1,693 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Edit Load - {{ load.load_id }}{% endblock %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Edit Load - {{ load.load_id }}</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      background-color: #f3f4f6;
+      color: #111827;
+    }
+
+    .dashboard {
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* TOP BAR */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 16px 24px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .top-bar h2 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .top-bar h2 i {
+      color: #dc2626;
+    }
+
+    .back-button {
+      padding: 10px 20px;
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .back-button:hover {
+      background: #e5e7eb;
+    }
+
+    /* FORM CARD */
+    .form-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+      padding: 32px;
+      margin-top: 16px;
+    }
+
+    .form-header {
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .form-header h3 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+
+    .form-header p {
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    /* Section Headers */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: #374151;
+      margin: 32px 0 20px;
+      font-size: 16px;
+    }
+
+    .section-header i {
+      color: #dc2626;
+    }
+
+    .section-header:first-of-type {
+      margin-top: 0;
+    }
+
+    /* Form Grid */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .required {
+      color: #dc2626;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+
+    .form-group input[readonly] {
+      background-color: #f9fafb;
+      color: #6b7280;
+    }
+
+    /* Time Input Group */
+    .time-input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .time-input-group input {
+      width: 100px;
+    }
+
+    .time-input-group select {
+      width: 80px;
+    }
+
+    /* Payment Display */
+    .payment-display {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-weight: 600;
+    }
+
+    .payment-display input {
+      background: transparent;
+      border: none;
+      font-weight: 600;
+      color: inherit;
+      width: 100%;
+    }
+
+    .first-half-payment {
+      background: #f0fdf4;
+      color: #16a34a;
+      border-color: #bbf7d0;
+    }
+
+    .final-payment {
+      background: #fef2f2;
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+
+    /* Form Actions */
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .cancel-btn {
+      padding: 10px 20px;
+      border: 1px solid #d1d5db;
+      background: white;
+      color: #374151;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cancel-btn:hover {
+      background: #f9fafb;
+    }
+
+    .save-btn {
+      padding: 10px 24px;
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .save-btn:hover:not(:disabled) {
+      background: #b91c1c;
+    }
+
+    .save-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Small text */
+    small {
+      color: #6b7280;
+      font-size: 12px;
+      margin-top: 4px;
+      display: block;
+    }
+
+    /* Alert Messages */
+    .alert {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .alert-success {
+      background-color: #dcfce7;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+
+    .alert-error {
+      background-color: #fee2e2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .dashboard {
+        padding: 16px;
+      }
+      
+      .form-card {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+  
+  <!-- Alert Messages -->
+  <div id="successAlert" class="alert alert-success" style="display: none;"></div>
+  <div id="errorAlert" class="alert alert-error" style="display: none;"></div>
+
+  <!-- FORM CARD -->
+  <div class="form-card">
+    <div class="form-header">
+      <h3>Edit Load Details</h3>
+      <p>Update the details below for load {{ load.load_id }}</p>
+    </div>
+
+    <form id="editLoadForm" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="load_id" value="{{ load.id }}">
+
+      <!-- Load Info Section -->
+      <div class="section-header">
+        <i class="fas fa-info-circle"></i> Load Information
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Customer <span class="required">*</span></label>
+          <select name="customer" id="customerSelect" required>
+            <option value="">Select Customer</option>
+            {% for customer in customers %}
+            <option value="{{ customer.id }}"
+                    data-contact-person="{{ customer.contact_person_name|default:'' }}"
+                    data-contact-phone="{{ customer.contact_person_phone|default:'' }}"
+                    {% if load.customer.id == customer.id %}selected{% endif %}>
+              {{ customer.customer_name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Contact Person</label>
+          <input type="text" name="contactPersonName" id="contactPersonName" 
+                 value="{{ load.contact_person_name|default:'' }}" readonly>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Contact Phone</label>
+          <input type="tel" name="contactPersonPhone" id="contactPersonPhone" 
+                 value="{{ load.contact_person_phone|default:'' }}" readonly>
+        </div>
+        <div class="form-group">
+          <label>Vehicle Type <span class="required">*</span></label>
+          <select name="vehicleType" required>
+            <option value="">Select Vehicle Type</option>
+            {% for vehicle_type in vehicle_types %}
+            <option value="{{ vehicle_type.id }}"
+                    {% if load.vehicle_type.id == vehicle_type.id %}selected{% endif %}>
+              {{ vehicle_type.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Route & Schedule Section -->
+      <div class="section-header">
+        <i class="fas fa-route"></i> Route & Schedule
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Pickup Location <span class="required">*</span></label>
+          <input type="text" name="pickupLocation" required 
+                 value="{{ load.pickup_location }}" 
+                 placeholder="e.g. Mumbai Port">
+        </div>
+        <div class="form-group">
+          <label>Drop Location <span class="required">*</span></label>
+          <input type="text" name="dropLocation" required 
+                 value="{{ load.drop_location }}" 
+                 placeholder="e.g. Delhi Warehouse">
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Pickup Date <span class="required">*</span></label>
+          <input type="date" name="pickupDate" id="pickupDate" 
+                 value="{{ load.pickup_date|date:'Y-m-d' }}" required>
+        </div>
+        <div class="form-group">
+          <label>Drop Date</label>
+          <input type="date" name="dropDate" id="dropDate" 
+                 value="{{ load.drop_date|date:'Y-m-d' }}">
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Time <span class="required">*</span></label>
+          <div class="time-input-group">
+            {% with time_str=load.time|time:"g:i A" %}
+            <input type="text" id="timeInput" placeholder="02:30" maxlength="5" 
+                   value="{{ time_str|slice:'0:5' }}" required>
+            <select id="ampmSelect">
+              <option value="AM" {% if 'AM' in time_str %}selected{% endif %}>AM</option>
+              <option value="PM" {% if 'PM' in time_str %}selected{% endif %}>PM</option>
+            </select>
+            <input type="hidden" name="time" id="hiddenTimeInput" value="{{ time_str }}">
+            {% endwith %}
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Material</label>
+          <input type="text" name="material" placeholder="e.g. Cement, Rice"
+                 value="{{ load.material|default:'' }}">
+        </div>
+      </div>
+
+      <!-- Weight Section -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Weight (Optional)</label>
+          <input type="text" name="weight" placeholder="e.g. 20 Ton"
+                 value="{{ load.weight|default:'' }}">
+          <small>Only for display purposes</small>
+        </div>
+        <div class="form-group">
+          <!-- Empty column for alignment -->
+        </div>
+      </div>
+
+      <!-- Payment Section -->
+      <div class="section-header">
+        <i class="fas fa-money-bill-wave"></i> Payment Information
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Total Trip Amount <span class="required">*</span></label>
+          <input type="number" 
+                 name="total_amount" 
+                 id="totalAmountInput"
+                 step="1" 
+                 min="1000" 
+                 required 
+                 placeholder="Enter full freight amount"
+                 value="{{ load.price_per_unit|floatformat:'0' }}"
+                 style="font-size:16px; font-weight:600; padding: 12px;">
+          <small>Enter the complete freight amount for the trip</small>
+        </div>
+      </div>
+
+      <!-- Auto-calculated Payment Split -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label>First Half Payment (90%)</label>
+          <div class="payment-display first-half-payment">
+            <input type="text" id="firstHalfDisplay" readonly 
+                   value="₹ {{ load.first_half_payment|floatformat:0|default:'0' }}">
+          </div>
+          <input type="hidden" name="first_half_payment" id="hiddenFirstHalf" 
+                 value="{{ load.first_half_payment|default:'0' }}">
+        </div>
+        <div class="form-group">
+          <label>Final Payment (10%)</label>
+          <div class="payment-display final-payment">
+            <input type="text" id="finalPaymentDisplay" readonly 
+                   value="₹ {{ load.final_payment|floatformat:0|default:'0' }}">
+          </div>
+          <input type="hidden" name="final_payment" id="hiddenFinalPayment" 
+                 value="{{ load.final_payment|default:'0' }}">
+        </div>
+      </div>
+
+      <!-- Notes Section -->
+      <div class="section-header">
+        <i class="fas fa-sticky-note"></i> Additional Notes
+      </div>
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Notes</label>
+          <textarea name="notes" rows="3" placeholder="Any special instructions or additional information...">{{ load.notes|default:'' }}</textarea>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <a href="{% url 'load_list' %}" class="cancel-btn">Cancel</a>
+        <button type="submit" class="save-btn">
+          <i class="fas fa-save"></i> Update Load
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const editLoadForm = document.getElementById('editLoadForm');
+  const successAlert = document.getElementById('successAlert');
+  const errorAlert = document.getElementById('errorAlert');
+  const saveBtn = editLoadForm.querySelector('.save-btn');
+
+  // ====================== CUSTOMER AUTO-FILL ======================
+  document.getElementById('customerSelect').addEventListener('change', function () {
+    const selected = this.options[this.selectedIndex];
+    document.getElementById('contactPersonName').value = selected.dataset.contactPerson || '';
+    document.getElementById('contactPersonPhone').value = selected.dataset.contactPhone || '';
+  });
+
+  // ====================== 90-10 PAYMENT SPLIT CALCULATION ======================
+  function calculatePaymentSplit() {
+    const totalInput = document.getElementById('totalAmountInput');
+    const firstHalfDisplay = document.getElementById('firstHalfDisplay');
+    const finalDisplay = document.getElementById('finalPaymentDisplay');
+    const hiddenFirstHalf = document.getElementById('hiddenFirstHalf');
+    const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
+
+    const total = parseFloat(totalInput.value) || 0;
+
+    if (total > 0) {
+      const firstHalf = Math.round(total * 0.9);
+      const finalPayment = total - firstHalf; // exact 10%
+
+      firstHalfDisplay.value = '₹ ' + firstHalf.toLocaleString('en-IN');
+      finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN');
+
+      hiddenFirstHalf.value = firstHalf;
+      hiddenFinalPayment.value = finalPayment;
+    } else {
+      firstHalfDisplay.value = '₹ 0';
+      finalDisplay.value = '₹ 0';
+      hiddenFirstHalf.value = '';
+      hiddenFinalPayment.value = '';
+    }
+  }
+
+  // Initialize payment calculation
+  document.getElementById('totalAmountInput').addEventListener('input', calculatePaymentSplit);
+  calculatePaymentSplit(); // Initial calculation
+
+  // ====================== TIME INPUT FORMAT ======================
+  const timeInput = document.getElementById('timeInput');
+  const ampmSelect = document.getElementById('ampmSelect');
+  const hiddenTimeInput = document.getElementById('hiddenTimeInput');
+
+  timeInput.addEventListener('input', function (e) {
+    let v = e.target.value.replace(/\D/g, '');
+    if (v.length > 2) v = v.slice(0, 2) + ':' + v.slice(2, 4);
+    e.target.value = v.slice(0, 5);
+    hiddenTimeInput.value = v + ' ' + ampmSelect.value;
+  });
+
+  ampmSelect.addEventListener('change', () => {
+    hiddenTimeInput.value = timeInput.value + ' ' + ampmSelect.value;
+  });
+
+  // ====================== DATE VALIDATION ======================
+  const pickupDate = document.getElementById('pickupDate');
+  const dropDate = document.getElementById('dropDate');
+  
+  if (pickupDate) {
+    pickupDate.min = new Date().toISOString().split('T')[0];
+    pickupDate.addEventListener('change', () => {
+      if (dropDate) {
+        dropDate.min = pickupDate.value;
+        if (dropDate.value && dropDate.value < pickupDate.value) {
+          dropDate.value = pickupDate.value;
+        }
+      }
+    });
+  }
+
+  // ====================== FORM SUBMISSION ======================
+  editLoadForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    
+    // Validate time format
+    const timeValue = hiddenTimeInput.value;
+    if (!timeValue.match(/^\d{1,2}:\d{2} [AP]M$/)) {
+      showAlert('Please enter a valid time (e.g., 02:30 PM)', 'error');
+      return;
+    }
+
+    // Show loading state
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+    saveBtn.disabled = true;
+
+    // Clear previous alerts
+    successAlert.style.display = 'none';
+    errorAlert.style.display = 'none';
+
+    try {
+      const formData = new FormData(this);
+      
+      // Get load ID from hidden field
+      const loadId = formData.get('load_id');
+      
+      const response = await fetch(`/loads/${loadId}/update/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showAlert(data.message || 'Load updated successfully!', 'success');
+        showToast('Load updated successfully!', 'success');
+        
+        // Optional: Redirect after success
+        setTimeout(() => {
+          window.location.href = '{% url "load_list" %}';
+        }, 1500);
+      } else {
+        showAlert(data.error || 'Failed to update load', 'error');
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showAlert('Network error. Please try again.', 'error');
+      saveBtn.innerHTML = originalText;
+      saveBtn.disabled = false;
+    }
+  });
+
+  // Helper functions
+  function showAlert(message, type) {
+    const alertDiv = type === 'success' ? successAlert : errorAlert;
+    alertDiv.textContent = message;
+    alertDiv.style.display = 'block';
+    
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      alertDiv.style.display = 'none';
+    }, 5000);
+  }
+
+  function showToast(text, type = 'info') {
+    const colors = { 
+      success: '#16a34a', 
+      error: '#dc2626', 
+      info: '#2563eb' 
+    };
+    
+    Toastify({ 
+      text, 
+      duration: 3000, 
+      gravity: "top", 
+      position: "right", 
+      backgroundColor: colors[type] 
+    }).showToast();
+  }
+
+  // Initialize customer fields if already selected
+  const customerSelect = document.getElementById('customerSelect');
+  if (customerSelect.value) {
+    const selected = customerSelect.options[customerSelect.selectedIndex];
+    document.getElementById('contactPersonName').value = selected.dataset.contactPerson || '';
+    document.getElementById('contactPersonPhone').value = selected.dataset.contactPhone || '';
+  }
+});
+</script>
+</body>
+</html>
+{% endblock %}

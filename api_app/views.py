@@ -336,21 +336,29 @@ class VendorOngoingTrips(APIView):
 
     def get(self, request):
         vendor = request.user
-
+        
+        # Define statuses that indicate a trip is completed/finished
+        COMPLETED_STATUSES = [
+            'payment_completed',
+            'completed',
+            'finished',
+            'closed'
+        ]
+        
         # 1️⃣ Loads where vendor has sent a request and it is not rejected
         requested_loads = Load.objects.filter(
             requests__vendor=vendor,
             requests__status__in=["pending", "accepted"]
+        ).exclude(
+            trip_status__in=COMPLETED_STATUSES  # Exclude completed trips
         ).distinct()
 
-        # 2️⃣ Loads assigned to vendor
+        # 2️⃣ Loads assigned to vendor (vehicle or driver)
         assigned_loads = Load.objects.filter(
-            driver__owner=vendor
-        ) | Load.objects.filter(
-            vehicle__owner=vendor
-        )
-
-        assigned_loads = assigned_loads.distinct()
+            Q(driver__owner=vendor) | Q(vehicle__owner=vendor)
+        ).exclude(
+            trip_status__in=COMPLETED_STATUSES  # Exclude completed trips
+        ).distinct()
 
         # Combine results
         loads = (requested_loads | assigned_loads).distinct().order_by('-created_at')
@@ -981,3 +989,520 @@ class VendorDashboardCountsDetailedView(APIView):
                 'status': False,
                 'message': f'Error fetching dashboard counts: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class VendorTripsByStatusView(APIView):
+    """
+    API to filter vendor trips by trip_status
+    Uses the specific statuses from your timestamp_fields
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        vendor = request.user
+        
+        # Define allowed trip statuses based on your timestamp_fields
+        # These are the statuses BEFORE pod_uploaded and payment_completed
+        ALLOWED_STATUSES = [
+            'pending',
+            'loaded',
+            'lr_uploaded', 
+            'first_half_payment',
+            'in_transit',
+            'unloading',
+        ]
+        
+        # Get status from query parameter
+        trip_status = request.GET.get('trip_status')
+        
+        if not trip_status:
+            return Response({
+                "status": False,
+                "message": "trip_status parameter is required. Example: /api/trips/by-status/?trip_status=loaded"
+            }, status=400)
+        
+        # Validate the status
+        if trip_status not in ALLOWED_STATUSES:
+            return Response({
+                "status": False,
+                "message": f"Invalid trip_status. Allowed values: {', '.join(ALLOWED_STATUSES)}"
+            }, status=400)
+        
+        # Get loads filtered by specific trip status
+        # 1️⃣ Loads where vendor has sent a request and it is not rejected
+        requested_loads = Load.objects.filter(
+            requests__vendor=vendor,
+            requests__status__in=["pending", "accepted"],
+            trip_status=trip_status
+        ).distinct()
+
+        # 2️⃣ Loads assigned to vendor (vehicle or driver)
+        assigned_loads = Load.objects.filter(
+            Q(driver__owner=vendor) | Q(vehicle__owner=vendor),
+            trip_status=trip_status
+        ).distinct()
+
+        # Combine results
+        loads = (requested_loads | assigned_loads).distinct().order_by('-created_at')
+
+        # Serialize data with vendor context
+        serializer = LoadDetailsSerializer(
+            loads,
+            many=True,
+            context={"vendor": vendor}
+        )
+
+        return Response({
+            "status": True,
+            "message": f"Trips with status '{trip_status}' fetched successfully.",
+            "data": {
+                "trip_status": trip_status,
+                "status_display": self.get_status_display(trip_status),
+                "trips": serializer.data,
+                "count": loads.count(),
+                "has_timestamp_field": trip_status in self.get_timestamp_fields(),
+                "timestamp_field": self.get_timestamp_field(trip_status)
+            }
+        }, status=200)
+
+    def get_status_display(self, status):
+        """Convert status code to display name"""
+        status_map = {
+            'pending': 'Pending',
+            'loaded': 'Loaded',
+            'lr_uploaded': 'LR Uploaded',
+            'first_half_payment': 'First Half Payment',
+            'in_transit': 'In Transit',
+            'unloading': 'Unloading',
+            'pod_uploaded': 'POD Uploaded',
+            'payment_completed': 'Payment Completed',
+        }
+        return status_map.get(status, status.title())
+    
+    def get_timestamp_fields(self):
+        """Return all timestamp fields"""
+        return {
+            'pending': 'pending_at',
+            'loaded': 'loaded_at',
+            'lr_uploaded': 'lr_uploaded_at',
+            'first_half_payment': 'first_half_payment_at',
+            'in_transit': 'in_transit_at',
+            'unloading': 'unloading_at',
+            'pod_uploaded': 'pod_uploaded_at',
+            'payment_completed': 'payment_completed_at',
+        }
+    
+    def get_timestamp_field(self, status):
+        """Get the timestamp field name for a status"""
+        fields = self.get_timestamp_fields()
+        return fields.get(status)
+    
+class TripStatusOptionsView(APIView):
+    """
+    API to get all available trip status options
+    Returns only status values in array (excluding pod_uploaded and payment_completed)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Define ongoing statuses only (exclude pod_uploaded and payment_completed)
+        STATUS_VALUES = [
+            'pending',
+            'loaded',
+            'lr_uploaded',
+            'first_half_payment',
+            'in_transit',
+            'unloading',
+        ]
+        
+        return Response({
+            "status": True,
+            "message": "Trip status options fetched successfully",
+            "data": STATUS_VALUES  # Just the array of status strings
+        }, status=200)
+
+class VendorTripHistoryView(APIView):
+    """
+    API to get vendor's trip history - completed loads only
+    Shows pod_uploaded and payment_completed status loads with POD file details
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        vendor = request.user
+        
+        # Define completed statuses
+        COMPLETED_STATUSES = [
+            'pod_uploaded',
+            'payment_completed',
+        ]
+        
+        # Get loads where vendor has sent a request and it's accepted
+        requested_loads = Load.objects.filter(
+            requests__vendor=vendor,
+            requests__status="accepted",
+            trip_status__in=COMPLETED_STATUSES
+        ).distinct()
+
+        # Get loads assigned to vendor (vehicle or driver)
+        assigned_loads = Load.objects.filter(
+            Q(driver__owner=vendor) | Q(vehicle__owner=vendor),
+            trip_status__in=COMPLETED_STATUSES
+        ).distinct()
+
+        # Combine results
+        loads = (requested_loads | assigned_loads).distinct().order_by('-created_at')
+
+        # Get counts by status
+        status_counts = {}
+        for status in COMPLETED_STATUSES:
+            count = Load.objects.filter(
+                Q(requests__vendor=vendor, requests__status="accepted") |
+                Q(driver__owner=vendor) |
+                Q(vehicle__owner=vendor),
+                trip_status=status
+            ).distinct().count()
+            status_counts[status] = count
+
+        # Prepare detailed response with POD file information
+        trip_history = []
+        
+        for load in loads:
+            # Get load request info
+            load_request = LoadRequest.objects.filter(
+                load=load, 
+                vendor=vendor
+            ).first()
+            
+            # Build POD file URL
+            pod_file_url = None
+            if load.pod_document:
+                pod_file_url = request.build_absolute_uri(load.pod_document.url)
+            
+            # Build LR file URL if exists
+            lr_file_url = None
+            if load.lr_document:
+                lr_file_url = request.build_absolute_uri(load.lr_document.url)
+            
+            # Prepare trip data with POD information
+            trip_data = {
+                "id": load.id,
+                "load_id": load.load_id,
+                "pickup_location": load.pickup_location,
+                "drop_location": load.drop_location,
+                "weight": load.weight,
+                "price_per_unit": load.price_per_unit,
+                "trip_status": load.trip_status,
+                "status_display": self.get_status_display(load.trip_status),
+                "pickup_date": load.pickup_date,
+                "drop_date": load.drop_date,
+                "created_at": load.created_at,
+                
+                # POD file information
+                "pod_uploaded": load.pod_document is not None,
+                "pod_file_url": pod_file_url,
+                "pod_uploaded_at": load.pod_uploaded_at,
+                "pod_uploaded_by": load.pod_uploaded_by.full_name if load.pod_uploaded_by else None,
+                "tracking_details": load.tracking_details,
+                
+                # LR file information
+                "lr_uploaded": load.lr_document is not None,
+                "lr_file_url": lr_file_url,
+                "lr_uploaded_at": load.lr_uploaded_at,
+                "lr_number": load.lr_number,
+                
+                # Vehicle and driver info
+                "vehicle_number": load.vehicle.reg_no if load.vehicle else None,
+                "driver_name": load.driver.full_name if load.driver else None,
+                "driver_phone": load.driver.phone_number if load.driver else None,
+                
+                # Request status
+                "request_status": load_request.status if load_request else "assigned",
+                "request_created_at": load_request.created_at if load_request else load.created_at,
+                
+                # Timeline dates
+                "timeline": {
+                    "loaded_at": load.loaded_at,
+                    "lr_uploaded_at": load.lr_uploaded_at,
+                    "in_transit_at": load.in_transit_at,
+                    "unloading_at": load.unloading_at,
+                    "pod_uploaded_at": load.pod_uploaded_at,
+                    "payment_completed_at": load.payment_completed_at,
+                }
+            }
+            trip_history.append(trip_data)
+
+        return Response({
+            "status": True,
+            "message": "Trip history fetched successfully",
+            "data": {
+                "trips": trip_history,
+                "total_count": loads.count(),
+                "status_counts": status_counts,
+                "status_display": {
+                    'pod_uploaded': 'POD Uploaded',
+                    'payment_completed': 'Payment Completed',
+                },
+                "summary": {
+                    "total_completed_trips": sum(status_counts.values()),
+                    "pod_uploaded_count": status_counts.get('pod_uploaded', 0),
+                    "payment_completed_count": status_counts.get('payment_completed', 0),
+                    "trips_with_pod": loads.filter(pod_document__isnull=False).count(),
+                    "trips_without_pod": loads.filter(pod_document__isnull=True).count(),
+                }
+            }
+        }, status=200)
+
+    def get_status_display(self, status):
+        """Convert status code to display name"""
+        status_map = {
+            'pending': 'Pending',
+            'loaded': 'Loaded',
+            'lr_uploaded': 'LR Uploaded',
+            'first_half_payment': 'First Half Payment',
+            'in_transit': 'In Transit',
+            'unloading': 'Unloading',
+            'pod_uploaded': 'POD Uploaded',
+            'payment_completed': 'Payment Completed',
+        }
+        return status_map.get(status, status.title())
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AcceptLoadRequestView(APIView):
+    """
+    API endpoint for admin to accept a load request and assign vehicle/driver
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, load_id, request_id):
+        try:
+            # Get the load request
+            load_request = LoadRequest.objects.get(
+                id=request_id,
+                load_id=load_id,
+                status='pending'
+            )
+            
+            # Get the load
+            load = load_request.load
+            
+            # Get vehicle and driver from request data
+            vehicle_id = request.data.get('vehicle_id')
+            driver_id = request.data.get('driver_id')
+            
+            if not vehicle_id or not driver_id:
+                return Response({
+                    'status': False,
+                    'message': 'Vehicle ID and Driver ID are required'
+                }, status=400)
+            
+            try:
+                # Get vehicle and driver
+                vehicle = Vehicle.objects.get(id=vehicle_id, owner=load_request.vendor)
+                driver = Driver.objects.get(id=driver_id, owner=load_request.vendor)
+                
+                # Update load request status
+                load_request.status = 'accepted'
+                load_request.save()
+                
+                # Assign vehicle and driver to load
+                load.vehicle = vehicle
+                load.driver = driver
+                load.assigned_at = timezone.now()
+                load.status = 'assigned'
+                load.save()
+                
+                # Send notification to vendor
+                send_trip_assigned_notification(
+                    vendor=load_request.vendor,
+                    load=load,
+                    vehicle=vehicle,
+                    driver=driver
+                )
+                
+                # Reject other pending requests for this load
+                LoadRequest.objects.filter(
+                    load=load,
+                    status='pending'
+                ).exclude(
+                    id=request_id
+                ).update(status='rejected')
+                
+                # Send rejection notifications to other vendors
+                rejected_requests = LoadRequest.objects.filter(
+                    load=load,
+                    status='rejected'
+                ).exclude(id=request_id)
+                
+                for req in rejected_requests:
+                    send_trip_rejected_notification(
+                        vendor=req.vendor,
+                        load=load
+                    )
+                
+                return Response({
+                    'status': True,
+                    'message': 'Load assigned successfully',
+                    'data': {
+                        'load_id': load.load_id,
+                        'vendor_name': load_request.vendor.full_name,
+                        'vehicle_reg_no': vehicle.reg_no,
+                        'driver_name': driver.full_name,
+                    }
+                }, status=200)
+                
+            except Vehicle.DoesNotExist:
+                return Response({
+                    'status': False,
+                    'message': 'Vehicle not found or does not belong to vendor'
+                }, status=404)
+            except Driver.DoesNotExist:
+                return Response({
+                    'status': False,
+                    'message': 'Driver not found or does not belong to vendor'
+                }, status=404)
+                
+        except LoadRequest.DoesNotExist:
+            return Response({
+                'status': False,
+                'message': 'Load request not found or already processed'
+            }, status=404)
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error: {str(e)}'
+            }, status=500)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RejectLoadRequestView(APIView):
+    """
+    API endpoint for admin to reject a load request
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, load_id, request_id):
+        try:
+            load_request = LoadRequest.objects.get(
+                id=request_id,
+                load_id=load_id,
+                status='pending'
+            )
+            
+            load_request.status = 'rejected'
+            load_request.save()
+            
+            # Send rejection notification
+            send_trip_rejected_notification(
+                vendor=load_request.vendor,
+                load=load_request.load
+            )
+            
+            return Response({
+                'status': True,
+                'message': 'Load request rejected successfully'
+            }, status=200)
+            
+        except LoadRequest.DoesNotExist:
+            return Response({
+                'status': False,
+                'message': 'Load request not found or already processed'
+            }, status=404)
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error: {str(e)}'
+            }, status=500)
+
+class UserNotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Get notifications for current user
+            notifications = Notification.objects.filter(
+                recipient=request.user
+            ).order_by('-created_at')
+            
+            # Prepare response data
+            notification_data = []
+            for notification in notifications:
+                notification_data.append({
+                    'id': notification.id,
+                    'title': notification.title,
+                    'message': notification.message,
+                    'type': notification.notification_type,
+                    'type_display': notification.get_notification_type_display(),
+                    'is_read': notification.is_read,
+                    'created_at': notification.created_at,
+                    'trip_id': notification.related_trip.id if notification.related_trip else None,
+                    'trip_load_id': notification.related_trip.load_id if notification.related_trip else None,
+                })
+            
+            # Get unread count
+            unread_count = notifications.filter(is_read=False).count()
+            
+            return Response({
+                'status': True,
+                'message': 'Notifications fetched successfully',
+                'data': {
+                    'notifications': notification_data,
+                    'unread_count': unread_count,
+                    'total_count': notifications.count()
+                }
+            }, status=200)
+            
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error fetching notifications: {str(e)}'
+            }, status=500)
+
+class MarkNotificationReadView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, notification_id):
+        try:
+            notification = Notification.objects.get(
+                id=notification_id,
+                recipient=request.user
+            )
+            
+            notification.is_read = True
+            notification.save()
+            
+            return Response({
+                'status': True,
+                'message': 'Notification marked as read'
+            }, status=200)
+            
+        except Notification.DoesNotExist:
+            return Response({
+                'status': False,
+                'message': 'Notification not found'
+            }, status=404)
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error: {str(e)}'
+            }, status=500)
+
+class MarkAllNotificationsReadView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            # Mark all notifications as read for current user
+            updated_count = Notification.objects.filter(
+                recipient=request.user,
+                is_read=False
+            ).update(is_read=True)
+            
+            return Response({
+                'status': True,
+                'message': f'Marked {updated_count} notifications as read'
+            }, status=200)
+            
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': f'Error: {str(e)}'
+            }, status=500)

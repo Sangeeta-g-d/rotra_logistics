@@ -9,13 +9,13 @@ from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 import re
 from django.db import transaction
+from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Count
 from django.core.files.storage import default_storage
 from django.views.decorators.csrf import csrf_exempt
 from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.utils import timezone
 import traceback
-from .firebase_service import FirebaseService
 from django.http import HttpResponse
 import os
 from django.conf import settings
@@ -63,7 +63,6 @@ def admin_dashboard(request):
     if not (request.user.is_staff or request.user.role == 'admin' or request.user.role == 'traffic_person'):
         messages.error(request, "Access denied.")
         return redirect('admin_login')
-
     # Get statistics based on user role
     if request.user.role == 'traffic_person':
         # Traffic person only sees their own data
@@ -71,7 +70,7 @@ def admin_dashboard(request):
         pending_loads = Load.objects.filter(created_by=request.user, status='pending').count()
         assigned_loads = Load.objects.filter(created_by=request.user, status='assigned').count()
         completed_loads = Load.objects.filter(created_by=request.user, status='delivered').count()
-        
+
         context = {
             'user': request.user,
             'total_loads': total_loads,
@@ -80,15 +79,60 @@ def admin_dashboard(request):
             'completed_loads': completed_loads,
         }
     else:
-        # Admin sees all statistics
+        # Admin sees all statistics and KPIs
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Basic counts
+        total_users = CustomUser.objects.count()
+        staff_count = CustomUser.objects.filter(is_staff=True).count()
+        total_loads = Load.objects.count()
+        pending_loads = Load.objects.filter(status='pending').count()
+        assigned_loads = Load.objects.filter(status='assigned').count()
+        completed_loads = Load.objects.filter(status='delivered').count()
+
+        # Deliveries this month
+        total_deliveries = Load.objects.filter(payment_completed_at__gte=start_of_month, payment_completed_at__lte=now).count()
+
+        # Active drivers
+        active_drivers = Driver.objects.filter(is_active=True).count()
+
+        # Revenue this month (sum of first_half + final where payment_completed_at in this month)
+        revenue_qs = Load.objects.filter(payment_completed_at__gte=start_of_month, payment_completed_at__lte=now)
+        revenue_agg = revenue_qs.aggregate(total=Sum(ExpressionWrapper(F('first_half_payment') + F('final_payment'), output_field=DecimalField())))
+        revenue_this_month = revenue_agg.get('total') or Decimal('0.00')
+
+        # Fleet utilization
+        total_vehicles = Vehicle.objects.count()
+        active_vehicles = Vehicle.objects.filter(status='active').count()
+        fleet_utilization = round((active_vehicles / total_vehicles) * 100, 2) if total_vehicles else 0
+
+        # Trip status counts for charting
+        status_counts_qs = Load.objects.values('trip_status').annotate(count=Count('id'))
+        status_counts_map = {item['trip_status']: item['count'] for item in status_counts_qs}
+        trip_status_labels = [label for key, label in Load.TRIP_STATUS_CHOICES]
+        trip_status_values = [status_counts_map.get(key, 0) for key, label in Load.TRIP_STATUS_CHOICES]
+
         context = {
             'user': request.user,
-            'total_users': CustomUser.objects.count(),
-            'staff_count': CustomUser.objects.filter(is_staff=True).count(),
-            'total_loads': Load.objects.count(),
-            'pending_loads': Load.objects.filter(status='pending').count(),
-            'assigned_loads': Load.objects.filter(status='assigned').count(),
-            'completed_loads': Load.objects.filter(status='delivered').count(),
+            'total_users': total_users,
+            'staff_count': staff_count,
+            'total_loads': total_loads,
+            'pending_loads': pending_loads,
+            'assigned_loads': assigned_loads,
+            'completed_loads': completed_loads,
+
+            # KPIs
+            'total_deliveries': total_deliveries,
+            'active_drivers': active_drivers,
+            'revenue_this_month': revenue_this_month,
+            'fleet_utilization': fleet_utilization,
+
+            # Chart data
+            'trip_status_labels': trip_status_labels,
+            'trip_status_values': trip_status_values,
+            'trip_status_labels_json': json.dumps(trip_status_labels),
+            'trip_status_values_json': json.dumps(trip_status_values),
         }
     
     return render(request, 'admin_dashboard.html', context)
@@ -455,7 +499,7 @@ def update_driver(request, driver_id):
         
         return JsonResponse({
             'success': True,
-            'message': 'Driver updated successfully!'
+           
         })
         
     except Driver.DoesNotExist:
@@ -478,7 +522,7 @@ def delete_driver(request, driver_id):
         
         return JsonResponse({
             'success': True,
-            'message': f'{driver_name} has been deleted successfully!'
+           
         })
         
     except Driver.DoesNotExist:
@@ -671,83 +715,151 @@ def load_requests_api(request, load_id):
         }, status=500)
 
 
+@csrf_exempt
 @login_required
-@require_http_methods(["POST"])
 def accept_load_request(request, load_id, request_id):
-    """API endpoint to accept a load request and assign driver/vehicle - accessible to admin and load creator"""
-    try:
-        # Get the load
-        load = Load.objects.get(id=load_id)
-        
-        # Check permissions: Admin can access any load, traffic person only their own
-        if request.user.role == 'traffic_person' and load.created_by != request.user:
-            return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
-
-        # Get the load request
-        load_request = LoadRequest.objects.get(id=request_id, load=load)
-        
-        # Verify request is still pending
-        if load_request.status != 'pending':
-            return JsonResponse({'success': False, 'error': 'Request already processed'}, status=400)
-
-        # Parse JSON data from request body
+    """
+    API to accept a load request directly from admin dashboard
+    """
+    if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            # Get the load request
+            load_request = get_object_or_404(
+                LoadRequest, 
+                id=request_id, 
+                load_id=load_id, 
+                status='pending'
+            )
+            
+            # Parse JSON data
+            try:
+                data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Invalid JSON data'
+                }, status=400)
+            
             vehicle_id = data.get('vehicle_id')
             driver_id = data.get('driver_id')
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+            
+            if not vehicle_id or not driver_id:
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Vehicle ID and Driver ID are required'
+                }, status=400)
+            
+            # Get vehicle and driver
+            try:
+                vehicle = Vehicle.objects.get(id=vehicle_id, owner=load_request.vendor)
+                driver = Driver.objects.get(id=driver_id, owner=load_request.vendor)
+            except Vehicle.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Vehicle not found or does not belong to vendor'
+                }, status=404)
+            except Driver.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Driver not found or does not belong to vendor'
+                }, status=404)
+            
+            # Update load request
+            load_request.status = 'accepted'
+            load_request.save()
+            
+            # Assign to load
+            load = load_request.load
+            load.vehicle = vehicle
+            load.driver = driver
+            load.assigned_at = timezone.now()
+            load.status = 'assigned'
+            load.save()
+            
+            # Send notification to vendor's mobile app
+            try:
+                from .notifications import send_trip_assigned_notification
+                notification, success = send_trip_assigned_notification(
+                    vendor=load_request.vendor,
+                    load=load,
+                    vehicle=vehicle,
+                    driver=driver
+                )
+                
+                if success:
+                    print(f"✅ Push notification sent to vendor {load_request.vendor.phone_number}")
+                else:
+                    print(f"⚠️ Push notification failed, but trip assigned")
+                    
+            except ImportError as e:
+                print(f"❌ Could not import notifications module: {e}")
+                # Create database notification only
+                Notification.objects.create(
+                    recipient=load_request.vendor,
+                    notification_type='trip_assigned',
+                    title="Trip Assigned Successfully! 🎉",
+                    message=f"Your request for load {load.load_id} has been accepted.",
+                    related_trip=load,
+                    is_read=False
+                )
+            
+            # Reject other pending requests for this load
+            rejected_requests = LoadRequest.objects.filter(
+                load=load,
+                status='pending'
+            ).exclude(id=request_id)
+            
+            # Update all to rejected
+            rejected_requests.update(status='rejected')
+            
+            # Send rejection notifications
+            for req in rejected_requests:
+                try:
+                    from .notifications import send_trip_rejected_notification
+                    send_trip_rejected_notification(
+                        vendor=req.vendor,
+                        load=load
+                    )
+                except ImportError:
+                    Notification.objects.create(
+                        recipient=req.vendor,
+                        notification_type='trip_rejected',
+                        title="Trip Request Rejected",
+                        message=f"Your request for load {load.load_id} has been rejected by admin.",
+                        related_trip=load,
+                        is_read=False
+                    )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Load assigned successfully! Notification sent to vendor.',
+                'data': {
+                    'load_id': load.load_id,
+                    'vendor_name': load_request.vendor.full_name,
+                    'vendor_phone': load_request.vendor.phone_number,
+                    'vehicle_reg_no': vehicle.reg_no,
+                    'driver_name': driver.full_name,
+                }
+            }, status=200)
+            
+        except LoadRequest.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Load request not found or already processed'
+            }, status=404)
+        except Exception as e:
+            print(f"❌ Error in accept_load_request: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': f'Error: {str(e)}'
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid method. Use POST.'
+    }, status=405)
 
-        # Validate required fields
-        if not vehicle_id or not driver_id:
-            return JsonResponse({'success': False, 'error': 'Vehicle and Driver are required'}, status=400)
 
-        # Get the vehicle and driver objects
-        try:
-            vehicle = Vehicle.objects.get(id=vehicle_id, owner=load_request.vendor)
-            driver = Driver.objects.get(id=driver_id, owner=load_request.vendor)
-        except Vehicle.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Vehicle not found or does not belong to this vendor'}, status=404)
-        except Driver.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Driver not found or does not belong to this vendor'}, status=404)
-
-        # Update the load request status
-        load_request.status = 'accepted'
-        load_request.save()
-
-        # Update the load with assigned driver and vehicle
-        load.driver = driver
-        load.vehicle = vehicle
-        load.status = 'assigned'
-        load.save()
-
-        # Reject all other pending requests for this load
-        LoadRequest.objects.filter(
-            load=load, 
-            status='pending'
-        ).exclude(id=request_id).update(status='rejected')
-
-        return JsonResponse({
-            'success': True,
-            'message': 'Load assigned successfully!',
-            'load': {
-                'id': load.id,
-                'load_id': load.load_id,
-                'driver_name': driver.full_name,
-                'driver_phone': driver.phone_number,
-                'vehicle_reg_no': vehicle.reg_no,
-                'vehicle_type': vehicle.get_type_display(),
-                'status': load.get_status_display()
-            }
-        })
-
-    except Load.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Load not found'}, status=404)
-    except LoadRequest.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Request not found'}, status=404)
-    except Exception as e:
-        print(f"Error accepting load request: {e}")
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
 @login_required
 @require_http_methods(["POST"])
@@ -1133,6 +1245,7 @@ def add_vendor(request):
         address = request.POST.get('address', '').strip() or None
         pan_number = request.POST.get('pan_number', '').strip() or None
         tds_file = request.FILES.get('tds_declaration')
+        profile_image = request.FILES.get('profile_image')  # Add this
 
         # Auto-generate email
         email = f"{phone}@vendor.local"
@@ -1163,6 +1276,9 @@ def add_vendor(request):
 
             if tds_file:
                 vendor.tds_declaration = tds_file
+            
+            if profile_image:  # Add this
+                vendor.profile_image = profile_image
 
             vendor.save()
 
@@ -1176,7 +1292,7 @@ def add_vendor(request):
                 'address': vendor.address or '-',
                 'pan_number': vendor.pan_number or '-',
                 'tds_declaration': vendor.tds_declaration.url if vendor.tds_declaration else '',
-                'profile_image': vendor.profile_image.url if vendor.profile_image else '',
+                'profile_image': vendor.profile_image.url if vendor.profile_image else '',  # Add this
                 'date_joined': vendor.date_joined.strftime('%b %d, %Y'),
             }
         })
@@ -1861,7 +1977,7 @@ def view_lr_document_api(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def update_trip_status_api(request, trip_id):
-    """Update trip status to next stage with automatic completion of related statuses"""
+    """Update trip status to next stage"""
     try:
         load = Load.objects.get(id=trip_id, created_by=request.user)
         
@@ -1899,34 +2015,8 @@ def update_trip_status_api(request, trip_id):
                     'requires_pod_upload': True
                 }, status=400)
         
-        # Special case: When moving to first_half_payment, also complete in_transit
-        if next_status == 'first_half_payment':
-            # Update to first_half_payment
-            load.update_trip_status('first_half_payment', user=request.user)
-            
-            # Also mark in_transit as completed if not already
-            if not load.in_transit_at:
-                load.in_transit_at = timezone.now()
-            
-            # Set trip_status to show both are completed, but we move to unloading as current
-            load.trip_status = 'first_half_payment'
-        
-        # Special case: When moving to in_transit, also complete first_half_payment
-        elif next_status == 'in_transit':
-            # Update to in_transit
-            load.update_trip_status('in_transit', user=request.user)
-            
-            # Also mark first_half_payment as completed if not already
-            if not load.first_half_payment_at:
-                load.first_half_payment_at = timezone.now()
-            
-            load.trip_status = 'in_transit'
-        
-        # For other status updates
-        else:
-            load.update_trip_status(next_status, user=request.user)
-        
-        # Save the model after all updates
+        # Update to next status
+        load.update_trip_status(next_status, user=request.user)
         load.save()
 
         # Get timestamp for the main status update
@@ -1941,17 +2031,31 @@ def update_trip_status_api(request, trip_id):
             'payment_completed': 'payment_completed_at',
         }
 
-        field_name = timestamp_fields.get(load.trip_status)
-        timestamp = getattr(load, field_name) if field_name else load.updated_at
+        field_name = timestamp_fields.get(next_status)
+        timestamp = getattr(load, field_name) if field_name and hasattr(load, field_name) else load.updated_at
         timestamp_str = timestamp.strftime('%b %d, %I:%M %p') if timestamp else 'Just now'
+        
+        # Determine the message to show
+        if next_status == 'first_half_payment':
+            message = 'First Half Payment completed successfully!'
+        elif next_status == 'in_transit':
+            message = 'Trip status updated to In Transit'
+        elif next_status == 'unloading':
+            message = 'Unloading completed successfully! Ready for POD upload.'
+        elif next_status == 'pod_uploaded':
+            message = 'POD uploaded successfully! Ready for final payment.'
+        elif next_status == 'payment_completed':
+            message = 'Payment completed successfully! Trip is now complete.'
+        else:
+            message = f'Trip status updated to {load.get_trip_status_display()}'
 
         return JsonResponse({
             'success': True,
-            'message': f'Trip status updated to {load.get_trip_status_display()}',
-            'new_status': load.trip_status,
+            'message': message,
+            'new_status': next_status,
             'new_status_display': load.get_trip_status_display(),
             'timestamp': timestamp_str,
-            'special_case': next_status in ['first_half_payment', 'in_transit']
+            'special_case': False
         })
         
     except Load.DoesNotExist:
@@ -2647,3 +2751,573 @@ RoadFleet Team
         return render(request, 'reset_password.html', {
             'error': 'An error occurred. Please try again.'
         })
+
+@login_required
+def edit_load(request, load_id):
+    """Edit existing load"""
+    if not (request.user.is_staff or request.user.role == 'admin' or request.user.role == 'traffic_person'):
+        return redirect('admin_login')
+    
+    try:
+        load = Load.objects.get(id=load_id)
+        
+        # Check permissions: Admin can edit any load, traffic person only their own
+        if request.user.role == 'traffic_person' and load.created_by != request.user:
+            messages.error(request, "You don't have permission to edit this load.")
+            return redirect('load_list')
+        
+        customers = Customer.objects.filter(is_active=True).order_by('customer_name')
+        vehicle_types = VehicleType.objects.all().order_by('name')
+        
+        context = {
+            'load': load,
+            'customers': customers,
+            'vehicle_types': vehicle_types,
+        }
+        return render(request, 'edit_load.html', context)
+        
+    except Load.DoesNotExist:
+        messages.error(request, "Load not found.")
+        return redirect('load_list')
+
+@login_required
+@require_http_methods(["POST"])
+def update_load(request, load_id):
+    """API endpoint to update load"""
+    try:
+        load = Load.objects.get(id=load_id)
+        
+        # Check permissions
+        if request.user.role == 'traffic_person' and load.created_by != request.user:
+            return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+        
+        with transaction.atomic():
+            # 1. Customer
+            customer_id = request.POST.get('customer')
+            if not customer_id:
+                return JsonResponse({'success': False, 'error': 'Customer is required'}, status=400)
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Invalid customer'}, status=400)
+            
+            # 2. Vehicle Type
+            vehicle_type_id = request.POST.get('vehicleType')
+            if not vehicle_type_id:
+                return JsonResponse({'success': False, 'error': 'Vehicle type is required'}, status=400)
+            try:
+                vehicle_type = VehicleType.objects.get(id=vehicle_type_id)
+            except VehicleType.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Invalid vehicle type'}, status=400)
+            
+            # 3. Locations
+            pickup_location = request.POST.get('pickupLocation', '').strip()
+            drop_location = request.POST.get('dropLocation', '').strip()
+            if not pickup_location or not drop_location:
+                return JsonResponse({'success': False, 'error': 'Both pickup & drop locations are required'}, status=400)
+            
+            # 4. Dates
+            pickup_date_str = request.POST.get('pickupDate')
+            if not pickup_date_str:
+                return JsonResponse({'success': False, 'error': 'Pickup date is required'}, status=400)
+            try:
+                pickup_date = datetime.strptime(pickup_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Invalid pickup date format'}, status=400)
+            
+            drop_date_str = request.POST.get('dropDate', '').strip()
+            drop_date = None
+            if drop_date_str:
+                try:
+                    drop_date = datetime.strptime(drop_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return JsonResponse({'success': False, 'error': 'Invalid drop date format'}, status=400)
+            
+            # 5. Time
+            time_str = request.POST.get('time', '').strip()
+            if not time_str:
+                return JsonResponse({'success': False, 'error': 'Time is required'}, status=400)
+            try:
+                time_obj = datetime.strptime(time_str, '%I:%M %p').time()
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Invalid time format. Use: 02:30 PM'}, status=400)
+            
+            # 6. Total Trip Amount
+            total_amount_str = request.POST.get('total_amount', '').replace(',', '').strip()
+            if not total_amount_str:
+                return JsonResponse({'success': False, 'error': 'Total trip amount is required'}, status=400)
+            try:
+                total_amount = Decimal(total_amount_str)
+                if total_amount <= 0:
+                    return JsonResponse({'success': False, 'error': 'Amount must be greater than 0'}, status=400)
+            except:
+                return JsonResponse({'success': False, 'error': 'Invalid amount format'}, status=400)
+            
+            # 7. Calculate 90-10 Split
+            first_half_payment = (total_amount * Decimal('0.9')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            final_payment = (total_amount - first_half_payment).quantize(Decimal('0.01'))
+            
+            # 8. Optional fields
+            contact_person_name = request.POST.get('contactPersonName', '').strip() or None
+            contact_person_phone = request.POST.get('contactPersonPhone', '').strip() or None
+            weight = request.POST.get('weight', '').strip() or None
+            material = request.POST.get('material', '').strip() or None
+            notes = request.POST.get('notes', '').strip() or None
+            
+            # 9. Update Load
+            load.customer = customer
+            load.contact_person_name = contact_person_name
+            load.contact_person_phone = contact_person_phone
+            load.vehicle_type = vehicle_type
+            load.pickup_location = pickup_location
+            load.drop_location = drop_location
+            load.pickup_date = pickup_date
+            load.drop_date = drop_date
+            load.time = time_obj
+            load.weight = weight
+            load.material = material
+            load.notes = notes
+            load.price_per_unit = total_amount
+            load.first_half_payment = first_half_payment
+            load.final_payment = final_payment
+            
+            load.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Load {load.load_id} updated successfully!',
+                'load': {
+                    'id': load.id,
+                    'load_id': load.load_id,
+                    'price_per_unit': str(load.price_per_unit),
+                    'first_half_payment': str(load.first_half_payment),
+                    'final_payment': str(load.final_payment),
+                }
+            })
+            
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Load not found'}, status=404)
+    except Exception as e:
+        print(f"Error updating load: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to update load. Please try again.'
+        }, status=500)
+
+@login_required
+def edit_driver(request, driver_id):
+    """Edit existing driver"""
+    if not request.user.is_staff:
+        return redirect('admin_login')
+    
+    try:
+        driver = Driver.objects.get(id=driver_id, created_by=request.user)
+        vendors = CustomUser.objects.filter(role='vendor', is_active=True).order_by('full_name')
+        
+        context = {
+            'driver': driver,
+            'vendors': vendors,
+        }
+        return render(request, 'edit_driver.html', context)
+        
+    except Driver.DoesNotExist:
+        messages.error(request, "Driver not found or you don't have permission to edit.")
+        return redirect('driver_list')
+
+@login_required
+@require_http_methods(["POST"])
+def update_driver(request, driver_id):
+    """API endpoint to update driver"""
+    try:
+        driver = Driver.objects.get(id=driver_id, created_by=request.user)
+        
+        # Validate required fields
+        full_name = request.POST.get('fullname', '').strip()
+        phone_number = request.POST.get('phonenumber', '').strip()
+        owner_id = request.POST.get('owner')
+        
+        if not full_name:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Full name is required'
+            }, status=400)
+        
+        if not phone_number:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Phone number is required'
+            }, status=400)
+        
+        if not owner_id:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Owner is required'
+            }, status=400)
+        
+        # Check if phone number already exists (excluding current driver)
+        if Driver.objects.filter(phone_number=phone_number).exclude(id=driver_id).exists():
+            return JsonResponse({
+                'success': False, 
+                'error': 'Another driver with this phone number already exists'
+            }, status=400)
+        
+        try:
+            owner = CustomUser.objects.get(id=owner_id, role='vendor')
+        except CustomUser.DoesNotExist:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Invalid owner selected'
+            }, status=400)
+        
+        # Update basic fields
+        driver.full_name = full_name
+        driver.phone_number = phone_number
+        driver.owner = owner
+        
+        # Handle file uploads - only update if new file is provided
+        file_fields = {
+            'pan_document': request.FILES.get('pan_document'),
+            'aadhar_document': request.FILES.get('aadhar_document'),
+            'rc_document': request.FILES.get('rc_document'),
+        }
+        
+        for field, file_obj in file_fields.items():
+            if file_obj:
+                # Delete old file if exists
+                old_file = getattr(driver, field)
+                if old_file:
+                    old_file.delete(save=False)
+                setattr(driver, field, file_obj)
+            # Check if file should be removed
+            elif request.POST.get(f'remove_{field}') == 'true':
+                old_file = getattr(driver, field)
+                if old_file:
+                    old_file.delete(save=False)
+                setattr(driver, field, None)  # Set to None to remove the file
+        
+        driver.save()
+        
+        return JsonResponse({
+            'success': True,
+           
+            'driver': {
+                'id': driver.id,
+                'full_name': driver.full_name,
+                'phone_number': driver.phone_number,
+                'owner_name': owner.full_name,
+                'owner_phone': owner.phone_number,
+                'hasPan': bool(driver.pan_document),
+                'hasAadhar': bool(driver.aadhar_document),
+                'hasRC': bool(driver.rc_document),
+            }
+        })
+        
+    except Driver.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Driver not found'}, status=404)
+    except Exception as e:
+        print(f"Error updating driver: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)  # Return actual error for debugging
+        }, status=500)
+
+@login_required
+def edit_vehicle(request, vehicle_id):
+    """Edit existing vehicle"""
+    if not request.user.is_staff:
+        return redirect('admin_login')
+    
+    try:
+        vehicle = Vehicle.objects.get(id=vehicle_id)
+        vendors = CustomUser.objects.filter(role='vendor', is_active=True).order_by('full_name')
+        
+        context = {
+            'vehicle': vehicle,
+            'vendors': vendors,
+        }
+        return render(request, 'edit_vehicle.html', context)
+        
+    except Vehicle.DoesNotExist:
+        messages.error(request, "Vehicle not found.")
+        return redirect('vehicle_list')
+
+@login_required
+@require_http_methods(["POST"])
+def update_vehicle(request, vehicle_id):
+    """API endpoint to update vehicle"""
+    try:
+        vehicle = Vehicle.objects.get(id=vehicle_id)
+        
+        # Validate required fields
+        reg_no = request.POST.get('reg_no', '').strip().upper()
+        owner_id = request.POST.get('owner')
+        
+        if not reg_no:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Registration number is required'
+            }, status=400)
+        
+        if not owner_id:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Owner is required'
+            }, status=400)
+        
+        # Check if registration number already exists (excluding current vehicle)
+        if Vehicle.objects.filter(reg_no=reg_no).exclude(id=vehicle_id).exists():
+            return JsonResponse({
+                'success': False, 
+                'error': 'Another vehicle with this registration number already exists'
+            }, status=400)
+        
+        try:
+            owner = CustomUser.objects.get(id=owner_id, role='vendor')
+        except CustomUser.DoesNotExist:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Invalid owner selected'
+            }, status=400)
+        
+        # Update basic fields
+        vehicle.reg_no = reg_no
+        vehicle.owner = owner
+        
+        # Handle file uploads - only update if new file is provided
+        file_fields = {
+            'insurance_doc': request.FILES.get('insurance_doc'),
+            'rc_doc': request.FILES.get('rc_doc'),
+        }
+        
+        for field, file_obj in file_fields.items():
+            if file_obj:
+                # Delete old file if exists
+                old_file = getattr(vehicle, field)
+                if old_file:
+                    old_file.delete(save=False)
+                setattr(vehicle, field, file_obj)
+            # Check if file should be removed
+            elif request.POST.get(f'remove_{field}') == 'true':
+                old_file = getattr(vehicle, field)
+                if old_file:
+                    old_file.delete(save=False)
+                setattr(vehicle, field, None)  # Set to None to remove the file
+        
+        vehicle.save()
+        
+        return JsonResponse({
+            'success': True,
+           
+            'vehicle': {
+                'id': vehicle.id,
+                'reg_no': vehicle.reg_no,
+                'owner_name': owner.full_name,
+                'owner_phone': owner.phone_number,
+                'hasInsurance': bool(vehicle.insurance_doc),
+                'hasRC': bool(vehicle.rc_doc),
+            }
+        })
+        
+    except Vehicle.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Vehicle not found'}, status=404)
+    except Exception as e:
+        print(f"Error updating vehicle: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)  # Return actual error for debugging
+        }, status=500)
+
+@login_required
+def edit_customer(request, customer_id):
+    """Edit existing customer"""
+    if not request.user.is_staff:
+        return redirect('admin_login')
+    
+    try:
+        customer = Customer.objects.get(id=customer_id)
+        
+        context = {
+            'customer': customer,
+        }
+        return render(request, 'edit_customer.html', context)
+        
+    except Customer.DoesNotExist:
+        messages.error(request, "Customer not found.")
+        return redirect('customer_list')
+
+@login_required
+@require_http_methods(["POST"])
+def update_customer(request, customer_id):
+    """API endpoint to update customer"""
+    try:
+        customer = Customer.objects.get(id=customer_id)
+        
+        # Validate required fields
+        customer_name = request.POST.get('customerName', '').strip()
+        phone_number = request.POST.get('phoneNumber', '').strip()
+        
+        if not customer_name:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Customer name is required'
+            }, status=400)
+        
+        if not phone_number:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Phone number is required'
+            }, status=400)
+        
+        # Check if phone number already exists (excluding current customer)
+        if Customer.objects.filter(phone_number=phone_number).exclude(id=customer_id).exists():
+            return JsonResponse({
+                'success': False, 
+                'error': 'Another customer with this phone number already exists'
+            }, status=400)
+        
+        # Update basic fields
+        customer.customer_name = customer_name
+        customer.phone_number = phone_number
+        customer.contact_person_name = request.POST.get('contactPersonName', '').strip() or None
+        customer.contact_person_phone = request.POST.get('contactPersonPhone', '').strip() or None
+        customer.location = request.POST.get('location', '').strip() or None
+        
+        # Handle profile photo upload
+        profile_photo = request.FILES.get('profilePhoto')
+        if profile_photo:
+            # Delete old profile photo if exists
+            if customer.profile_image:
+                customer.profile_image.delete(save=False)
+            customer.profile_image = profile_photo
+        
+        customer.save()
+        
+        return JsonResponse({
+            'success': True,
+            
+            'customer': {
+                'id': customer.id,
+                'name': customer.customer_name,
+                'phone': customer.phone_number,
+                'contactPerson': customer.contact_person_name or '',
+                'contactPhone': customer.contact_person_phone or '',
+                'location': customer.location or '',
+            }
+        })
+        
+    except Customer.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Customer not found'}, status=404)
+    except Exception as e:
+        print(f"Error updating customer: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)  # Return actual error for debugging
+        }, status=500)
+
+@login_required
+def edit_vendor(request, vendor_id):
+    """Edit existing vendor"""
+    if not request.user.is_staff:
+        return redirect('admin_login')
+    
+    try:
+        vendor = CustomUser.objects.get(id=vendor_id, role='vendor', created_by=request.user)
+        
+        context = {
+            'vendor': vendor,
+        }
+        return render(request, 'edit_vendor.html', context)
+        
+    except CustomUser.DoesNotExist:
+        messages.error(request, "Vendor not found.")
+        return redirect('vendor_list')
+
+@login_required
+@require_http_methods(["POST"])
+def update_vendor(request, vendor_id):
+    """API endpoint to update vendor"""
+    try:
+        vendor = CustomUser.objects.get(id=vendor_id, role='vendor', created_by=request.user)
+        
+        # Validate required fields
+        full_name = request.POST.get('full_name', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        
+        if not full_name:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Full name is required'
+            }, status=400)
+        
+        if not phone:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Phone number is required'
+            }, status=400)
+        
+        # Check if phone number already exists (excluding current vendor)
+        if CustomUser.objects.filter(phone_number=phone).exclude(id=vendor_id).exists():
+            return JsonResponse({
+                'success': False, 
+                'error': 'Another vendor with this phone number already exists'
+            }, status=400)
+        
+        # Update basic fields
+        vendor.full_name = full_name
+        vendor.phone_number = phone
+        vendor.pan_number = request.POST.get('pan_number', '').strip() or None
+        vendor.address = request.POST.get('address', '').strip() or None
+        
+        # Handle password change if provided
+        new_password = request.POST.get('password', '').strip()
+        if new_password:
+            vendor.set_password(new_password)
+        
+        # Handle profile photo upload
+        profile_image = request.FILES.get('profile_image')
+        if profile_image:
+            # Delete old profile image if exists and is not default
+            if vendor.profile_image and vendor.profile_image.name != 'profile_images/default_avatar.png':
+                vendor.profile_image.delete(save=False)
+            vendor.profile_image = profile_image
+        
+        # Handle TDS declaration file upload
+        tds_declaration = request.FILES.get('tds_declaration')
+        if tds_declaration:
+            # Delete old TDS file if exists
+            if vendor.tds_declaration:
+                vendor.tds_declaration.delete(save=False)
+            vendor.tds_declaration = tds_declaration
+        
+        vendor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Vendor {vendor.full_name} updated successfully!',
+            'vendor': {
+                'id': vendor.id,
+                'full_name': vendor.full_name,
+                'phone_number': vendor.phone_number,
+                'pan_number': vendor.pan_number or '',
+                'address': vendor.address or '',
+            }
+        })
+        
+    except CustomUser.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Vendor not found'}, status=404)
+    except Exception as e:
+        print(f"Error updating vendor: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

@@ -33,6 +33,16 @@ urlpatterns = [
     path('save-fcm-token/', SaveFCMTokenView.as_view(), name='save-fcm-token'),
     path('vendor/profile/', VendorProfileView.as_view(), name='vendor-profile'),
     path('vendor/dashboard/counts/', VendorDashboardCountsDetailedView.as_view(), name='vendor-dashboard-counts'),
+    path("trips/by_status/", VendorTripsByStatusView.as_view(), name="vendor-trips-by-status"),
+    path('trips/status_options/', TripStatusOptionsView.as_view(), name='trip-status-options'),
+    path('profile/history/', VendorTripHistoryView.as_view(), name='VendorTripHistoryView'),
+    path('loads/<int:load_id>/requests/<int:request_id>/accept/', AcceptLoadRequestView.as_view(), name='accept_load_request'),
 
+    path('loads/<int:load_id>/requests/<int:request_id>/reject/', RejectLoadRequestView.as_view(), name='reject_load_request'),
+    
+    # Notification endpoints
+    path('api/notifications/',UserNotificationsView.as_view(), name='user_notifications'),
+    
+    path('api/notifications/<int:notification_id>/mark-read/', MarkNotificationReadView.as_view(), name='mark_notification_read'),
  
 ]

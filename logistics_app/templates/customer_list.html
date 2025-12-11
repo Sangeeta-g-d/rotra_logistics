@@ -370,8 +370,8 @@ tbody.addEventListener('click', e => {
     const data   = JSON.parse(row.dataset.customer);
 
     if (action === 'action-edit-btn') {
-      showToast('Edit coming soon!', 'info');
-    } else if (action === 'action-delete-btn') {
+    window.location.href = `/customers/${data.id}/edit/`;
+} else if (action === 'action-delete-btn') {
       if (confirm('Delete this customer?')) {
         fetch(`{% url 'delete_customer' 999 %}`.replace('999', data.id), {
           method: 'POST',

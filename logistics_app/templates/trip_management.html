@@ -682,6 +682,17 @@
   <div class="top-bar">
     <h2>Trip Management</h2>
     <div class="search-add-container">
+      <select id="statusFilter" class="search-input" style="width:180px;">
+        <option value="all" selected>All Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="loaded">Loaded</option>
+        <option value="lr_uploaded">LR Uploaded</option>
+        <option value="first_half_payment">First Half Payment</option>
+        <option value="in_transit">In Transit</option>
+        <option value="unloading">Unloading</option>
+        <option value="pod_uploaded">POD Uploaded</option>
+        <option value="payment_completed">Payment Completed</option>
+      </select>
       <input type="text" id="searchInput" placeholder="Search trips..." class="search-input">
       <button class="add-button" onclick="window.location.href='{% url 'load_list' %}'">View All Loads</button>
     </div>
@@ -701,7 +712,7 @@
       <tbody>
         {% if trips %}
           {% for load in trips %}
-          <tr class="clickable-row" data-trip-id="{{ load.id }}">
+          <tr class="clickable-row" data-trip-id="{{ load.id }}" data-trip-status="{{ load.trip_status }}">
             <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
             <td>
               <div class="route-display">
@@ -932,6 +943,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const prevBtn = document.getElementById('prevPage');
   const nextBtn = document.getElementById('nextPage');
   const currentPageInfo = document.getElementById('currentPageInfo');
+  const searchInput = document.getElementById('searchInput');
+  const statusSelect = document.getElementById('statusFilter');
 
   function renderPage() {
     const start = (currentPage - 1) * perPage;
@@ -969,18 +982,38 @@ document.addEventListener('DOMContentLoaded', function () {
     } 
   });
 
-  document.getElementById('searchInput').addEventListener('input', function() {
-    const term = this.value.toLowerCase();
-    filteredRows = allRows.filter(row => row.textContent.toLowerCase().includes(term));
+  function applyFilters() {
+    const term = (searchInput && searchInput.value) ? searchInput.value.toLowerCase() : '';
+    const selectedStatus = (statusSelect && statusSelect.value) ? statusSelect.value : 'all';
+
+    filteredRows = allRows.filter(row => {
+      const matchesSearch = term === '' || row.textContent.toLowerCase().includes(term);
+      const rowStatus = row.dataset.tripStatus || '';
+      const matchesStatus = selectedStatus === 'all' || rowStatus === selectedStatus;
+      return matchesSearch && matchesStatus;
+    });
+
     currentPage = 1;
     renderPage();
-  });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      applyFilters();
+    });
+  }
+
+  if (statusSelect) {
+    statusSelect.addEventListener('change', () => {
+      applyFilters();
+    });
+  }
 
   attachRowClickListeners();
   attachSidebarEventListeners();
   initializeLRModal();
   initializePODModal();
-  renderPage();
+  applyFilters();
 });
 
 function attachRowClickListeners() {
@@ -1506,28 +1539,26 @@ function renderTimeline(data) {
     'payment_completed'
   ];
   
+  // Find current status index
   const currentStatusIndex = statusOrder.indexOf(data.trip_status);
   
+  // Show current dot at NEXT stage (unless at final stage)
+  let displayCurrentIndex = currentStatusIndex + 1;
+  
+  // Boundary checks
+  if (displayCurrentIndex >= statusOrder.length) {
+    displayCurrentIndex = statusOrder.length - 1; // Stay at last stage
+  }
+  
   statusOrder.forEach((status, index) => {
-    let isCompleted = index < currentStatusIndex;
-    let isCurrent = index === currentStatusIndex;
-    let isPending = index > currentStatusIndex;
+    let isCompleted = index <= currentStatusIndex;
+    let isCurrent = index === displayCurrentIndex;
+    let isPending = index > displayCurrentIndex;
     
-    if (status === 'first_half_payment' || status === 'in_transit') {
-      if (currentStatusIndex > 4) {
-        isCompleted = true;
-        isCurrent = false;
-        isPending = false;
-      } else if (currentStatusIndex >= 3 && currentStatusIndex <= 4) {
-        isCompleted = true;
-        isCurrent = false;
-        isPending = false;
-      }
-    }
-    
-    if ((data.trip_status === 'first_half_payment' || data.trip_status === 'in_transit') && status === 'unloading') {
-      isCurrent = true;
-      isCompleted = false;
+    // For final stage, everything is completed
+    if (data.trip_status === 'payment_completed') {
+      isCompleted = true;
+      isCurrent = false;
       isPending = false;
     }
     
@@ -1562,6 +1593,12 @@ function createTimelineItem(status, isCompleted, isCurrent, isPending, data) {
     `;
   }
   
+  // Add "Next Action" indicator for current stage
+  let actionIndicator = '';
+  if (isCurrent) {
+    actionIndicator = `<div style="font-size: 12px; color: var(--primary); font-weight: 600; margin-top: 4px;"></div>`;
+  }
+  
   timelineItem.innerHTML = `
     <div class="timeline-dot ${dotClass}">
       <i class="fas ${statusInfo.icon}"></i>
@@ -1570,6 +1607,7 @@ function createTimelineItem(status, isCompleted, isCurrent, isPending, data) {
       <div class="timeline-main ${mainClass}">${statusInfo.title}</div>
       <div class="timeline-sub">${statusInfo.description}</div>
       ${fileButton}
+      ${actionIndicator}
     </div>
     <div class="timeline-time">${statusInfo.timestamp}</div>
   `;
@@ -1620,15 +1658,8 @@ function getStatusInfo(status, data) {
     first_half_payment: {
       icon: 'fa-money-bill-wave',
       title: 'First Half Payment',
-      description: `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} paid to driver`,
+      description: `₹${data.first_half_payment ? data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2}) : '0'} paid to driver`,
       timestamp: formatTimestamp(data.first_half_payment_at),
-      hasFile: false
-    },
-    in_transit: {
-      icon: 'fa-truck-moving',
-      title: 'In Transit',
-      description: 'Vehicle on route to destination',
-      timestamp: formatTimestamp(data.in_transit_at),
       hasFile: false
     },
     unloading: {
@@ -1656,7 +1687,13 @@ function getStatusInfo(status, data) {
     }
   };
   
-  return statusConfig[status] || { icon: 'fa-circle', title: status, description: '', timestamp: 'Pending', hasFile: false };
+  return statusConfig[status] || { 
+    icon: 'fa-circle', 
+    title: status, 
+    description: '', 
+    timestamp: 'Pending', 
+    hasFile: false 
+  };
 }
 
 function closeSidebar() {
@@ -1676,7 +1713,34 @@ function updateTripStatus() {
     return;
   }
   
-  if (!confirm('Are you sure you want to update the trip status to the next stage?')) {
+  // Get current status for better confirmation message
+  const currentRow = document.querySelector(`[data-trip-id="${currentTripId}"]`);
+  const currentStatus = currentRow ? currentRow.dataset.tripStatus : '';
+  let nextStage = '';
+  let confirmMessage = '';
+  
+  // Determine next stage for confirmation message
+  if (currentStatus === 'lr_uploaded') {
+    nextStage = 'First Half Payment';
+    confirmMessage = 'Are you sure you want to update the trip status to First Half Payment?';
+  } else if (currentStatus === 'first_half_payment') {
+    nextStage = 'In Transit';
+    confirmMessage = 'Are you sure you want to update the trip status to In Transit?';
+  } else if (currentStatus === 'in_transit') {
+    nextStage = 'Unloading';
+    confirmMessage = 'Are you sure you want to update the trip status to Unloading?';
+  } else if (currentStatus === 'unloading') {
+    nextStage = 'POD Uploaded';
+    confirmMessage = 'Are you sure you want to update the trip status to POD Uploaded?';
+  } else if (currentStatus === 'pod_uploaded') {
+    nextStage = 'Payment Completed';
+    confirmMessage = 'Are you sure you want to update the trip status to Payment Completed?';
+  } else {
+    nextStage = 'next stage';
+    confirmMessage = `Are you sure you want to update the trip status to ${nextStage}?`;
+  }
+  
+  if (!confirm(confirmMessage)) {
     return;
   }
   
@@ -1691,19 +1755,19 @@ function updateTripStatus() {
   .then(response => response.json())
   .then(result => {
     if (result.success) {
-      let message = result.message;
-      
-      if (result.special_case) {
-        if (result.new_status === 'first_half_payment') {
-          message = 'First Half Payment and In Transit statuses updated successfully!';
-        } else if (result.new_status === 'in_transit') {
-          message = 'In Transit and First Half Payment statuses updated successfully!';
-        }
-      }
-      
+      let message = result.message || 'Status updated successfully';
+      let newStatus = result.new_status;
+      let newStatusDisplay = result.new_status_display;
+
+      // Update table row
+      updateTableRow(currentTripId, newStatus, newStatusDisplay);
       showToast(message, 'success');
-      loadTripDetails(currentTripId);
-      updateTableRow(currentTripId, result.new_status, result.new_status_display);
+      
+      // Refresh sidebar to update timeline
+      setTimeout(() => {
+        loadTripDetails(currentTripId);
+      }, 300);
+      
     } else {
       if (result.requires_lr_upload) {
         showToast('Please upload LR document before updating status', 'error');
