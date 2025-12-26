@@ -6,8 +6,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.conf import settings
-
-
+from datetime import timedelta
 
 
 class CustomUserManager(BaseUserManager):
@@ -133,6 +132,20 @@ class CustomUser(AbstractUser):
         verbose_name = 'User'
         verbose_name_plural = 'Users'
         ordering = ['username', '-date_joined']
+
+
+class PhoneOTP(models.Model):
+    phone_number = models.CharField(max_length=15)
+    otp = models.CharField(max_length=6)
+    is_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(minutes=5)
+
+    def __str__(self):
+        return f"{self.phone_number} - {self.otp}"
+
 
 class Customer(models.Model):
     """Customer table – exactly the fields you requested"""
@@ -270,7 +283,6 @@ class Vehicle(models.Model):
     
     
 
-# models.py - Load model only
 class Load(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -398,8 +410,9 @@ class Load(models.Model):
 
         super().save(*args, **kwargs)
 
-    def update_trip_status(self, new_status, user=None, lr_number=None, tracking_details=None):
-        """Update trip status and timestamps"""
+    def update_trip_status(self, new_status, user=None, lr_number=None, tracking_details=None, send_notification=True):
+        """Update trip status and send notifications"""
+        previous_status = self.trip_status
         self.trip_status = new_status
 
         timestamp_fields = {
@@ -438,7 +451,76 @@ class Load(models.Model):
         elif new_status == 'payment_completed':
             self.status = 'delivered'
 
+        # Save the model
         self.save()
+
+        # Send notification to vendor if requested and vendor exists
+        if send_notification and self.driver and hasattr(self.driver, 'owner') and self.driver.owner:
+            try:
+                # Import here to avoid circular imports
+                from .notifications import send_trip_status_update_notification
+                
+                # Determine if triggered by admin
+                triggered_by_admin = bool(user and (user.is_staff or user.role in ['admin', 'traffic_person']))
+                
+                # Send notification
+                notification, success = send_trip_status_update_notification(
+                    vendor=self.driver.owner,
+                    load=self,
+                    previous_status=previous_status,
+                    new_status=new_status,
+                    triggered_by_admin=triggered_by_admin
+                )
+                
+                # Log the result
+                import logging
+                logger = logging.getLogger(__name__)
+                if success:
+                    logger.info(f"✅ Notification sent for load {self.load_id}: {previous_status} -> {new_status}")
+                else:
+                    logger.warning(f"⚠️ Notification failed for load {self.load_id}: {previous_status} -> {new_status}")
+                    
+            except ImportError as e:
+                print(f"❌ Cannot import notifications module: {e}")
+            except Exception as e:
+                print(f"❌ Error sending status update notification for load {self.load_id}: {e}")
+
+        return True
+
+    def assign_to_vendor(self, vendor, vehicle, driver, user=None):
+        """Assign load to vendor and update initial status"""
+        self.driver = driver
+        self.vehicle = vehicle
+        self.assigned_at = timezone.now()
+        self.status = 'assigned'
+        
+        # Save the model first
+        self.save()
+        
+        # Update trip status to 'pending' (first status after assignment) WITHOUT notification
+        # Send assignment notification separately
+        try:
+            from .notifications import send_trip_assigned_notification
+            notification, success = send_trip_assigned_notification(
+                vendor=vendor,
+                load=self,
+                vehicle=vehicle,
+                driver=driver
+            )
+            
+            import logging
+            logger = logging.getLogger(__name__)
+            if success:
+                logger.info(f"✅ Assignment notification sent for load {self.load_id}")
+            else:
+                logger.warning(f"⚠️ Assignment notification failed for load {self.load_id}")
+                
+        except ImportError as e:
+            print(f"❌ Cannot import notifications module: {e}")
+        except Exception as e:
+            print(f"❌ Error sending assignment notification: {e}")
+            
+        return self
 
     @property
     def total_trip_amount(self):
@@ -447,6 +529,26 @@ class Load(models.Model):
     @property
     def total_trip_amount_formatted(self):
         return f"₹{self.total_trip_amount:,.2f}"
+
+    def get_vendor(self):
+        """Get the vendor assigned to this load"""
+        if self.driver and hasattr(self.driver, 'owner'):
+            return self.driver.owner
+        return None
+
+    def get_status_progress(self):
+        """Get progress percentage based on trip status"""
+        progress_map = {
+            'pending': 0,
+            'loaded': 12.5,
+            'lr_uploaded': 25,
+            'first_half_payment': 37.5,
+            'in_transit': 50,
+            'unloading': 62.5,
+            'pod_uploaded': 75,
+            'payment_completed': 100,
+        }
+        return progress_map.get(self.trip_status, 0)
 
     def __str__(self):
         return f"{self.load_id} | {self.customer} | ₹{self.total_trip_amount:,.0f}"

@@ -139,6 +139,8 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.AllowAny",
     )
 }
+from decouple import config
+FAST2SMS_API_KEY = config("FAST2SMS_API_KEY")
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=30),       # 7 days

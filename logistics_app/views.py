@@ -25,10 +25,7 @@ import hashlib
 import hmac
 from django.core.mail import send_mail
 from datetime import timedelta
-
-
-
-
+from .notifications import send_trip_assigned_notification, send_trip_rejected_notification
 
 
 def admin_login_view(request):
@@ -717,188 +714,174 @@ def load_requests_api(request, load_id):
 
 @csrf_exempt
 @login_required
+@require_http_methods(["POST"])
 def accept_load_request(request, load_id, request_id):
-    """
-    API to accept a load request directly from admin dashboard
-    """
-    if request.method == 'POST':
+    """API to accept a load request directly from admin dashboard"""
+    if request.method == "POST":
         try:
-            # Get the load request
-            load_request = get_object_or_404(
+            print(f"DEBUG: accept_load_request called - load_id={load_id}, request_id={request_id}")
+            
+            # Get only pending LoadRequest objects for this load
+            loadrequest = get_object_or_404(
                 LoadRequest, 
                 id=request_id, 
                 load_id=load_id, 
                 status='pending'
             )
             
-            # Parse JSON data
-            try:
-                data = json.loads(request.body)
-            except json.JSONDecodeError:
-                return JsonResponse({
-                    'success': False, 
-                    'message': 'Invalid JSON data'
-                }, status=400)
-            
+            data = json.loads(request.body)
             vehicle_id = data.get('vehicle_id')
             driver_id = data.get('driver_id')
             
             if not vehicle_id or not driver_id:
                 return JsonResponse({
-                    'success': False, 
-                    'message': 'Vehicle ID and Driver ID are required'
+                    "success": False, 
+                    "message": "Vehicle ID and Driver ID are required"
                 }, status=400)
             
             # Get vehicle and driver
             try:
-                vehicle = Vehicle.objects.get(id=vehicle_id, owner=load_request.vendor)
-                driver = Driver.objects.get(id=driver_id, owner=load_request.vendor)
-            except Vehicle.DoesNotExist:
+                vehicle = Vehicle.objects.get(id=vehicle_id, owner=loadrequest.vendor)
+                driver = Driver.objects.get(id=driver_id, owner=loadrequest.vendor)
+            except (Vehicle.DoesNotExist, Driver.DoesNotExist):
                 return JsonResponse({
-                    'success': False, 
-                    'message': 'Vehicle not found or does not belong to vendor'
-                }, status=404)
-            except Driver.DoesNotExist:
-                return JsonResponse({
-                    'success': False, 
-                    'message': 'Driver not found or does not belong to vendor'
+                    "success": False, 
+                    "message": "Vehicle or driver not found or does not belong to vendor"
                 }, status=404)
             
-            # Update load request
-            load_request.status = 'accepted'
-            load_request.save()
+            # Update load request status
+            loadrequest.status = 'accepted'
+            loadrequest.save()
             
             # Assign to load
-            load = load_request.load
+            load = loadrequest.load
             load.vehicle = vehicle
             load.driver = driver
             load.assigned_at = timezone.now()
             load.status = 'assigned'
-            load.save()
             
-            # Send notification to vendor's mobile app
-            try:
-                from .notifications import send_trip_assigned_notification
-                notification, success = send_trip_assigned_notification(
-                    vendor=load_request.vendor,
-                    load=load,
-                    vehicle=vehicle,
-                    driver=driver
-                )
-                
-                if success:
-                    print(f"✅ Push notification sent to vendor {load_request.vendor.phone_number}")
-                else:
-                    print(f"⚠️ Push notification failed, but trip assigned")
-                    
-            except ImportError as e:
-                print(f"❌ Could not import notifications module: {e}")
-                # Create database notification only
-                Notification.objects.create(
-                    recipient=load_request.vendor,
-                    notification_type='trip_assigned',
-                    title="Trip Assigned Successfully! 🎉",
-                    message=f"Your request for load {load.load_id} has been accepted.",
-                    related_trip=load,
-                    is_read=False
-                )
+            # Update trip status to "loaded" (first status after assignment)
+            load.update_trip_status('pending', user=request.user, send_notification=True)
+            
+            # ✅ SEND FIREBASE + DB NOTIFICATION TO VENDOR
+            notification, success = send_trip_assigned_notification(
+                vendor=loadrequest.vendor, 
+                load=load, 
+                vehicle=vehicle, 
+                driver=driver
+            )
             
             # Reject other pending requests for this load
             rejected_requests = LoadRequest.objects.filter(
-                load=load,
+                load=load, 
                 status='pending'
             ).exclude(id=request_id)
-            
-            # Update all to rejected
             rejected_requests.update(status='rejected')
             
             # Send rejection notifications
             for req in rejected_requests:
                 try:
-                    from .notifications import send_trip_rejected_notification
-                    send_trip_rejected_notification(
-                        vendor=req.vendor,
-                        load=load
-                    )
-                except ImportError:
+                    send_trip_rejected_notification(vendor=req.vendor, load=load)
+                except:
+                    # Fallback DB notification
                     Notification.objects.create(
                         recipient=req.vendor,
                         notification_type='trip_rejected',
                         title="Trip Request Rejected",
-                        message=f"Your request for load {load.load_id} has been rejected by admin.",
+                        message=f"Your request for Load #{load.load_id} has been rejected by admin.",
                         related_trip=load,
                         is_read=False
                     )
             
             return JsonResponse({
-                'success': True,
-                'message': 'Load assigned successfully! Notification sent to vendor.',
-                'data': {
-                    'load_id': load.load_id,
-                    'vendor_name': load_request.vendor.full_name,
-                    'vendor_phone': load_request.vendor.phone_number,
-                    'vehicle_reg_no': vehicle.reg_no,
-                    'driver_name': driver.full_name,
+                "success": True, 
+                "message": "Load assigned successfully! Notification sent to vendor.",
+                "data": {
+                    "load_id": load.load_id,
+                    "vendor_name": loadrequest.vendor.full_name,
+                    "vendor_phone": loadrequest.vendor.phone_number,
+                    "vehicle_reg_no": vehicle.reg_no,
+                    "driver_name": driver.full_name,
+                    "trip_status": load.trip_status,
                 }
             }, status=200)
             
         except LoadRequest.DoesNotExist:
             return JsonResponse({
-                'success': False,
-                'message': 'Load request not found or already processed'
+                "success": False, 
+                "message": "Load request not found or already processed"
             }, status=404)
         except Exception as e:
-            print(f"❌ Error in accept_load_request: {str(e)}")
+            print(f"Error in accept_load_request: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return JsonResponse({
-                'success': False,
-                'message': f'Error: {str(e)}'
+                "success": False, 
+                "message": f"Error: {str(e)}"
             }, status=500)
-    
-    return JsonResponse({
-        'success': False,
-        'message': 'Invalid method. Use POST.'
-    }, status=405)
 
-
-    
+# ✅ FIXED: accept_load_request_with_assignment view
+@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def accept_load_request_with_assignment(request, load_id, request_id):
+    """Alternative accept endpoint with transaction safety"""
     try:
         load = get_object_or_404(Load, id=load_id, created_by=request.user)
-        load_request = get_object_or_404(LoadRequest, id=request_id, load=load, status='pending')
-
+        loadrequest = get_object_or_404(LoadRequest, id=request_id, load=load, status='pending')
+        
         data = json.loads(request.body)
         vehicle_id = data.get('vehicle_id')
         driver_id = data.get('driver_id')
-
+        
         if not vehicle_id or not driver_id:
-            return JsonResponse({'success': False, 'error': 'Please select vehicle and driver'}, status=400)
-
-        vehicle = get_object_or_404(Vehicle, id=vehicle_id, owner=load_request.vendor)
-        driver = get_object_or_404(Driver, id=driver_id, owner=load_request.vendor)
-
+            return JsonResponse({
+                "success": False, 
+                "error": "Please select vehicle and driver"
+            }, status=400)
+        
+        vehicle = get_object_or_404(Vehicle, id=vehicle_id, owner=loadrequest.vendor)
+        driver = get_object_or_404(Driver, id=driver_id, owner=loadrequest.vendor)
+        
         with transaction.atomic():
+            # Assign load
             load.driver = driver
             load.vehicle = vehicle
             load.status = 'assigned'
             load.assigned_at = timezone.now()
+            load.trip_status = 'pending'  # Update trip status
             load.save()
-
-            load_request.status = 'accepted'
-            load_request.save()
-
-            LoadRequest.objects.filter(load=load, status='pending').exclude(id=request_id).update(status='rejected')
-
+            
+            # Accept request
+            loadrequest.status = 'accepted'
+            loadrequest.save()
+            
+            # ✅ SEND NOTIFICATION
+            send_trip_assigned_notification(
+                vendor=loadrequest.vendor, 
+                load=load, 
+                vehicle=vehicle, 
+                driver=driver
+            )
+            
+            # Reject other requests
+            LoadRequest.objects.filter(
+                load=load, 
+                status='pending'
+            ).exclude(id=request_id).update(status='rejected')
+        
         return JsonResponse({
-            'success': True,
-            'message': 'Load assigned successfully!',
-            'driver_name': driver.full_name,
-            'vehicle_reg': vehicle.reg_no
+            "success": True, 
+            "message": "Load assigned successfully!",
+            "driver_name": driver.full_name,
+            "vehicle_reg": vehicle.reg_no
         })
-
+        
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return JsonResponse({
+            "success": False, 
+            "error": str(e)
+        }, status=500)
 
 @login_required
 @require_http_methods(["POST"])
@@ -1902,7 +1885,7 @@ def get_trip_details_api(request, trip_id):
 def upload_lr_document_api(request, trip_id):
     """Upload LR document and update trip status"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
         
         # Check if LR is already uploaded
         if load.lr_document:
@@ -1933,6 +1916,7 @@ def upload_lr_document_api(request, trip_id):
             return JsonResponse({'success': False, 'error': 'File size must be less than 10MB'}, status=400)
         
         # Save the document
+        previous_status = load.trip_status
         load.lr_document = lr_document
         load.lr_uploaded_at = timezone.now()
         
@@ -1940,11 +1924,25 @@ def upload_lr_document_api(request, trip_id):
         load.update_trip_status('lr_uploaded', user=request.user)
         load.save()
         
+        # Send notification to vendor
+        if load.driver and load.driver.owner:
+            try:
+                from .notifications import send_trip_status_update_notification
+                send_trip_status_update_notification(
+                    vendor=load.driver.owner,
+                    load=load,
+                    previous_status=previous_status,
+                    new_status='lr_uploaded'
+                )
+            except Exception as e:
+                print(f"Error sending LR upload notification: {e}")
+        
         return JsonResponse({
             'success': True,
             'message': 'LR document uploaded successfully',
             'document_url': load.lr_document.url,
-            'document_name': load.lr_document.name
+            'document_name': load.lr_document.name,
+            'notification_sent': bool(load.driver and load.driver.owner)
         })
         
     except Load.DoesNotExist:
@@ -1952,6 +1950,7 @@ def upload_lr_document_api(request, trip_id):
     except Exception as e:
         print(f"Error uploading LR document: {e}")
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
 
 
 @login_required
@@ -1979,7 +1978,7 @@ def view_lr_document_api(request, trip_id):
 def update_trip_status_api(request, trip_id):
     """Update trip status to next stage"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
         
         # Define status flow
         status_flow = [
@@ -2016,9 +2015,22 @@ def update_trip_status_api(request, trip_id):
                 }, status=400)
         
         # Update to next status
+        previous_status = load.trip_status
         load.update_trip_status(next_status, user=request.user)
-        load.save()
-
+        
+        # Send notification to vendor
+        if load.driver and hasattr(load.driver, 'owner') and load.driver.owner:
+            try:
+                send_trip_status_update_notification(
+                    vendor=load.driver.owner,
+                    load=load,
+                    previous_status=previous_status,
+                    new_status=next_status
+                )
+            except Exception as e:
+                print(f"Error sending notification: {e}")
+                # Don't fail the request if notification fails
+        
         # Get timestamp for the main status update
         timestamp_fields = {
             'pending': 'pending_at',
@@ -2036,18 +2048,15 @@ def update_trip_status_api(request, trip_id):
         timestamp_str = timestamp.strftime('%b %d, %I:%M %p') if timestamp else 'Just now'
         
         # Determine the message to show
-        if next_status == 'first_half_payment':
-            message = 'First Half Payment completed successfully!'
-        elif next_status == 'in_transit':
-            message = 'Trip status updated to In Transit'
-        elif next_status == 'unloading':
-            message = 'Unloading completed successfully! Ready for POD upload.'
-        elif next_status == 'pod_uploaded':
-            message = 'POD uploaded successfully! Ready for final payment.'
-        elif next_status == 'payment_completed':
-            message = 'Payment completed successfully! Trip is now complete.'
-        else:
-            message = f'Trip status updated to {load.get_trip_status_display()}'
+        status_messages = {
+            'first_half_payment': 'First Half Payment completed successfully!',
+            'in_transit': 'Trip status updated to In Transit',
+            'unloading': 'Unloading completed successfully! Ready for POD upload.',
+            'pod_uploaded': 'POD uploaded successfully! Ready for final payment.',
+            'payment_completed': 'Payment completed successfully! Trip is now complete.',
+        }
+        
+        message = status_messages.get(next_status, f'Trip status updated to {load.get_trip_status_display()}')
 
         return JsonResponse({
             'success': True,
@@ -2055,7 +2064,8 @@ def update_trip_status_api(request, trip_id):
             'new_status': next_status,
             'new_status_display': load.get_trip_status_display(),
             'timestamp': timestamp_str,
-            'special_case': False
+            'notification_sent': True,
+            'vendor_notified': bool(load.driver and load.driver.owner)
         })
         
     except Load.DoesNotExist:
@@ -2106,6 +2116,25 @@ def add_trip_comment_api(request, trip_id):
             sender_type=sender_type,
             comment=comment_text
         )
+        
+        # Send notification to the other party
+        if is_admin and load.driver and load.driver.owner:
+            # Admin commented, notify vendor
+            try:
+                from .notifications import send_trip_comment_notification
+                send_trip_comment_notification(
+                    vendor=load.driver.owner,
+                    load=load,
+                    comment=comment_text,
+                    commenter_name=request.user.full_name
+                )
+            except Exception as e:
+                print(f"Error sending comment notification: {e}")
+        elif is_vendor and load.created_by:
+            # Vendor commented, notify admin
+            # You might want to add a separate function for admin notifications
+            # For now, we'll just log it
+            print(f"Vendor {request.user.full_name} commented on load {load.load_id}")
         
         return JsonResponse({
             'success': True,
@@ -2268,7 +2297,7 @@ def close_trip_api(request, trip_id):
 def upload_pod_document_api(request, trip_id):
     """Upload POD document and update trip status"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
         
         # Check if POD is already uploaded
         if load.pod_document:
@@ -2299,6 +2328,7 @@ def upload_pod_document_api(request, trip_id):
             return JsonResponse({'success': False, 'error': 'File size must be less than 10MB'}, status=400)
         
         # Save the document
+        previous_status = load.trip_status
         load.pod_document = pod_document
         load.pod_uploaded_at = timezone.now()
         
@@ -2306,11 +2336,25 @@ def upload_pod_document_api(request, trip_id):
         load.update_trip_status('pod_uploaded', user=request.user)
         load.save()
         
+        # Send notification to vendor
+        if load.driver and load.driver.owner:
+            try:
+                from .notifications import send_trip_status_update_notification
+                send_trip_status_update_notification(
+                    vendor=load.driver.owner,
+                    load=load,
+                    previous_status=previous_status,
+                    new_status='pod_uploaded'
+                )
+            except Exception as e:
+                print(f"Error sending POD upload notification: {e}")
+        
         return JsonResponse({
             'success': True,
             'message': 'POD document uploaded successfully',
             'document_url': load.pod_document.url,
-            'document_name': load.pod_document.name
+            'document_name': load.pod_document.name,
+            'notification_sent': bool(load.driver and load.driver.owner)
         })
         
     except Load.DoesNotExist:
@@ -2435,7 +2479,7 @@ def get_payment_details_api(request, trip_id):
 def mark_first_half_paid_api(request, trip_id):
     """Mark first half payment as paid"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
         
         # Check if already paid
         if load.trip_status not in ['pending', 'loaded', 'lr_uploaded']:
@@ -2444,18 +2488,20 @@ def mark_first_half_paid_api(request, trip_id):
                 'error': 'First half payment is already marked as paid'
             }, status=400)
         
-        # Update status to first_half_payment
-        load.update_trip_status('first_half_payment', user=request.user)
+        # Update status to first_half_payment WITH notification
+        previous_status = load.trip_status
+        load.update_trip_status('first_half_payment', user=request.user, send_notification=True)
         
         # Also mark in_transit if not already marked
         if not hasattr(load, 'in_transit_at') or not load.in_transit_at:
+            from django.utils import timezone
             load.in_transit_at = timezone.now()
-        
-        load.save()
+            load.save()
         
         return JsonResponse({
             'success': True,
             'message': 'First half payment marked as paid',
+            'notification_sent': bool(load.driver and load.driver.owner),
             'payment_date': load.first_half_payment_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'first_half_payment_at') and load.first_half_payment_at else None
         })
         
@@ -2471,7 +2517,7 @@ def mark_first_half_paid_api(request, trip_id):
 def mark_final_payment_paid_api(request, trip_id):
     """Mark final payment as paid"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
         
         # Check if POD is uploaded
         if load.trip_status != 'pod_uploaded':
@@ -2480,13 +2526,14 @@ def mark_final_payment_paid_api(request, trip_id):
                 'error': 'Final payment can only be marked after POD is uploaded'
             }, status=400)
         
-        # Update status to payment_completed
-        load.update_trip_status('payment_completed', user=request.user)
-        load.save()
+        # Update status to payment_completed WITH notification
+        previous_status = load.trip_status
+        load.update_trip_status('payment_completed', user=request.user, send_notification=True)
         
         return JsonResponse({
             'success': True,
             'message': 'Final payment marked as paid',
+            'notification_sent': bool(load.driver and load.driver.owner),
             'payment_date': load.payment_completed_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'payment_completed_at') and load.payment_completed_at else None
         })
         

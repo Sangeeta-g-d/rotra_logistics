@@ -23,7 +23,9 @@ urlpatterns = [
     path('vehicle_type_list_view/', views.vehicle_type_list_view, name='vehicle_type_list_view'),
     path('loads/', views.load_list, name='load_list'),
     path('loads/<int:load_id>/requests/', views.load_requests_api, name='load_requests_api'),
-    path('loads/<int:load_id>/requests/<int:request_id>/accepted/', views.accept_load_request_with_assignment, name='accept_load_request_with_assignment'),
+    path('loads/<int:load_id>/requests/<int:request_id>/accepted-old/', 
+     views.accept_load_request_with_assignment, 
+     name='accept_load_request_with_assignment'),
     path('requests/<int:request_id>/update/', views.update_request_status, name='update_request_status'),
      path('api/vendors/<int:vendor_id>/vehicles/', views.vendor_vehicles_api, name='vendor_vehicles_api'),
     path('api/vendors/<int:vendor_id>/drivers/', views.vendor_drivers_api, name='vendor_drivers_api'),
@@ -77,7 +79,7 @@ path('api/payment/<int:trip_id>/mark-final-payment-paid/', views.mark_final_paym
 path('reassign-trips/', views.reassign_trips, name='reassign_trips'),
 path('reassign-trips/action/', views.reassign_trips_action, name='reassign_trips_action'),
 path('forgot-password/', views.forgot_password_view, name='forgot_password'),
-  path('reset-password/<int:user_id>/', views.reset_password_view, name='reset_password'),
+path('reset-password/<int:user_id>/', views.reset_password_view, name='reset_password'),
 
 
     

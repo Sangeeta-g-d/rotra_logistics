@@ -378,11 +378,11 @@ class PODUploadSerializer(serializers.ModelSerializer):
 
 
 class VendorProfileUpdateSerializer(serializers.Serializer):
-    full_name = serializers.CharField(required=False)
+    full_name = serializers.CharField(required=False, allow_blank=False)
     profile_image = serializers.ImageField(required=False)
 
-    old_password = serializers.CharField(required=False)
-    new_password = serializers.CharField(required=False)
+    old_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
+    new_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
 
     def validate(self, data):
         user = self.context["request"].user
@@ -390,9 +390,12 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
         # If password is being changed
         if data.get("new_password"):
             if not data.get("old_password"):
-                raise serializers.ValidationError({"old_password": "Old password required"})
+                raise serializers.ValidationError({"old_password": "Old password is required to change password."})
             if not user.check_password(data["old_password"]):
-                raise serializers.ValidationError({"old_password": "Incorrect old password"})
+                raise serializers.ValidationError({"old_password": "Incorrect old password."})
+            # Validate new password strength
+            if len(data.get("new_password", "")) < 6:
+                raise serializers.ValidationError({"new_password": "New password must be at least 6 characters long."})
 
         return data
 
@@ -407,7 +410,7 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
         if self.validated_data.get("profile_image"):
             user.profile_image = self.validated_data["profile_image"]
 
-        # Update password (NO validation)
+        # Update password
         if self.validated_data.get("new_password"):
             user.set_password(self.validated_data["new_password"])
 

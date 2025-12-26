@@ -44,5 +44,10 @@ urlpatterns = [
     path('api/notifications/',UserNotificationsView.as_view(), name='user_notifications'),
     
     path('api/notifications/<int:notification_id>/mark-read/', MarkNotificationReadView.as_view(), name='mark_notification_read'),
+    path('logout/', LogoutView.as_view(),name='LogoutView'),
+
+
+    path("send-otp/", SendOTPAPIView.as_view()),
+    path("verify-otp/", VerifyOTPAPIView.as_view()),
  
 ]

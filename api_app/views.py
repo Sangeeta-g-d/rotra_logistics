@@ -16,6 +16,92 @@ from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
+from logistics_app.models import PhoneOTP
+from .utils import generate_otp, send_otp_fast2sms
+
+# send OTP
+class SendOTPAPIView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        print("DEBUG: SendOTPAPIView called")
+        print("DEBUG: Incoming request data:", request.data)
+
+        phone_number = request.data.get("phone_number")
+
+        if not phone_number:
+            print("ERROR: Phone number missing")
+            return Response({"error": "Phone number required"}, status=400)
+
+        # Clean phone number
+        phone_number = phone_number.replace("+91", "").replace(" ", "")
+        print("DEBUG: Cleaned phone number:", phone_number)
+
+        user_exists = CustomUser.objects.filter(phone_number=phone_number).exists()
+        print("DEBUG: User exists:", user_exists)
+
+        if not user_exists:
+            print("ERROR: User not found for phone number")
+            return Response({"error": "User not found"}, status=404)
+
+        otp = generate_otp()
+
+        PhoneOTP.objects.create(
+            phone_number=phone_number,
+            otp=otp
+        )
+        print("DEBUG: OTP saved to database")
+
+        send_otp_fast2sms(phone_number, otp)
+
+        print("DEBUG: OTP flow completed successfully")
+
+        return Response({
+            "message": "OTP sent successfully"
+        }, status=200)
+
+
+
+
+class VerifyOTPAPIView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        phone_number = request.data.get("phone_number")
+        otp = request.data.get("otp")
+
+        try:
+            otp_obj = PhoneOTP.objects.filter(
+                phone_number=phone_number,
+                otp=otp,
+                is_verified=False
+            ).latest("created_at")
+        except PhoneOTP.DoesNotExist:
+            return Response({"error": "Invalid OTP"}, status=400)
+
+        if otp_obj.is_expired():
+            return Response({"error": "OTP expired"}, status=400)
+
+        user = CustomUser.objects.get(phone_number=phone_number)
+
+        otp_obj.is_verified = True
+        otp_obj.save()
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "message": "Login successful",
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "user": {
+                "id": user.id,
+                "full_name": user.full_name,
+                "role": user.role,
+                "phone_number": user.phone_number,
+            }
+        }, status=200)
+
+
 
 # views.py
 @method_decorator(csrf_exempt, name='dispatch')
@@ -52,6 +138,8 @@ class RegisterView(APIView):
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
+
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -67,7 +155,9 @@ class LoginView(APIView):
             }, status=400)
 
         return Response(serializer.validated_data, status=200)
-    
+
+
+@method_decorator(csrf_exempt, name='dispatch')  
 class VehicleTypeListView(APIView):
     def get(self,request):
         types = VehicleType.objects.all().order_by('name')
@@ -78,7 +168,9 @@ class VehicleTypeListView(APIView):
             'data' : serializer.data
 
         }, status=status.HTTP_200_OK)
-    
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class AddVehicleView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -138,8 +230,13 @@ class AddDriverView(APIView):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_all_loads(request):
-    loads = Load.objects.all().order_by('-created_at')   # fetch all
-    serializer = LoadDetailsSerializer(loads, many=True)
+    # Exclude loads that already have any accepted LoadRequest
+    loads = Load.objects.exclude(requests__status='accepted').order_by('-created_at')   # fetch all
+    serializer = LoadDetailsSerializer(
+        loads, 
+        many=True,
+        context={"vendor": request.user}  # Pass vendor context
+    )
 
     return Response({
         "status": True,
@@ -147,7 +244,7 @@ def get_all_loads(request):
         "data": serializer.data
     }, status=200)
 
-
+@method_decorator(csrf_exempt, name='dispatch')
 class SendVendorRequestView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -296,7 +393,7 @@ def delete_driver(request, driver_id):
     }, status=200)
 
 
-
+@method_decorator(csrf_exempt, name='dispatch')
 class SendTripMessage(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -319,7 +416,8 @@ class SendTripMessage(APIView):
             {"message": "Message sent", "data": serializer.data},
             status=status.HTTP_201_CREATED
         )
-    
+
+@method_decorator(csrf_exempt, name='dispatch')  
 class LoadAllMessages(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -376,7 +474,7 @@ class VendorOngoingTrips(APIView):
             "data": serializer.data
         }, status=200)
 
-    
+@method_decorator(csrf_exempt, name='dispatch') 
 class VendorAcceptedLoadDetails(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -408,7 +506,8 @@ class VendorAcceptedLoadDetails(APIView):
             "message": "Accepted load details fetched successfully.",
             "data": serializer.data
         }, status=200)
-    
+
+@method_decorator(csrf_exempt, name='dispatch') 
 class VendorTripDetailsView(RetrieveAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = VendorTripDetailsSerializer
@@ -417,7 +516,8 @@ class VendorTripDetailsView(RetrieveAPIView):
     def get_queryset(self):
         vendor = self.request.user
         return Load.objects.filter(requests__vendor=vendor)
-    
+
+@method_decorator(csrf_exempt, name='dispatch')
 class VendorLRUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -543,6 +643,7 @@ class VendorLRUploadView(APIView):
                 "message": f"Error uploading LR: {str(e)}"
             }, status=500)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class VendorPODUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -675,7 +776,8 @@ class VendorPODUploadView(APIView):
                 "success": False,
                 "message": f"Error uploading POD: {str(e)}"
             }, status=500)
-    
+
+@method_decorator(csrf_exempt, name='dispatch')    
 class VendorProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -686,15 +788,26 @@ class VendorProfileUpdateView(APIView):
         )
 
         if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {"message": "Vendor profile updated successfully"},
-                status=status.HTTP_200_OK
-            )
+            user = serializer.save()
+            return Response({
+                "status": True,
+                "message": "Profile updated successfully.",
+                "data": {
+                    "id": user.id,
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "phone_number": user.phone_number,
+                    "profile_image": request.build_absolute_uri(user.profile_image.url) if user.profile_image else None,
+                }
+            }, status=status.HTTP_200_OK)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "status": False,
+            "message": "Failed to update profile.",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-
+@method_decorator(csrf_exempt, name='dispatch')
 class LoadFilterOptionsView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -754,7 +867,8 @@ class LoadFilterOptionsView(APIView):
                 'status': False,
                 'message': f'Error retrieving filter options: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+@method_decorator(csrf_exempt, name='dispatch')        
 class FilteredLoadsView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -831,7 +945,7 @@ class FilteredLoadsView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
-        
+@method_decorator(csrf_exempt, name='dispatch')       
 class SaveFCMTokenView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -852,7 +966,9 @@ class SaveFCMTokenView(APIView):
             "status": True,
             "message": "FCM token saved successfully"
         }, status=status.HTTP_200_OK)
-    
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class VendorProfileView(APIView):
     """
     API endpoint to get vendor profile details from CustomUser model only
@@ -919,7 +1035,8 @@ class VendorProfileView(APIView):
                 'status': False,
                 'message': f'Error fetching profile: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+@method_decorator(csrf_exempt, name='dispatch')        
 class VendorDashboardCountsDetailedView(APIView):
     """
     Alternative: Count ALL vendor-related loads (requests + assignments)
@@ -944,14 +1061,12 @@ class VendorDashboardCountsDetailedView(APIView):
                 requests__status="accepted"
             ).distinct().count()
             
-            # 2. ALL VENDOR LOADS: Includes:
-            #    - Loads vendor has requested (any status)
-            #    - Loads assigned to vendor's vehicles
-            #    - Loads assigned to vendor's drivers
+            # 2. NEW PENDING LOADS: Count only new/pending loads related to vendor
+            #    - Loads vendor has requested (pending)
+            #    - Loads assigned to vendor's vehicles/drivers but still in 'pending' status
             all_vendor_loads_count = Load.objects.filter(
-                Q(requests__vendor=vendor) |  # Any request from vendor
-                Q(driver__owner=vendor) |     # OR driver belongs to vendor
-                Q(vehicle__owner=vendor)      # OR vehicle belongs to vendor
+                
+                status='pending'
             ).distinct().count()
             
             # 3. (Optional) Count loads by request status
@@ -989,7 +1104,8 @@ class VendorDashboardCountsDetailedView(APIView):
                 'status': False,
                 'message': f'Error fetching dashboard counts: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+@method_decorator(csrf_exempt, name='dispatch')       
 class VendorTripsByStatusView(APIView):
     """
     API to filter vendor trips by trip_status
@@ -1095,7 +1211,8 @@ class VendorTripsByStatusView(APIView):
         """Get the timestamp field name for a status"""
         fields = self.get_timestamp_fields()
         return fields.get(status)
-    
+
+@method_decorator(csrf_exempt, name='dispatch')    
 class TripStatusOptionsView(APIView):
     """
     API to get all available trip status options
@@ -1120,6 +1237,7 @@ class TripStatusOptionsView(APIView):
             "data": STATUS_VALUES  # Just the array of status strings
         }, status=200)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class VendorTripHistoryView(APIView):
     """
     API to get vendor's trip history - completed loads only
@@ -1412,6 +1530,7 @@ class RejectLoadRequestView(APIView):
                 'message': f'Error: {str(e)}'
             }, status=500)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserNotificationsView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -1456,6 +1575,7 @@ class UserNotificationsView(APIView):
                 'message': f'Error fetching notifications: {str(e)}'
             }, status=500)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class MarkNotificationReadView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -1485,6 +1605,7 @@ class MarkNotificationReadView(APIView):
                 'message': f'Error: {str(e)}'
             }, status=500)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class MarkAllNotificationsReadView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -1506,3 +1627,30 @@ class MarkAllNotificationsReadView(APIView):
                 'status': False,
                 'message': f'Error: {str(e)}'
             }, status=500)
+
+@method_decorator(csrf_exempt, name='dispatch')        
+class LogoutView(APIView):
+    """
+    API endpoint to logout vendor by clearing FCM token
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            # Clear the FCM token
+            request.user.fcm_token = None
+            request.user.save()
+            
+            # Optional: Add any other logout logic here
+            # Example: Invalidate refresh token if needed
+            
+            return Response({
+                "status": True,
+                "message": "Logged out successfully. FCM token cleared."
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                "status": False,
+                "message": f"Error during logout: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
