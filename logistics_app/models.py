@@ -398,20 +398,20 @@ class Load(models.Model):
         help_text="Reason for putting the trip on hold"
     )
 
-    # Holding charges
+    # Holding charges (kept for backward compatibility - now calculated from HoldingCharge model)
     holding_charges = models.DecimalField(
         max_digits=14,
         decimal_places=2,
         default=Decimal('0.00'),
-        verbose_name="Holding Charges",
-        help_text="Additional charges for holding the shipment"
+        verbose_name="Total Holding Charges",
+        help_text="Total additional charges for holding the shipment (auto-calculated)"
     )
     
     holding_charges_added_at = models.DateTimeField(
         null=True,
         blank=True,
         verbose_name="Holding Charges Added At",
-        help_text="When the holding charges were added"
+        help_text="When the first holding charge was added"
     )
     
     holding_charges_added_at_status = models.CharField(
@@ -419,7 +419,7 @@ class Load(models.Model):
         blank=True,
         null=True,
         verbose_name="Trip Status When Charges Added",
-        help_text="The trip status at which holding charges were added"
+        help_text="The trip status at which first holding charge was added"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -570,12 +570,24 @@ class Load(models.Model):
     @property
     def total_trip_amount(self):
         base_amount = (self.final_payment or Decimal('0')).quantize(Decimal('0.01'))
-        holding_charges = (self.holding_charges or Decimal('0')).quantize(Decimal('0.01'))
+        holding_charges = self.get_total_holding_charges()
         return (base_amount + holding_charges).quantize(Decimal('0.01'))
 
     @property
     def total_trip_amount_formatted(self):
         return f"₹{self.total_trip_amount:,.2f}"
+    
+    def get_total_holding_charges(self):
+        """Calculate total holding charges from all HoldingCharge entries"""
+        total = self.holding_charge_entries.aggregate(
+            total=models.Sum('amount')
+        )['total'] or Decimal('0.00')
+        return Decimal(str(total)).quantize(Decimal('0.01'))
+    
+    def update_holding_charges_total(self):
+        """Update the holding_charges field based on HoldingCharge entries"""
+        self.holding_charges = self.get_total_holding_charges()
+        self.save(update_fields=['holding_charges'])
 
     def get_vendor(self):
         """Get the vendor assigned to this load"""
@@ -604,6 +616,74 @@ class Load(models.Model):
         ordering = ['-created_at']
         verbose_name = "Load"
         verbose_name_plural = "Loads"
+
+
+class HoldingCharge(models.Model):
+    """
+    Model to track individual holding charges applied to a load/trip.
+    Each charge includes the amount, stage it was applied, and the reason.
+    """
+    load = models.ForeignKey(
+        Load,
+        on_delete=models.CASCADE,
+        related_name='holding_charge_entries',
+        help_text='The load/trip this holding charge is applied to'
+    )
+    
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        help_text='Amount of holding charges'
+    )
+    
+    trip_stage = models.CharField(
+        max_length=20,
+        choices=Load.TRIP_STATUS_CHOICES,
+        help_text='The trip stage/status at which this charge was applied'
+    )
+    
+    reason = models.TextField(
+        help_text='Reason for applying this holding charge'
+    )
+    
+    added_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='added_holding_charges',
+        help_text='Admin/user who added this charge'
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When this charge was added'
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text='When this charge was last updated'
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Holding Charge'
+        verbose_name_plural = 'Holding Charges'
+        indexes = [
+            models.Index(fields=['load', 'created_at']),
+            models.Index(fields=['trip_stage']),
+        ]
+    
+    def __str__(self):
+        return f"₹{self.amount} - {self.load.load_id} - {self.trip_stage} - {self.created_at.strftime('%Y-%m-%d')}"
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update the load's total holding charges whenever a charge is added/updated
+        if self.load:
+            self.load.update_holding_charges_total()
+
+
 
 class LoadRequest(models.Model):
     load = models.ForeignKey(Load, on_delete=models.CASCADE, related_name='requests')

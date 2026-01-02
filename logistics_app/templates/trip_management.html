@@ -818,6 +818,7 @@
         <div class="payment-row">
           <span>Holding Charges</span>
           <span id="holdingChargesStatus" class="pending">₹0</span>
+          <button id="btnViewHoldingCharges" style="padding: 4px 8px; background: var(--blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;" title="View all holding charges">View</button>
         </div>
         <div class="payment-row" style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; font-weight: 600; color: #1f2937;">
           <span>Total Amount</span>
@@ -828,7 +829,6 @@
           <span id="remainingAmountStatus" class="pending">₹0</span>
         </div>
         <div style="margin-top: 12px; display: flex; gap: 8px;">
-          <input type="number" id="holdingChargesInput" placeholder="Enter holding charges amount" min="0" step="0.01" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
           <button id="btnAddHoldingCharges" style="padding: 8px 12px; background: var(--amber); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap;">Add Charges</button>
         </div>
         <div id="holdingChargesInfo" style="margin-top: 8px; font-size: 12px; color: #6b7280; display: none;">
@@ -1529,10 +1529,10 @@ function populateSidebar(data) {
   const remainingAmountStatus = document.getElementById('remainingAmountStatus');
   const holdingChargesInfo = document.getElementById('holdingChargesInfo');
   const chargesAddedAtStatus = document.getElementById('chargesAddedAtStatus');
-  const holdingChargesInput = document.getElementById('holdingChargesInput');
   const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
   const secondHalfPaymentStatus = document.getElementById('secondHalfPaymentStatus');
   const firstHalfPaymentCheckbox = document.getElementById('firstHalfPaymentCheckbox');
+  const btnViewHoldingCharges = document.getElementById('btnViewHoldingCharges');
   
   const finalPayment = data.final_payment || 0;
   const firstHalfPayment = data.first_half_payment || 0;
@@ -1561,8 +1561,8 @@ function populateSidebar(data) {
   firstHalfPaymentCheckbox.checked = false;
   firstHalfPaymentCheckbox.dataset.tripId = data.load_id;
   
-  // Clear the input field
-  holdingChargesInput.value = '';
+  // Store trip status for modal
+  window.currentTripStatus = data.trip_status;
   
   // Show information about when charges were added
   if (data.holding_charges_added_at && holdingCharges > 0) {
@@ -1572,6 +1572,14 @@ function populateSidebar(data) {
     holdingChargesInfo.style.display = 'block';
   } else {
     holdingChargesInfo.style.display = 'none';
+  }
+  
+  // Set up View button for holding charges
+  if (data.holding_charges_list && data.holding_charges_list.length > 0) {
+    btnViewHoldingCharges.style.display = 'inline-block';
+    btnViewHoldingCharges.onclick = () => showViewHoldingChargesModal(data.holding_charges_list);
+  } else {
+    btnViewHoldingCharges.style.display = 'none';
   }
   
   document.getElementById('customerName').textContent = data.customer_name;
@@ -2154,11 +2162,120 @@ function addHoldingCharges() {
     return;
   }
   
-  const amountInput = document.getElementById('holdingChargesInput');
-  const amount = amountInput.value.trim();
+  // Show modal for holding charges
+  const modal = document.getElementById('holdingChargesModal');
+  if (!modal) {
+    createHoldingChargesModal();
+  }
+  document.getElementById('holdingChargesModal').style.display = 'flex';
+}
+
+function createHoldingChargesModal() {
+  const modalHTML = `
+  <div class="holding-charges-modal" id="holdingChargesModal">
+    <div class="modal-content" style="width: 90%; max-width: 500px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0;">Add Holding Charges</h3>
+        <button class="close-hc-modal" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Amount (₹)</label>
+        <input type="number" id="hcAmount" placeholder="Enter amount" min="0" step="0.01" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Trip Stage</label>
+        <select id="hcTripStage" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="loaded">Reach Loading Point</option>
+          <option value="lr_uploaded">LR Uploaded</option>
+          <option value="in_transit">In Transit</option>
+          <option value="unloading">Reach Unloading Point</option>
+          <option value="pod_uploaded">POD Uploaded</option>
+          <option value="payment_completed">Payment Completed</option>
+          <option value="hold">Hold</option>
+        </select>
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Reason</label>
+        <textarea id="hcReason" placeholder="Enter reason for holding charges" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; min-height: 80px; resize: vertical;"></textarea>
+      </div>
+      
+      <div id="hcChargesList" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto; border: 1px solid #f3f4f6; border-radius: 6px; padding: 10px; display: none;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; font-size: 13px;">Recent Charges on This Trip:</h4>
+        <div id="hcChargesContent"></div>
+      </div>
+      
+      <div style="display: flex; gap: 10px;">
+        <button id="btnSubmitHC" style="flex: 1; padding: 10px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Add Charges</button>
+        <button class="close-hc-modal" style="flex: 1; padding: 10px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Cancel</button>
+      </div>
+    </div>
+  </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  
+  // Add modal styles if not already added
+  if (!document.getElementById('hcModalStyles')) {
+    const style = document.createElement('style');
+    style.id = 'hcModalStyles';
+    style.textContent = `
+      .holding-charges-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      
+      .holding-charges-modal .modal-content {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.querySelectorAll('.close-hc-modal').forEach(btn => {
+    btn.addEventListener('click', closeHoldingChargesModal);
+  });
+  
+  document.getElementById('btnSubmitHC').addEventListener('click', submitHoldingCharges);
+  document.getElementById('hcTripStage').value = window.currentTripStatus || 'pending';
+}
+
+function closeHoldingChargesModal() {
+  const modal = document.getElementById('holdingChargesModal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.getElementById('hcAmount').value = '';
+    document.getElementById('hcReason').value = '';
+  }
+}
+
+function submitHoldingCharges() {
+  const amount = document.getElementById('hcAmount').value.trim();
+  const reason = document.getElementById('hcReason').value.trim();
+  const tripStage = document.getElementById('hcTripStage').value;
   
   if (!amount) {
-    showToast('Please enter the holding charges amount', 'error');
+    showToast('Please enter the amount', 'error');
+    return;
+  }
+  
+  if (!reason) {
+    showToast('Please enter the reason', 'error');
     return;
   }
   
@@ -2167,20 +2284,25 @@ function addHoldingCharges() {
     return;
   }
   
-  const formData = new FormData();
-  formData.append('amount', amount);
+  const data = {
+    amount: parseFloat(amount),
+    reason: reason,
+    trip_stage: tripStage
+  };
   
   fetch(`/api/trip/${currentTripId}/add-holding-charges/`, {
     method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       'X-CSRFToken': csrftoken
     },
-    body: formData
+    body: JSON.stringify(data)
   })
   .then(response => response.json())
   .then(result => {
     if (result.success) {
       showToast(result.message, 'success');
+      closeHoldingChargesModal();
       loadTripDetails(currentTripId);
     } else {
       showToast('Error: ' + (result.error || 'Failed to add holding charges'), 'error');
@@ -2190,6 +2312,91 @@ function addHoldingCharges() {
     console.error('Error:', error);
     showToast('Failed to add holding charges', 'error');
   });
+}
+
+function showViewHoldingChargesModal(chargesList) {
+  // Create and show modal with list of all charges
+  const modal = document.getElementById('allChargesModal') || createAllChargesModal();
+  const chargesContainer = document.getElementById('allChargesContent');
+  
+  chargesContainer.innerHTML = '';
+  
+  if (!chargesList || chargesList.length === 0) {
+    chargesContainer.innerHTML = '<p style="text-align: center; color: #9ca3af;">No holding charges added yet</p>';
+  } else {
+    chargesList.forEach((charge, index) => {
+      const chargeDiv = document.createElement('div');
+      chargeDiv.style.cssText = 'border-bottom: 1px solid #f3f4f6; padding: 10px 0; font-size: 13px;';
+      chargeDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+          <strong>₹${parseFloat(charge.amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong>
+          <span style="color: #6b7280;">${charge.trip_stage_display}</span>
+        </div>
+        <div style="color: #6b7280; margin-bottom: 5px;">${charge.created_at_display}</div>
+        <div style="color: #374151; margin-bottom: 3px;"><strong>Reason:</strong> ${charge.reason}</div>
+        <div style="color: #9ca3af; font-size: 12px;">Added by: ${charge.added_by}</div>
+      `;
+      chargesContainer.appendChild(chargeDiv);
+    });
+  }
+  
+  modal.style.display = 'flex';
+}
+
+function createAllChargesModal() {
+  const modalHTML = `
+  <div class="all-charges-modal" id="allChargesModal">
+    <div class="modal-content" style="width: 90%; max-width: 600px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0;">Holding Charges History</h3>
+        <button class="close-all-charges-modal" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+      </div>
+      
+      <div id="allChargesContent" style="margin-bottom: 15px; max-height: 400px; overflow-y: auto;"></div>
+      
+      <div style="display: flex; gap: 10px;">
+        <button class="close-all-charges-modal" style="flex: 1; padding: 10px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Close</button>
+      </div>
+    </div>
+  </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  
+  if (!document.getElementById('acModalStyles')) {
+    const style = document.createElement('style');
+    style.id = 'acModalStyles';
+    style.textContent = `
+      .all-charges-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      
+      .all-charges-modal .modal-content {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.querySelectorAll('.close-all-charges-modal').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('allChargesModal').style.display = 'none';
+    });
+  });
+  
+  return document.getElementById('allChargesModal');
 }
 
 function closeTrip() {

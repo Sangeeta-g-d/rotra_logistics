@@ -1825,6 +1825,24 @@ def get_trip_details_api(request, trip_id):
                 'is_read': comment.is_read
             })
 
+        # Get all holding charges with details
+        holding_charges_list = []
+        all_holding_charges = load.holding_charge_entries.all().order_by('created_at')
+        total_holding_charges = Decimal('0.00')
+        
+        for charge in all_holding_charges:
+            holding_charges_list.append({
+                'id': charge.id,
+                'amount': float(charge.amount),
+                'trip_stage': charge.trip_stage,
+                'trip_stage_display': dict(Load.TRIP_STATUS_CHOICES).get(charge.trip_stage, charge.trip_stage),
+                'reason': charge.reason,
+                'added_by': charge.added_by.full_name if charge.added_by else 'System',
+                'created_at': charge.created_at.isoformat(),
+                'created_at_display': charge.created_at.strftime('%b %d, %Y %I:%M %p')
+            })
+            total_holding_charges += charge.amount
+
         data = {
             'id': load.id,
             'load_id': load.load_id,
@@ -1854,8 +1872,9 @@ def get_trip_details_api(request, trip_id):
             'final_payment': float(load.final_payment),
             'first_half_payment': float(load.first_half_payment or Decimal('0')),
             'second_half_payment': float(load.second_half_payment or Decimal('0')),
-            'holding_charges': float(load.holding_charges or Decimal('0')),
-            'total_amount': float(load.final_payment) + float(load.holding_charges or Decimal('0')),
+            'holding_charges': float(total_holding_charges),
+            'holding_charges_list': holding_charges_list,
+            'total_amount': float(load.final_payment) + float(total_holding_charges),
             'final_payment_paid': final_payment_paid,
             'holding_charges_added_at': load.holding_charges_added_at.isoformat() if load.holding_charges_added_at else None,
             'holding_charges_added_at_status': load.holding_charges_added_at_status or '',
@@ -2573,7 +2592,7 @@ def mark_final_payment_paid_api(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def add_holding_charges_api(request, trip_id):
-    """Add holding charges to a trip"""
+    """Add holding charges to a trip with stage and reason tracking"""
     try:
         # Get the load
         if request.user.role == 'traffic_person':
@@ -2581,8 +2600,16 @@ def add_holding_charges_api(request, trip_id):
         else:
             load = Load.objects.get(id=trip_id)
         
-        # Get the amount from POST data
-        amount = request.POST.get('amount', '').strip()
+        # Parse JSON data
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+        
+        # Get the amount from request data
+        amount = data.get('amount') or request.POST.get('amount', '')
+        reason = data.get('reason') or request.POST.get('reason', '')
+        trip_stage = data.get('trip_stage') or request.POST.get('trip_stage', load.trip_status)
         
         if not amount:
             return JsonResponse({
@@ -2590,8 +2617,14 @@ def add_holding_charges_api(request, trip_id):
                 'error': 'Holding charges amount is required'
             }, status=400)
         
+        if not reason:
+            return JsonResponse({
+                'success': False,
+                'error': 'Reason for holding charges is required'
+            }, status=400)
+        
         try:
-            holding_charge_amount = Decimal(amount)
+            holding_charge_amount = Decimal(str(amount))
             if holding_charge_amount < 0:
                 return JsonResponse({
                     'success': False,
@@ -2605,31 +2638,128 @@ def add_holding_charges_api(request, trip_id):
                 'error': 'Invalid amount format'
             }, status=400)
         
-        # Store the current trip status when charges are added
-        current_status = load.trip_status
+        # Validate trip stage
+        valid_stages = [choice[0] for choice in Load.TRIP_STATUS_CHOICES]
+        if trip_stage not in valid_stages:
+            trip_stage = load.trip_status
         
-        # Add the holding charges
-        load.holding_charges = holding_charge_amount
-        load.holding_charges_added_at = timezone.now()
-        load.holding_charges_added_at_status = current_status
-        load.save()
+        # Create HoldingCharge record with tracking info
+        from .models import HoldingCharge
+        holding_charge = HoldingCharge.objects.create(
+            load=load,
+            amount=holding_charge_amount,
+            trip_stage=trip_stage,
+            reason=reason,
+            added_by=request.user
+        )
+        
+        # Update load's total holding charges (auto-calculated by HoldingCharge.save())
+        load.refresh_from_db()
+        
+        # Set holding_charges_added_at to earliest charge if not set
+        if not load.holding_charges_added_at:
+            load.holding_charges_added_at = timezone.now()
+            load.holding_charges_added_at_status = trip_stage
+            load.save()
+        
+        # Get all holding charges for this load
+        all_charges = load.holding_charge_entries.all().order_by('created_at')
+        charges_list = [
+            {
+                'id': charge.id,
+                'amount': float(charge.amount),
+                'trip_stage': charge.trip_stage,
+                'trip_stage_display': dict(Load.TRIP_STATUS_CHOICES).get(charge.trip_stage, charge.trip_stage),
+                'reason': charge.reason,
+                'added_by': charge.added_by.full_name if charge.added_by else 'System',
+                'created_at': charge.created_at.isoformat(),
+                'created_at_display': charge.created_at.strftime('%b %d, %Y %I:%M %p')
+            }
+            for charge in all_charges
+        ]
         
         # Calculate the new total
-        new_total = float(load.final_payment) + float(holding_charge_amount)
+        new_total = float(load.final_payment) + float(load.get_total_holding_charges())
         
         return JsonResponse({
             'success': True,
-            'message': f'Holding charges of ₹{holding_charge_amount:,.2f} added successfully',
-            'holding_charges': float(holding_charge_amount),
+            'message': f'Holding charge of ₹{holding_charge_amount:,.2f} added successfully',
+            'holding_charge': {
+                'id': holding_charge.id,
+                'amount': float(holding_charge_amount),
+                'trip_stage': trip_stage,
+                'trip_stage_display': dict(Load.TRIP_STATUS_CHOICES).get(trip_stage, trip_stage),
+                'reason': reason,
+                'added_by': request.user.full_name,
+                'created_at': holding_charge.created_at.isoformat(),
+                'created_at_display': holding_charge.created_at.strftime('%b %d, %Y %I:%M %p')
+            },
+            'total_holding_charges': float(load.get_total_holding_charges()),
             'total_amount': new_total,
-            'holding_charges_added_at_status': current_status,
-            'holding_charges_added_at': load.holding_charges_added_at.isoformat()
+            'all_charges': charges_list
         })
         
     except Load.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
     except Exception as e:
         print(f"Error adding holding charges: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def delete_holding_charge_api(request, charge_id):
+    """Delete a holding charge record"""
+    try:
+        from .models import HoldingCharge
+        
+        # Get the holding charge
+        holding_charge = HoldingCharge.objects.select_related('load', 'added_by').get(id=charge_id)
+        load = holding_charge.load
+        
+        # Permission check: only admin, staff, or the person who added the charge
+        if not (request.user.is_staff or request.user == holding_charge.added_by or request.user == load.created_by):
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to delete this charge'
+            }, status=403)
+        
+        # Delete the charge
+        holding_charge.delete()
+        
+        # Update load's total holding charges
+        load.update_holding_charges_total()
+        
+        # Get updated charges list
+        all_charges = load.holding_charge_entries.all().order_by('created_at')
+        charges_list = [
+            {
+                'id': charge.id,
+                'amount': float(charge.amount),
+                'trip_stage': charge.trip_stage,
+                'trip_stage_display': dict(Load.TRIP_STATUS_CHOICES).get(charge.trip_stage, charge.trip_stage),
+                'reason': charge.reason,
+                'added_by': charge.added_by.full_name if charge.added_by else 'System',
+                'created_at': charge.created_at.isoformat(),
+                'created_at_display': charge.created_at.strftime('%b %d, %Y %I:%M %p')
+            }
+            for charge in all_charges
+        ]
+        
+        # Calculate new total
+        new_total = float(load.final_payment) + float(load.get_total_holding_charges())
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Holding charge deleted successfully',
+            'total_holding_charges': float(load.get_total_holding_charges()),
+            'total_amount': new_total,
+            'all_charges': charges_list
+        })
+        
+    except Exception as e:
+        print(f"Error deleting holding charge: {e}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
