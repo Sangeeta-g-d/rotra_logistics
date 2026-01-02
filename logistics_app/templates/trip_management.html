@@ -805,12 +805,27 @@
           <span id="finalPaymentStatus" class="pending">₹0 Pending</span>
         </div>
         <div class="payment-row">
+          <span>First Half Payment (90%)</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="firstHalfPaymentStatus" class="pending">₹0</span>
+            <input type="checkbox" id="firstHalfPaymentCheckbox" title="Mark as paid" style="cursor: pointer; width: 18px; height: 18px;">
+          </div>
+        </div>
+        <div class="payment-row">
+          <span>Second Half Payment (10%)</span>
+          <span id="secondHalfPaymentStatus" class="pending">₹0</span>
+        </div>
+        <div class="payment-row">
           <span>Holding Charges</span>
           <span id="holdingChargesStatus" class="pending">₹0</span>
         </div>
         <div class="payment-row" style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; font-weight: 600; color: #1f2937;">
           <span>Total Amount</span>
           <span id="totalAmountStatus" class="pending">₹0</span>
+        </div>
+        <div class="payment-row" style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; font-weight: 600; color: #16a34a;">
+          <span>Remaining to be Paid</span>
+          <span id="remainingAmountStatus" class="pending">₹0</span>
         </div>
         <div style="margin-top: 12px; display: flex; gap: 8px;">
           <input type="number" id="holdingChargesInput" placeholder="Enter holding charges amount" min="0" step="0.01" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
@@ -935,6 +950,44 @@ function attachSidebarEventListeners() {
 
   closeBtn.addEventListener('click', closeSidebar);
   overlay.addEventListener('click', closeSidebar);
+
+  // First half payment checkbox listener
+  document.getElementById('firstHalfPaymentCheckbox').addEventListener('change', function() {
+    const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
+    const remainingAmountStatus = document.getElementById('remainingAmountStatus');
+    const totalAmountStatus = document.getElementById('totalAmountStatus');
+    
+    if (this.checked) {
+      // Mark first half as paid
+      firstHalfPaymentStatus.className = 'paid';
+      // Extract the amount from the text
+      const amountText = firstHalfPaymentStatus.textContent.replace(/₹|,/g, '');
+      const firstHalfAmount = parseFloat(amountText) || 0;
+      
+      // Get total amount
+      const totalText = totalAmountStatus.textContent.replace(/₹|,/g, '');
+      const totalAmount = parseFloat(totalText) || 0;
+      
+      // Calculate new remaining: Total - First Half
+      const newRemaining = totalAmount - firstHalfAmount;
+      remainingAmountStatus.textContent = `₹${newRemaining.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+      remainingAmountStatus.className = 'paid';
+      
+      showToast('First half payment marked as paid! Remaining amount updated.', 'success');
+    } else {
+      // Mark first half as pending
+      firstHalfPaymentStatus.className = 'pending';
+      const amountText = firstHalfPaymentStatus.textContent.replace(/₹|,/g, '');
+      const firstHalfAmount = parseFloat(amountText) || 0;
+      const totalText = totalAmountStatus.textContent.replace(/₹|,/g, '');
+      const totalAmount = parseFloat(totalText) || 0;
+      const newRemaining = totalAmount - firstHalfAmount;
+      remainingAmountStatus.textContent = `₹${newRemaining.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+      remainingAmountStatus.className = 'pending';
+      
+      showToast('First half payment marked as pending.', 'success');
+    }
+  });
 
   document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
   document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
@@ -1470,18 +1523,43 @@ function populateSidebar(data) {
     finalPaymentStatus.className = 'pending';
   }
   
-  // Update holding charges display
+  // Update payment display with first half and second half payment
   const holdingChargesStatus = document.getElementById('holdingChargesStatus');
   const totalAmountStatus = document.getElementById('totalAmountStatus');
+  const remainingAmountStatus = document.getElementById('remainingAmountStatus');
   const holdingChargesInfo = document.getElementById('holdingChargesInfo');
   const chargesAddedAtStatus = document.getElementById('chargesAddedAtStatus');
   const holdingChargesInput = document.getElementById('holdingChargesInput');
+  const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
+  const secondHalfPaymentStatus = document.getElementById('secondHalfPaymentStatus');
+  const firstHalfPaymentCheckbox = document.getElementById('firstHalfPaymentCheckbox');
   
+  const finalPayment = data.final_payment || 0;
+  const firstHalfPayment = data.first_half_payment || 0;
+  const secondHalfPayment = data.second_half_payment || 0;
   const holdingCharges = data.holding_charges || 0;
-  const totalAmount = data.total_amount || data.final_payment;
+  const totalAmount = (finalPayment + holdingCharges);
   
+  // Display first and second half payments
+  firstHalfPaymentStatus.textContent = `₹${firstHalfPayment.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  secondHalfPaymentStatus.textContent = `₹${secondHalfPayment.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   holdingChargesStatus.textContent = `₹${holdingCharges.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   totalAmountStatus.textContent = `₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  
+  // Calculate remaining amount: Total - First Half Payment
+  const remainingAmount = totalAmount - firstHalfPayment;
+  remainingAmountStatus.textContent = `₹${remainingAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  
+  // Update remaining amount color based on payment status
+  if (data.final_payment_paid) {
+    remainingAmountStatus.className = 'paid';
+  } else {
+    remainingAmountStatus.className = 'pending';
+  }
+  
+  // Reset checkbox state
+  firstHalfPaymentCheckbox.checked = false;
+  firstHalfPaymentCheckbox.dataset.tripId = data.load_id;
   
   // Clear the input field
   holdingChargesInput.value = '';
