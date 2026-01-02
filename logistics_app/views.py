@@ -1055,9 +1055,28 @@ def add_load(request):
             # 7. Final payment is the full amount
             final_payment = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-            # Calculate 90% and 10% split
-            first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # 7a. Get first and second half payments from form (if user manually changed them)
+            # If not provided, calculate default 90% and 10% split
+            first_half_str = request.POST.get('first_half_payment', '').replace(',', '').strip()
+            second_half_str = request.POST.get('second_half_payment', '').replace(',', '').strip()
+            
+            if first_half_str and first_half_str != '0.00':
+                try:
+                    first_half_payment = Decimal(first_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                except:
+                    # If invalid, use default 90%
+                    first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            else:
+                first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            
+            if second_half_str and second_half_str != '0.00':
+                try:
+                    second_half_payment = Decimal(second_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                except:
+                    # If invalid, use default 10%
+                    second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            else:
+                second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
             # price_per_unit = full freight amount entered by admin
             price_per_unit = total_amount
@@ -2974,9 +2993,28 @@ def update_load(request, load_id):
             # 7. Final payment is the full amount
             final_payment = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             
-            # Calculate 90% and 10% split
-            first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # 7a. Get first and second half payments from form (if user manually changed them)
+            # If not provided, calculate default 90% and 10% split
+            first_half_str = request.POST.get('first_half_payment', '').replace(',', '').strip()
+            second_half_str = request.POST.get('second_half_payment', '').replace(',', '').strip()
+            
+            if first_half_str and first_half_str != '0.00':
+                try:
+                    first_half_payment = Decimal(first_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                except:
+                    # If invalid, use default 90%
+                    first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            else:
+                first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            
+            if second_half_str and second_half_str != '0.00':
+                try:
+                    second_half_payment = Decimal(second_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                except:
+                    # If invalid, use default 10%
+                    second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            else:
+                second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             
             # 8. Optional fields
             contact_person_name = request.POST.get('contactPersonName', '').strip() or None
