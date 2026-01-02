@@ -867,6 +867,7 @@
           <select id="statusSelect" class="status-select" style="flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
             <option value="">Select Status...</option>
             <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
             <option value="loaded">Loaded</option>
             <option value="lr_uploaded">LR Uploaded</option>
             <option value="in_transit">In Transit</option>
@@ -1577,6 +1578,7 @@ function renderTimeline(data) {
   
   const statusOrder = [
     'pending',
+    'confirmed',
     'loaded', 
     'lr_uploaded',
     'in_transit',
@@ -1681,9 +1683,16 @@ function getStatusInfo(status, data) {
   const statusConfig = {
     pending: {
       icon: 'fa-clipboard-check',
-      title: 'Trip Confirmed',
-      description: 'Trip booking confirmed by admin',
+      title: 'Trip Requested',
+      description: 'Trip booking requested',
       timestamp: formatTimestamp(data.pending_at),
+      hasFile: false
+    },
+    confirmed: {
+      icon: 'fa-check-circle',
+      title: 'Trip Confirmed',
+      description: 'Trip booking confirmed by vendor',
+      timestamp: formatTimestamp(data.assigned_at),
       hasFile: false
     },
     loaded: {

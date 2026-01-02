@@ -1501,6 +1501,7 @@ function renderTimeline(data) {
   
   const statusOrder = [
     'pending',
+    'confirmed',
     'loaded', 
     'lr_uploaded',
     'in_transit',
@@ -1587,9 +1588,16 @@ function getStatusInfo(status, data) {
   const statusConfig = {
     pending: {
       icon: 'fa-clipboard-check',
-      title: 'Trip Confirmed',
-      description: 'Trip booking confirmed by admin',
+      title: 'Trip Requested',
+      description: 'Trip booking requested',
       timestamp: formatTimestamp(data.pending_at),
+      hasFile: false
+    },
+    confirmed: {
+      icon: 'fa-check-circle',
+      title: 'Trip Confirmed',
+      description: 'Trip booking confirmed by vendor',
+      timestamp: formatTimestamp(data.assigned_at),
       hasFile: false
     },
     loaded: {

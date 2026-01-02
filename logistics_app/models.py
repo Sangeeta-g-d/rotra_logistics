@@ -294,6 +294,7 @@ class Load(models.Model):
 
     TRIP_STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
         ('loaded', 'Loaded'),
         ('lr_uploaded', 'LR Uploaded'),
         ('in_transit', 'In Transit'),

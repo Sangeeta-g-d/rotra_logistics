@@ -849,7 +849,7 @@ def accept_load_request_with_assignment(request, load_id, request_id):
             load.vehicle = vehicle
             load.status = 'assigned'
             load.assigned_at = timezone.now()
-            load.trip_status = 'pending'  # Update trip status
+            load.trip_status = 'confirmed'  # Update trip status to confirmed
             load.save()
             
             # Accept request
