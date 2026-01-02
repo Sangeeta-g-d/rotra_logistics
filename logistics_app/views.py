@@ -6,7 +6,7 @@ from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, Lo
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from datetime import datetime, date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import re
 from django.db import transaction
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Count
@@ -94,9 +94,9 @@ def admin_dashboard(request):
         # Active drivers
         active_drivers = Driver.objects.filter(is_active=True).count()
 
-        # Revenue this month (sum of first_half + final where payment_completed_at in this month)
+        # Revenue this month (sum of final payment where payment_completed_at in this month)
         revenue_qs = Load.objects.filter(payment_completed_at__gte=start_of_month, payment_completed_at__lte=now)
-        revenue_agg = revenue_qs.aggregate(total=Sum(ExpressionWrapper(F('first_half_payment') + F('final_payment'), output_field=DecimalField())))
+        revenue_agg = revenue_qs.aggregate(total=Sum('final_payment'))
         revenue_this_month = revenue_agg.get('total') or Decimal('0.00')
 
         # Fleet utilization
@@ -1032,14 +1032,14 @@ def add_load(request):
                 except ValueError:
                     return JsonResponse({'success': False, 'error': 'Invalid drop date format'}, status=400)
 
-            # 5. Time
+            # 5. Time (Optional)
             time_str = request.POST.get('time', '').strip()
-            if not time_str:
-                return JsonResponse({'success': False, 'error': 'Time is required'}, status=400)
-            try:
-                time_obj = datetime.strptime(time_str, '%I:%M %p').time()
-            except ValueError:
-                return JsonResponse({'success': False, 'error': 'Invalid time format. Use: 02:30 PM'}, status=400)
+            time_obj = None
+            if time_str:
+                try:
+                    time_obj = datetime.strptime(time_str, '%I:%M %p').time()
+                except ValueError:
+                    return JsonResponse({'success': False, 'error': 'Invalid time format. Use: 02:30 PM'}, status=400)
 
             # 6. Total Trip Amount (this is what admin enters)
             total_amount_str = request.POST.get('total_amount', '').replace(',', '').strip()
@@ -1052,9 +1052,12 @@ def add_load(request):
             except:
                 return JsonResponse({'success': False, 'error': 'Invalid amount format'}, status=400)
 
-            # 7. Correct 90-10 Split (with proper 2 decimal rounding)
-            first_half_payment = (total_amount * Decimal('0.9')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            final_payment = (total_amount - first_half_payment).quantize(Decimal('0.01'))
+            # 7. Final payment is the full amount
+            final_payment = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+            # Calculate 90% and 10% split
+            first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
             # price_per_unit = full freight amount entered by admin
             price_per_unit = total_amount
@@ -1083,8 +1086,9 @@ def add_load(request):
 
                 # PAYMENTS
                 price_per_unit=price_per_unit,                    # Full amount saved here
-                first_half_payment=first_half_payment,           # 90%
-                final_payment=final_payment,                     # 10%
+                final_payment=final_payment,                      # Full payment
+                first_half_payment=first_half_payment,            # 90%
+                second_half_payment=second_half_payment,          # 10%
 
                 created_by=request.user,
                 status='pending',
@@ -1101,8 +1105,9 @@ def add_load(request):
                     'id': load.id,
                     'load_id': load.load_id,
                     'price_per_unit': str(load.price_per_unit),
-                    'first_half_payment': str(load.first_half_payment),
                     'final_payment': str(load.final_payment),
+                    'first_half_payment': str(load.first_half_payment),
+                    'second_half_payment': str(load.second_half_payment),
                     'total_trip_amount': str(load.total_trip_amount),
                     'total_trip_amount_formatted': load.total_trip_amount_formatted,
                 }
@@ -1776,16 +1781,15 @@ def get_trip_details_api(request, trip_id):
             'pending': 0,
             'loaded': 12.5,
             'lr_uploaded': 25,
-            'first_half_payment': 37.5,
             'in_transit': 50,
             'unloading': 62.5,
             'pod_uploaded': 75,
             'payment_completed': 100,
+            'hold': 75,  # Hold is at same progress as pod_uploaded
         }
         progress = status_progress.get(load.trip_status, 0)
 
         # Payment status
-        first_half_paid = load.trip_status not in ['pending', 'loaded', 'lr_uploaded']
         final_payment_paid = load.trip_status == 'payment_completed'
 
         # Get comments for this trip
@@ -1828,11 +1832,12 @@ def get_trip_details_api(request, trip_id):
             'vendor_name': load.driver.owner.full_name if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'Not Assigned',
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
 
-            'first_half_payment': float(load.first_half_payment),
             'final_payment': float(load.final_payment),
-            'total_amount': float(load.first_half_payment + load.final_payment),
-            'first_half_paid': first_half_paid,
+            'holding_charges': float(load.holding_charges or Decimal('0')),
+            'total_amount': float(load.final_payment) + float(load.holding_charges or Decimal('0')),
             'final_payment_paid': final_payment_paid,
+            'holding_charges_added_at': load.holding_charges_added_at.isoformat() if load.holding_charges_added_at else None,
+            'holding_charges_added_at_status': load.holding_charges_added_at_status or '',
 
             'weight': load.weight or 'N/A',
             'material': load.material or 'N/A',
@@ -1862,11 +1867,12 @@ def get_trip_details_api(request, trip_id):
             'pending_at': load.created_at.isoformat() if load.created_at else None,
             'loaded_at': load.loaded_at.isoformat() if hasattr(load, 'loaded_at') and load.loaded_at else None,
             'lr_uploaded_at': load.lr_uploaded_at.isoformat() if load.lr_uploaded_at else None,
-            'first_half_payment_at': load.first_half_payment_at.isoformat() if hasattr(load, 'first_half_payment_at') and load.first_half_payment_at else None,
             'in_transit_at': load.in_transit_at.isoformat() if hasattr(load, 'in_transit_at') and load.in_transit_at else None,
             'unloading_at': load.unloading_at.isoformat() if hasattr(load, 'unloading_at') and load.unloading_at else None,
             'pod_uploaded_at': load.pod_uploaded_at.isoformat() if load.pod_uploaded_at else None,
             'payment_completed_at': load.payment_completed_at.isoformat() if hasattr(load, 'payment_completed_at') and load.payment_completed_at else None,
+            'hold_at': load.hold_at.isoformat() if hasattr(load, 'hold_at') and load.hold_at else None,
+            'hold_reason': load.hold_reason or '',
         }
 
         return JsonResponse({'success': True, 'data': data})
@@ -1976,47 +1982,89 @@ def view_lr_document_api(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def update_trip_status_api(request, trip_id):
-    """Update trip status to next stage"""
+    """Update trip status - can skip to any status"""
     try:
+        import json
         load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
         
-        # Define status flow
-        status_flow = [
-            'pending', 'loaded', 'lr_uploaded', 'first_half_payment',
-            'in_transit', 'unloading', 'pod_uploaded', 'payment_completed'
+        # Get new status from request body
+        try:
+            body = json.loads(request.body)
+            new_status = body.get('new_status')
+        except (json.JSONDecodeError, AttributeError):
+            new_status = None
+        
+        # If no status provided, use old behavior (next status)
+        if not new_status:
+            # Define status flow
+            status_flow = [
+                'pending', 'loaded', 'lr_uploaded',
+                'in_transit', 'unloading', 'pod_uploaded', 'payment_completed'
+            ]
+            
+            try:
+                current_index = status_flow.index(load.trip_status)
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Invalid current trip status'}, status=400)
+            
+            if current_index >= len(status_flow) - 1:
+                return JsonResponse({'success': False, 'error': 'Trip is already at final stage'}, status=400)
+            
+            new_status = status_flow[current_index + 1]
+        
+        # Validate the new status
+        valid_statuses = [
+            'pending', 'loaded', 'lr_uploaded',
+            'in_transit', 'unloading', 'pod_uploaded', 'payment_completed', 'hold'
         ]
         
-        try:
-            current_index = status_flow.index(load.trip_status)
-        except ValueError:
-            return JsonResponse({'success': False, 'error': 'Invalid current trip status'}, status=400)
+        if new_status not in valid_statuses:
+            return JsonResponse({
+                'success': False, 
+                'error': f'Invalid status: {new_status}'
+            }, status=400)
         
-        if current_index >= len(status_flow) - 1:
-            return JsonResponse({'success': False, 'error': 'Trip is already at final stage'}, status=400)
-        
-        next_status = status_flow[current_index + 1]
+        # Check if status is same as current
+        if new_status == load.trip_status:
+            return JsonResponse({
+                'success': False, 
+                'error': f'Trip is already at {load.get_trip_status_display()} status'
+            }, status=400)
         
         # For LR uploaded status, check if document exists
-        if next_status == 'lr_uploaded':
+        if new_status == 'lr_uploaded':
             if not load.lr_document:
                 return JsonResponse({
                     'success': False, 
-                    'error': 'Please upload LR document first',
+                    'error': 'Please upload LR document before updating to LR Uploaded status',
                     'requires_lr_upload': True
                 }, status=400)
         
         # For POD uploaded status, check if document exists
-        if next_status == 'pod_uploaded':
+        if new_status == 'pod_uploaded':
             if not load.pod_document:
                 return JsonResponse({
                     'success': False, 
-                    'error': 'Please upload POD document first',
+                    'error': 'Please upload POD document before updating to POD Uploaded status',
                     'requires_pod_upload': True
                 }, status=400)
         
-        # Update to next status
+        # For hold status, require hold reason
+        if new_status == 'hold':
+            hold_reason = body.get('hold_reason', '').strip()
+            if not hold_reason:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Hold reason is required when setting status to Hold'
+                }, status=400)
+            load.hold_reason = hold_reason
+        
+        # Update to new status
         previous_status = load.trip_status
-        load.update_trip_status(next_status, user=request.user)
+        load.update_trip_status(new_status, user=request.user)
+        
+        # Save the model to persist hold_reason
+        load.save()
         
         # Send notification to vendor
         if load.driver and hasattr(load.driver, 'owner') and load.driver.owner:
@@ -2025,7 +2073,7 @@ def update_trip_status_api(request, trip_id):
                     vendor=load.driver.owner,
                     load=load,
                     previous_status=previous_status,
-                    new_status=next_status
+                    new_status=new_status
                 )
             except Exception as e:
                 print(f"Error sending notification: {e}")
@@ -2036,32 +2084,35 @@ def update_trip_status_api(request, trip_id):
             'pending': 'pending_at',
             'loaded': 'loaded_at',
             'lr_uploaded': 'lr_uploaded_at',
-            'first_half_payment': 'first_half_payment_at',
             'in_transit': 'in_transit_at',
             'unloading': 'unloading_at',
             'pod_uploaded': 'pod_uploaded_at',
             'payment_completed': 'payment_completed_at',
+            'hold': 'hold_at',
         }
 
-        field_name = timestamp_fields.get(next_status)
+        field_name = timestamp_fields.get(new_status)
         timestamp = getattr(load, field_name) if field_name and hasattr(load, field_name) else load.updated_at
         timestamp_str = timestamp.strftime('%b %d, %I:%M %p') if timestamp else 'Just now'
         
         # Determine the message to show
         status_messages = {
-            'first_half_payment': 'First Half Payment completed successfully!',
+            'pending': 'Trip status updated to Pending',
+            'loaded': 'Trip status updated to Loaded',
+            'lr_uploaded': 'LR Uploaded status updated successfully',
             'in_transit': 'Trip status updated to In Transit',
             'unloading': 'Unloading completed successfully! Ready for POD upload.',
             'pod_uploaded': 'POD uploaded successfully! Ready for final payment.',
             'payment_completed': 'Payment completed successfully! Trip is now complete.',
+            'hold': 'Trip has been put on hold.',
         }
         
-        message = status_messages.get(next_status, f'Trip status updated to {load.get_trip_status_display()}')
+        message = status_messages.get(new_status, f'Trip status updated to {load.get_trip_status_display()}')
 
         return JsonResponse({
             'success': True,
             'message': message,
-            'new_status': next_status,
+            'new_status': new_status,
             'new_status_display': load.get_trip_status_display(),
             'timestamp': timestamp_str,
             'notification_sent': True,
@@ -2411,15 +2462,10 @@ def get_payment_details_api(request, trip_id):
             ).get(id=trip_id)
         
         # Determine payment status
-        first_half_paid = load.trip_status not in ['pending', 'loaded', 'lr_uploaded']
         final_payment_paid = load.trip_status == 'payment_completed'
 
-        # Get payment dates
-        first_half_date = None
+        # Get payment date
         final_payment_date = None
-        
-        if hasattr(load, 'first_half_payment_at') and load.first_half_payment_at:
-            first_half_date = load.first_half_payment_at.strftime('%b %d, %Y %I:%M %p')
         
         if hasattr(load, 'payment_completed_at') and load.payment_completed_at:
             final_payment_date = load.payment_completed_at.strftime('%b %d, %Y %I:%M %p')
@@ -2447,12 +2493,9 @@ def get_payment_details_api(request, trip_id):
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
 
             # Payment details
-            'first_half_payment': float(load.first_half_payment),
             'final_payment': float(load.final_payment),
-            'total_amount': float(load.first_half_payment + load.final_payment),
-            'first_half_paid': first_half_paid,
+            'total_amount': float(load.final_payment),
             'final_payment_paid': final_payment_paid,
-            'first_half_date': first_half_date,
             'final_payment_date': final_payment_date,
 
             # Show creator information for admin
@@ -2473,44 +2516,6 @@ def get_payment_details_api(request, trip_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
-
-@login_required
-@require_http_methods(["POST"])
-def mark_first_half_paid_api(request, trip_id):
-    """Mark first half payment as paid"""
-    try:
-        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
-        
-        # Check if already paid
-        if load.trip_status not in ['pending', 'loaded', 'lr_uploaded']:
-            return JsonResponse({
-                'success': False,
-                'error': 'First half payment is already marked as paid'
-            }, status=400)
-        
-        # Update status to first_half_payment WITH notification
-        previous_status = load.trip_status
-        load.update_trip_status('first_half_payment', user=request.user, send_notification=True)
-        
-        # Also mark in_transit if not already marked
-        if not hasattr(load, 'in_transit_at') or not load.in_transit_at:
-            from django.utils import timezone
-            load.in_transit_at = timezone.now()
-            load.save()
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'First half payment marked as paid',
-            'notification_sent': bool(load.driver and load.driver.owner),
-            'payment_date': load.first_half_payment_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'first_half_payment_at') and load.first_half_payment_at else None
-        })
-        
-    except Load.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
-    except Exception as e:
-        print(f"Error marking first half payment: {e}")
-        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
-
 
 @login_required
 @require_http_methods(["POST"])
@@ -2542,7 +2547,70 @@ def mark_final_payment_paid_api(request, trip_id):
     except Exception as e:
         print(f"Error marking final payment: {e}")
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
-    
+
+@login_required
+@require_http_methods(["POST"])
+def add_holding_charges_api(request, trip_id):
+    """Add holding charges to a trip"""
+    try:
+        # Get the load
+        if request.user.role == 'traffic_person':
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        else:
+            load = Load.objects.get(id=trip_id)
+        
+        # Get the amount from POST data
+        amount = request.POST.get('amount', '').strip()
+        
+        if not amount:
+            return JsonResponse({
+                'success': False,
+                'error': 'Holding charges amount is required'
+            }, status=400)
+        
+        try:
+            holding_charge_amount = Decimal(amount)
+            if holding_charge_amount < 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Holding charges cannot be negative'
+                }, status=400)
+            
+            holding_charge_amount = holding_charge_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        except (InvalidOperation, ValueError):
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid amount format'
+            }, status=400)
+        
+        # Store the current trip status when charges are added
+        current_status = load.trip_status
+        
+        # Add the holding charges
+        load.holding_charges = holding_charge_amount
+        load.holding_charges_added_at = timezone.now()
+        load.holding_charges_added_at_status = current_status
+        load.save()
+        
+        # Calculate the new total
+        new_total = float(load.final_payment) + float(holding_charge_amount)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Holding charges of ₹{holding_charge_amount:,.2f} added successfully',
+            'holding_charges': float(holding_charge_amount),
+            'total_amount': new_total,
+            'holding_charges_added_at_status': current_status,
+            'holding_charges_added_at': load.holding_charges_added_at.isoformat()
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
+    except Exception as e:
+        print(f"Error adding holding charges: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
 
 @login_required
 def reassign_trips(request):
@@ -2880,14 +2948,14 @@ def update_load(request, load_id):
                 except ValueError:
                     return JsonResponse({'success': False, 'error': 'Invalid drop date format'}, status=400)
             
-            # 5. Time
+            # 5. Time (Optional)
             time_str = request.POST.get('time', '').strip()
-            if not time_str:
-                return JsonResponse({'success': False, 'error': 'Time is required'}, status=400)
-            try:
-                time_obj = datetime.strptime(time_str, '%I:%M %p').time()
-            except ValueError:
-                return JsonResponse({'success': False, 'error': 'Invalid time format. Use: 02:30 PM'}, status=400)
+            time_obj = None
+            if time_str:
+                try:
+                    time_obj = datetime.strptime(time_str, '%I:%M %p').time()
+                except ValueError:
+                    return JsonResponse({'success': False, 'error': 'Invalid time format. Use: 02:30 PM'}, status=400)
             
             # 6. Total Trip Amount
             total_amount_str = request.POST.get('total_amount', '').replace(',', '').strip()
@@ -2900,9 +2968,12 @@ def update_load(request, load_id):
             except:
                 return JsonResponse({'success': False, 'error': 'Invalid amount format'}, status=400)
             
-            # 7. Calculate 90-10 Split
-            first_half_payment = (total_amount * Decimal('0.9')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            final_payment = (total_amount - first_half_payment).quantize(Decimal('0.01'))
+            # 7. Final payment is the full amount
+            final_payment = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            
+            # Calculate 90% and 10% split
+            first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             
             # 8. Optional fields
             contact_person_name = request.POST.get('contactPersonName', '').strip() or None
@@ -2925,8 +2996,9 @@ def update_load(request, load_id):
             load.material = material
             load.notes = notes
             load.price_per_unit = total_amount
-            load.first_half_payment = first_half_payment
             load.final_payment = final_payment
+            load.first_half_payment = first_half_payment
+            load.second_half_payment = second_half_payment
             
             load.save()
             
@@ -2937,8 +3009,9 @@ def update_load(request, load_id):
                     'id': load.id,
                     'load_id': load.load_id,
                     'price_per_unit': str(load.price_per_unit),
-                    'first_half_payment': str(load.first_half_payment),
                     'final_payment': str(load.final_payment),
+                    'first_half_payment': str(load.first_half_payment),
+                    'second_half_payment': str(load.second_half_payment),
                 }
             })
             

@@ -468,19 +468,10 @@
         </div>
       </div>
 
-      <!-- Auto-calculated Payment Split -->
+      <!-- Final Payment -->
       <div class="form-grid">
         <div class="form-group">
-          <label>First Half Payment (90%)</label>
-          <div class="payment-display first-half-payment">
-            <input type="text" id="firstHalfDisplay" readonly 
-                   value="₹ {{ load.first_half_payment|floatformat:0|default:'0' }}">
-          </div>
-          <input type="hidden" name="first_half_payment" id="hiddenFirstHalf" 
-                 value="{{ load.first_half_payment|default:'0' }}">
-        </div>
-        <div class="form-group">
-          <label>Final Payment (10%)</label>
+          <label>Final Payment</label>
           <div class="payment-display final-payment">
             <input type="text" id="finalPaymentDisplay" readonly 
                    value="₹ {{ load.final_payment|floatformat:0|default:'0' }}">
@@ -531,26 +522,18 @@ document.addEventListener('DOMContentLoaded', function () {
   // ====================== 90-10 PAYMENT SPLIT CALCULATION ======================
   function calculatePaymentSplit() {
     const totalInput = document.getElementById('totalAmountInput');
-    const firstHalfDisplay = document.getElementById('firstHalfDisplay');
     const finalDisplay = document.getElementById('finalPaymentDisplay');
-    const hiddenFirstHalf = document.getElementById('hiddenFirstHalf');
     const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
 
     const total = parseFloat(totalInput.value) || 0;
 
     if (total > 0) {
-      const firstHalf = Math.round(total * 0.9);
-      const finalPayment = total - firstHalf; // exact 10%
+      const finalPayment = total;
 
-      firstHalfDisplay.value = '₹ ' + firstHalf.toLocaleString('en-IN');
       finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN');
-
-      hiddenFirstHalf.value = firstHalf;
       hiddenFinalPayment.value = finalPayment;
     } else {
-      firstHalfDisplay.value = '₹ 0';
       finalDisplay.value = '₹ 0';
-      hiddenFirstHalf.value = '';
       hiddenFinalPayment.value = '';
     }
   }

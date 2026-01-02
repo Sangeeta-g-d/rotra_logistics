@@ -296,11 +296,11 @@ class Load(models.Model):
         ('pending', 'Pending'),
         ('loaded', 'Loaded'),
         ('lr_uploaded', 'LR Uploaded'),
-        ('first_half_payment', 'First Half Payment'),
         ('in_transit', 'In Transit'),
         ('unloading', 'Unloading'),
         ('pod_uploaded', 'POD Uploaded'),
         ('payment_completed', 'Payment Completed'),
+        ('hold', 'Hold'),
     ]
 
     # Basic Info
@@ -328,7 +328,7 @@ class Load(models.Model):
     drop_location = models.CharField(max_length=255)
     pickup_date = models.DateField()
     drop_date = models.DateField(null=True, blank=True)
-    time = models.TimeField()
+    time = models.TimeField(null=True, blank=True)
 
     # Load Details
     weight = models.CharField(max_length=50, blank=True, null=True)
@@ -336,8 +336,24 @@ class Load(models.Model):
     notes = models.TextField(blank=True, null=True)
 
     # PAYMENTS
-    first_half_payment = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
     final_payment = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    
+    # Payment split (90% and 10%)
+    first_half_payment = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="First Half Payment (90%)",
+        help_text="First payment installment - 90% of total freight"
+    )
+    
+    second_half_payment = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Second Half Payment (10%)",
+        help_text="Second payment installment - 10% of total freight"
+    )
 
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -368,11 +384,42 @@ class Load(models.Model):
     # Timeline
     pending_at = models.DateTimeField(null=True, blank=True)
     loaded_at = models.DateTimeField(null=True, blank=True)
-    first_half_payment_at = models.DateTimeField(null=True, blank=True)
     in_transit_at = models.DateTimeField(null=True, blank=True)
     unloading_at = models.DateTimeField(null=True, blank=True)
     pod_uploaded_at = models.DateTimeField(null=True, blank=True)
     payment_completed_at = models.DateTimeField(null=True, blank=True)
+    hold_at = models.DateTimeField(null=True, blank=True)
+
+    # Hold reason
+    hold_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Reason for putting the trip on hold"
+    )
+
+    # Holding charges
+    holding_charges = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Holding Charges",
+        help_text="Additional charges for holding the shipment"
+    )
+    
+    holding_charges_added_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Holding Charges Added At",
+        help_text="When the holding charges were added"
+    )
+    
+    holding_charges_added_at_status = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="Trip Status When Charges Added",
+        help_text="The trip status at which holding charges were added"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -397,14 +444,11 @@ class Load(models.Model):
         if not self.pk and not self.pending_at:
             self.pending_at = timezone.now()
 
-        # Auto Sync Price = First Half + Final Payment
-        total = (self.first_half_payment or Decimal('0')) + (self.final_payment or Decimal('0'))
-        if total > 0:
-            self.price_per_unit = total.quantize(Decimal('0.01'))
+        # Auto Sync Price = Final Payment
+        if self.final_payment and self.final_payment > 0:
+            self.price_per_unit = self.final_payment.quantize(Decimal('0.01'))
 
         # Rounding
-        if self.first_half_payment is not None:
-            self.first_half_payment = self.first_half_payment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         if self.final_payment is not None:
             self.final_payment = self.final_payment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
@@ -419,11 +463,11 @@ class Load(models.Model):
             'pending': 'pending_at',
             'loaded': 'loaded_at',
             'lr_uploaded': 'lr_uploaded_at',
-            'first_half_payment': 'first_half_payment_at',
             'in_transit': 'in_transit_at',
             'unloading': 'unloading_at',
             'pod_uploaded': 'pod_uploaded_at',
             'payment_completed': 'payment_completed_at',
+            'hold': 'hold_at',
         }
 
         field_name = timestamp_fields.get(new_status)
@@ -524,7 +568,9 @@ class Load(models.Model):
 
     @property
     def total_trip_amount(self):
-        return (self.first_half_payment + self.final_payment).quantize(Decimal('0.01'))
+        base_amount = (self.final_payment or Decimal('0')).quantize(Decimal('0.01'))
+        holding_charges = (self.holding_charges or Decimal('0')).quantize(Decimal('0.01'))
+        return (base_amount + holding_charges).quantize(Decimal('0.01'))
 
     @property
     def total_trip_amount_formatted(self):
@@ -542,11 +588,11 @@ class Load(models.Model):
             'pending': 0,
             'loaded': 12.5,
             'lr_uploaded': 25,
-            'first_half_payment': 37.5,
             'in_transit': 50,
             'unloading': 62.5,
             'pod_uploaded': 75,
             'payment_completed': 100,
+            'hold': 75,  # Hold is at same progress as pod_uploaded
         }
         return progress_map.get(self.trip_status, 0)
 

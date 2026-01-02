@@ -137,7 +137,6 @@
     .status-pending { background: #fef3c7; color: #d97706; }
     .status-loaded { background: #ffedd5; color: #ea580c; }
     .status-lr_uploaded { background: #dbeafe; color: #2563eb; }
-    .status-first_half_payment { background: #fef3c7; color: #d97706; }
     .status-in_transit { background: #ffedd5; color: #ea580c; }
     .status-unloading { background: #dbeafe; color: #2563eb; }
     .status-pod_uploaded { background: #d1fae5; color: #16a34a; }
@@ -693,7 +692,6 @@
       <tr>
         <th>Load ID</th>
         <th>Route</th>
-        <th>First Half</th>
         <th>Final Payment</th>
         <th>Total Amount</th>
         <th>Actions</th>
@@ -709,20 +707,6 @@
               {{ load.pickup_location }}
               <i class="fas fa-arrow-right route-arrow"></i>
               {{ load.drop_location }}
-            </div>
-          </td>
-          
-          <!-- First Half Payment Column -->
-          <td>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; max-width: 150px;">
-              <span style="font-weight: 600; color: #1c2436;">
-                ₹{{ load.first_half_payment|floatformat:2 }}
-              </span>
-              {% if load.trip_status == "first_half_payment" or load.trip_status == "in_transit" or load.trip_status == "unloading" or load.trip_status == "pod_uploaded" or load.trip_status == "payment_completed" %}
-                <i class="fas fa-check-circle" style="color: #16a34a; font-size: 16px;" title="Paid"></i>
-              {% else %}
-                <i class="fas fa-clock" style="color: #d97706; font-size: 16px;" title="Pending"></i>
-              {% endif %}
             </div>
           </td>
           
@@ -823,11 +807,7 @@
 
       <div class="payment-box">
         <div class="payment-row">
-          <span>First Half (90%)</span>
-          <span id="firstHalfStatus" class="pending">₹0 Pending</span>
-        </div>
-        <div class="payment-row">
-          <span>Final Payment (10%)</span>
+          <span>Final Payment</span>
           <span id="finalPaymentStatus" class="pending">₹0 Pending</span>
         </div>
       </div>
@@ -1428,16 +1408,7 @@ function populateSidebar(data) {
   document.getElementById('eta').textContent = data.drop_date;
   document.getElementById('currentLocation').textContent = data.current_location;
   
-  const firstHalfStatus = document.getElementById('firstHalfStatus');
   const finalPaymentStatus = document.getElementById('finalPaymentStatus');
-  
-  if (data.first_half_paid) {
-    firstHalfStatus.textContent = `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
-    firstHalfStatus.className = 'paid';
-  } else {
-    firstHalfStatus.textContent = `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Pending`;
-    firstHalfStatus.className = 'pending';
-  }
   
   if (data.final_payment_paid) {
     finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
@@ -1532,7 +1503,6 @@ function renderTimeline(data) {
     'pending',
     'loaded', 
     'lr_uploaded',
-    'first_half_payment',
     'in_transit',
     'unloading',
     'pod_uploaded',
@@ -1546,19 +1516,7 @@ function renderTimeline(data) {
     let isCurrent = index === currentStatusIndex;
     let isPending = index > currentStatusIndex;
     
-    if (status === 'first_half_payment' || status === 'in_transit') {
-      if (currentStatusIndex > 4) {
-        isCompleted = true;
-        isCurrent = false;
-        isPending = false;
-      } else if (currentStatusIndex >= 3 && currentStatusIndex <= 4) {
-        isCompleted = true;
-        isCurrent = false;
-        isPending = false;
-      }
-    }
-    
-    if ((data.trip_status === 'first_half_payment' || data.trip_status === 'in_transit') && status === 'unloading') {
+    if (data.trip_status === 'in_transit' && status === 'unloading') {
       isCurrent = true;
       isCompleted = false;
       isPending = false;
@@ -1650,13 +1608,13 @@ function getStatusInfo(status, data) {
       fileUrl: data.lr_document,
       fileName: data.lr_document_name
     },
-    first_half_payment: {
-      icon: 'fa-money-bill-wave',
-      title: 'First Half Payment',
-      description: `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} paid to driver`,
-      timestamp: formatTimestamp(data.first_half_payment_at),
-      hasFile: false
-    },
+    // first_half_payment: {
+    //   icon: 'fa-money-bill-wave',
+    //   title: 'First Half Payment',
+    //   description: `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} paid to driver`,
+    //   timestamp: formatTimestamp(data.first_half_payment_at),
+    //   hasFile: false
+    // },
     in_transit: {
       icon: 'fa-truck-moving',
       title: 'In Transit',
@@ -1726,13 +1684,6 @@ function updateTripStatus() {
     if (result.success) {
       let message = result.message;
       
-      if (result.special_case) {
-        if (result.new_status === 'first_half_payment') {
-          message = 'First Half Payment and In Transit statuses updated successfully!';
-        } else if (result.new_status === 'in_transit') {
-          message = 'In Transit and First Half Payment statuses updated successfully!';
-        }
-      }
       
       showToast(message, 'success');
       loadTripDetails(currentTripId);

@@ -17,7 +17,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
 from logistics_app.models import PhoneOTP
-from .utils import generate_otp, send_otp_fast2sms
+from .utils import generate_otp,send_otp_fast2sms
 
 # send OTP
 class SendOTPAPIView(APIView):
@@ -1122,7 +1122,6 @@ class VendorTripsByStatusView(APIView):
             'pending',
             'loaded',
             'lr_uploaded', 
-            'first_half_payment',
             'in_transit',
             'unloading',
         ]
@@ -1186,7 +1185,6 @@ class VendorTripsByStatusView(APIView):
             'pending': 'Pending',
             'loaded': 'Loaded',
             'lr_uploaded': 'LR Uploaded',
-            'first_half_payment': 'First Half Payment',
             'in_transit': 'In Transit',
             'unloading': 'Unloading',
             'pod_uploaded': 'POD Uploaded',
@@ -1200,7 +1198,6 @@ class VendorTripsByStatusView(APIView):
             'pending': 'pending_at',
             'loaded': 'loaded_at',
             'lr_uploaded': 'lr_uploaded_at',
-            'first_half_payment': 'first_half_payment_at',
             'in_transit': 'in_transit_at',
             'unloading': 'unloading_at',
             'pod_uploaded': 'pod_uploaded_at',
@@ -1226,7 +1223,6 @@ class TripStatusOptionsView(APIView):
             'pending',
             'loaded',
             'lr_uploaded',
-            'first_half_payment',
             'in_transit',
             'unloading',
         ]
@@ -1376,7 +1372,6 @@ class VendorTripHistoryView(APIView):
             'pending': 'Pending',
             'loaded': 'Loaded',
             'lr_uploaded': 'LR Uploaded',
-            'first_half_payment': 'First Half Payment',
             'in_transit': 'In Transit',
             'unloading': 'Unloading',
             'pod_uploaded': 'POD Uploaded',

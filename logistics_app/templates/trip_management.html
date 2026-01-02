@@ -137,11 +137,11 @@
     .status-pending { background: #fef3c7; color: #d97706; }
     .status-loaded { background: #ffedd5; color: #ea580c; }
     .status-lr_uploaded { background: #dbeafe; color: #2563eb; }
-    .status-first_half_payment { background: #fef3c7; color: #d97706; }
     .status-in_transit { background: #ffedd5; color: #ea580c; }
     .status-unloading { background: #dbeafe; color: #2563eb; }
     .status-pod_uploaded { background: #d1fae5; color: #16a34a; }
     .status-payment_completed { background: #d1fae5; color: #16a34a; }
+    .status-hold { background: #fee2e2; color: #dc2626; }
 
     .pagination-container {
       display: flex;
@@ -539,7 +539,7 @@
       cursor: not-allowed;
     }
 
-    .lr-modal, .pod-modal {
+    .lr-modal, .pod-modal, .hold-modal {
       display: none;
       position: fixed;
       top: 0;
@@ -552,7 +552,7 @@
       justify-content: center;
     }
 
-    .lr-modal-content, .pod-modal-content {
+    .lr-modal-content, .pod-modal-content, .hold-modal-content {
       background: white;
       padding: 30px;
       border-radius: 12px;
@@ -687,7 +687,6 @@
         <option value="pending">Pending</option>
         <option value="loaded">Loaded</option>
         <option value="lr_uploaded">LR Uploaded</option>
-        <option value="first_half_payment">First Half Payment</option>
         <option value="in_transit">In Transit</option>
         <option value="unloading">Unloading</option>
         <option value="pod_uploaded">POD Uploaded</option>
@@ -801,12 +800,23 @@
 
       <div class="payment-box">
         <div class="payment-row">
-          <span>First Half (90%)</span>
-          <span id="firstHalfStatus" class="pending">₹0 Pending</span>
+          <span>Final Payment</span>
+          <span id="finalPaymentStatus" class="pending">₹0 Pending</span>
         </div>
         <div class="payment-row">
-          <span>Final Payment (10%)</span>
-          <span id="finalPaymentStatus" class="pending">₹0 Pending</span>
+          <span>Holding Charges</span>
+          <span id="holdingChargesStatus" class="pending">₹0</span>
+        </div>
+        <div class="payment-row" style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; font-weight: 600; color: #1f2937;">
+          <span>Total Amount</span>
+          <span id="totalAmountStatus" class="pending">₹0</span>
+        </div>
+        <div style="margin-top: 12px; display: flex; gap: 8px;">
+          <input type="number" id="holdingChargesInput" placeholder="Enter holding charges amount" min="0" step="0.01" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+          <button id="btnAddHoldingCharges" style="padding: 8px 12px; background: var(--amber); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap;">Add Charges</button>
+        </div>
+        <div id="holdingChargesInfo" style="margin-top: 8px; font-size: 12px; color: #6b7280; display: none;">
+          <span id="chargesAddedAtStatus"></span>
         </div>
       </div>
 
@@ -853,7 +863,20 @@
       </div>
       
       <div class="chat-buttons">
-        <button class="btn-update" id="btnUpdateStatus">Update Status</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <select id="statusSelect" class="status-select" style="flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
+            <option value="">Select Status...</option>
+            <option value="pending">Pending</option>
+            <option value="loaded">Loaded</option>
+            <option value="lr_uploaded">LR Uploaded</option>
+            <option value="in_transit">In Transit</option>
+            <option value="unloading">Unloading</option>
+            <option value="pod_uploaded">POD Uploaded</option>
+            <option value="payment_completed">Payment Completed</option>
+            <option value="hold">Hold</option>
+          </select>
+          <button class="btn-update" id="btnUpdateStatus">Update Status</button>
+        </div>
         <button class="btn-upload-lr" id="btnUploadLR" style="display: none;">Upload LR</button>
         <button class="btn-upload-pod" id="btnUploadPOD" style="display: none;">Upload POD</button>
         <button class="btn-add-comment" id="btnAddComment">Add Comment</button>
@@ -917,6 +940,7 @@ function attachSidebarEventListeners() {
   document.getElementById('btnAddComment').addEventListener('click', addComment);
   document.getElementById('sendComment').addEventListener('click', addComment);
   document.getElementById('btnCloseTrip').addEventListener('click', closeTrip);
+  document.getElementById('btnAddHoldingCharges').addEventListener('click', addHoldingCharges);
   
   const commentInput = document.getElementById('commentInput');
   commentInput.addEventListener('keypress', function(e) {
@@ -1417,6 +1441,12 @@ function populateSidebar(data) {
   statusBadge.textContent = data.trip_status_display;
   statusBadge.className = 'status-badge status-' + data.trip_status;
   
+  // Set current status in dropdown
+  const statusSelect = document.getElementById('statusSelect');
+  if (statusSelect) {
+    statusSelect.value = data.trip_status || '';
+  }
+  
   document.getElementById('routeFrom').textContent = data.pickup_location;
   document.getElementById('routeTo').textContent = data.drop_location;
   
@@ -1428,16 +1458,7 @@ function populateSidebar(data) {
   document.getElementById('eta').textContent = data.drop_date;
   document.getElementById('currentLocation').textContent = data.current_location;
   
-  const firstHalfStatus = document.getElementById('firstHalfStatus');
   const finalPaymentStatus = document.getElementById('finalPaymentStatus');
-  
-  if (data.first_half_paid) {
-    firstHalfStatus.textContent = `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
-    firstHalfStatus.className = 'paid';
-  } else {
-    firstHalfStatus.textContent = `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Pending`;
-    firstHalfStatus.className = 'pending';
-  }
   
   if (data.final_payment_paid) {
     finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
@@ -1445,6 +1466,32 @@ function populateSidebar(data) {
   } else {
     finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Pending`;
     finalPaymentStatus.className = 'pending';
+  }
+  
+  // Update holding charges display
+  const holdingChargesStatus = document.getElementById('holdingChargesStatus');
+  const totalAmountStatus = document.getElementById('totalAmountStatus');
+  const holdingChargesInfo = document.getElementById('holdingChargesInfo');
+  const chargesAddedAtStatus = document.getElementById('chargesAddedAtStatus');
+  const holdingChargesInput = document.getElementById('holdingChargesInput');
+  
+  const holdingCharges = data.holding_charges || 0;
+  const totalAmount = data.total_amount || data.final_payment;
+  
+  holdingChargesStatus.textContent = `₹${holdingCharges.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  totalAmountStatus.textContent = `₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  
+  // Clear the input field
+  holdingChargesInput.value = '';
+  
+  // Show information about when charges were added
+  if (data.holding_charges_added_at && holdingCharges > 0) {
+    const chargesDate = new Date(data.holding_charges_added_at);
+    const formattedDate = chargesDate.toLocaleString('en-IN', {dateStyle: 'short', timeStyle: 'short'});
+    chargesAddedAtStatus.textContent = `Added at: ${formattedDate} (Status: ${data.holding_charges_added_at_status || 'Unknown'})`;
+    holdingChargesInfo.style.display = 'block';
+  } else {
+    holdingChargesInfo.style.display = 'none';
   }
   
   document.getElementById('customerName').textContent = data.customer_name;
@@ -1532,10 +1579,10 @@ function renderTimeline(data) {
     'pending',
     'loaded', 
     'lr_uploaded',
-    'first_half_payment',
     'in_transit',
     'unloading',
     'pod_uploaded',
+    'hold',
     'payment_completed'
   ];
   
@@ -1655,11 +1702,11 @@ function getStatusInfo(status, data) {
       fileUrl: data.lr_document,
       fileName: data.lr_document_name
     },
-    first_half_payment: {
-      icon: 'fa-money-bill-wave',
-      title: 'First Half Payment',
-      description: `₹${data.first_half_payment ? data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2}) : '0'} paid to driver`,
-      timestamp: formatTimestamp(data.first_half_payment_at),
+    in_transit: {
+      icon: 'fa-truck',
+      title: 'In Transit',
+      description: 'Cargo in transit to destination',
+      timestamp: formatTimestamp(data.in_transit_at),
       hasFile: false
     },
     unloading: {
@@ -1683,6 +1730,13 @@ function getStatusInfo(status, data) {
       title: 'Payment Completed',
       description: 'Final payment processed',
       timestamp: formatTimestamp(data.payment_completed_at),
+      hasFile: false
+    },
+    hold: {
+      icon: 'fa-pause-circle',
+      title: 'Trip On Hold',
+      description: data.hold_reason ? `Hold Reason: ${data.hold_reason}` : 'Trip is on hold',
+      timestamp: formatTimestamp(data.hold_at),
       hasFile: false
     }
   };
@@ -1713,35 +1767,90 @@ function updateTripStatus() {
     return;
   }
   
-  // Get current status for better confirmation message
+  // Get selected status from dropdown
+  const statusSelect = document.getElementById('statusSelect');
+  const selectedStatus = statusSelect.value;
+  
+  if (!selectedStatus) {
+    showToast('Please select a status to update', 'error');
+    return;
+  }
+  
+  // Get current status
   const currentRow = document.querySelector(`[data-trip-id="${currentTripId}"]`);
   const currentStatus = currentRow ? currentRow.dataset.tripStatus : '';
-  let nextStage = '';
-  let confirmMessage = '';
   
-  // Determine next stage for confirmation message
-  if (currentStatus === 'lr_uploaded') {
-    nextStage = 'First Half Payment';
-    confirmMessage = 'Are you sure you want to update the trip status to First Half Payment?';
-  } else if (currentStatus === 'first_half_payment') {
-    nextStage = 'In Transit';
-    confirmMessage = 'Are you sure you want to update the trip status to In Transit?';
-  } else if (currentStatus === 'in_transit') {
-    nextStage = 'Unloading';
-    confirmMessage = 'Are you sure you want to update the trip status to Unloading?';
-  } else if (currentStatus === 'unloading') {
-    nextStage = 'POD Uploaded';
-    confirmMessage = 'Are you sure you want to update the trip status to POD Uploaded?';
-  } else if (currentStatus === 'pod_uploaded') {
-    nextStage = 'Payment Completed';
-    confirmMessage = 'Are you sure you want to update the trip status to Payment Completed?';
-  } else {
-    nextStage = 'next stage';
-    confirmMessage = `Are you sure you want to update the trip status to ${nextStage}?`;
+  // Status display names
+  const statusNames = {
+    'pending': 'Pending',
+    'loaded': 'Loaded',
+    'lr_uploaded': 'LR Uploaded',
+    'in_transit': 'In Transit',
+    'unloading': 'Unloading',
+    'pod_uploaded': 'POD Uploaded',
+    'payment_completed': 'Payment Completed',
+    'hold': 'Hold'
+  };
+  
+  // Check if status is same as current
+  if (selectedStatus === currentStatus) {
+    showToast('Trip is already at this status', 'error');
+    return;
   }
+  
+  // Special handling for Payment Completed - show Hold/Completed dialog
+  if (selectedStatus === 'payment_completed') {
+    showHoldCompletedModal();
+    return;
+  }
+  
+  const selectedStatusName = statusNames[selectedStatus] || selectedStatus;
+  const confirmMessage = `Are you sure you want to update the trip status from "${statusNames[currentStatus] || currentStatus}" to "${selectedStatusName}"?`;
   
   if (!confirm(confirmMessage)) {
     return;
+  }
+  
+  // Check for LR document if trying to set to lr_uploaded
+  if (selectedStatus === 'lr_uploaded') {
+    // We'll check this on the backend, but show a warning
+    const lrCheck = confirm('Note: LR document must be uploaded. Continue?');
+    if (!lrCheck) {
+      return;
+    }
+  }
+  
+  // Check for POD document if trying to set to pod_uploaded
+  if (selectedStatus === 'pod_uploaded') {
+    // We'll check this on the backend, but show a warning
+    const podCheck = confirm('Note: POD document must be uploaded. Continue?');
+    if (!podCheck) {
+      return;
+    }
+  }
+  
+  // Handle Hold status - need reason
+  if (selectedStatus === 'hold') {
+    showHoldReasonModal();
+    return;
+  }
+  
+  // Proceed with status update
+  proceedWithStatusUpdate(selectedStatus);
+}
+
+function proceedWithStatusUpdate(newStatus, holdReason = null) {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+  
+  const requestBody = {
+    'new_status': newStatus
+  };
+  
+  if (holdReason) {
+    requestBody['hold_reason'] = holdReason;
   }
   
   fetch(`/api/trip/${currentTripId}/update-status/`, {
@@ -1750,7 +1859,7 @@ function updateTripStatus() {
       'Content-Type': 'application/json',
       'X-CSRFToken': csrftoken
     },
-    body: JSON.stringify({})
+    body: JSON.stringify(requestBody)
   })
   .then(response => response.json())
   .then(result => {
@@ -1763,6 +1872,12 @@ function updateTripStatus() {
       updateTableRow(currentTripId, newStatus, newStatusDisplay);
       showToast(message, 'success');
       
+      // Reset dropdown
+      const statusSelect = document.getElementById('statusSelect');
+      if (statusSelect) {
+        statusSelect.value = '';
+      }
+      
       // Refresh sidebar to update timeline
       setTimeout(() => {
         loadTripDetails(currentTripId);
@@ -1770,9 +1885,13 @@ function updateTripStatus() {
       
     } else {
       if (result.requires_lr_upload) {
-        showToast('Please upload LR document before updating status', 'error');
+        showToast('Please upload LR document before updating to LR Uploaded status', 'error');
+        // Optionally show LR upload modal
+        showLRUploadModal();
       } else if (result.requires_pod_upload) {
-        showToast('Please upload POD document before updating status', 'error');
+        showToast('Please upload POD document before updating to POD Uploaded status', 'error');
+        // Optionally show POD upload modal
+        showPODUploadModal();
       } else {
         showToast('Error: ' + result.error, 'error');
       }
@@ -1782,6 +1901,125 @@ function updateTripStatus() {
     console.error('Error:', error);
     showToast('Failed to update trip status', 'error');
   });
+}
+
+function showHoldCompletedModal() {
+  // Create modal if it doesn't exist
+  let modal = document.getElementById('holdCompletedModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'holdCompletedModal';
+    modal.className = 'hold-modal';
+    modal.innerHTML = `
+      <div class="hold-modal-content">
+        <div class="lr-modal-header">
+          <h3>Complete Payment</h3>
+          <button class="close-hold-completed-modal">&times;</button>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <p style="margin-bottom: 16px; color: #374151;">How would you like to complete this payment?</p>
+          <div style="display: flex; gap: 12px;">
+            <button id="btnCompleted" style="flex: 1; padding: 12px 20px; background: #16a34a; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+              Completed
+            </button>
+            <button id="btnHold" style="flex: 1; padding: 12px 20px; background: #d97706; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+              Hold
+            </button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="btnCancelHoldCompleted">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Event listeners
+    document.querySelector('#holdCompletedModal .close-hold-completed-modal').addEventListener('click', closeHoldCompletedModal);
+    document.querySelector('#holdCompletedModal #btnCancelHoldCompleted').addEventListener('click', closeHoldCompletedModal);
+    document.querySelector('#holdCompletedModal #btnCompleted').addEventListener('click', () => {
+      closeHoldCompletedModal();
+      proceedWithStatusUpdate('payment_completed');
+    });
+    document.querySelector('#holdCompletedModal #btnHold').addEventListener('click', () => {
+      closeHoldCompletedModal();
+      showHoldReasonModal();
+    });
+  }
+  
+  modal.style.display = 'flex';
+}
+
+function closeHoldCompletedModal() {
+  const modal = document.getElementById('holdCompletedModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+function showHoldReasonModal() {
+  // Create modal if it doesn't exist
+  let modal = document.getElementById('holdReasonModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'holdReasonModal';
+    modal.className = 'hold-modal';
+    modal.innerHTML = `
+      <div class="hold-modal-content">
+        <div class="lr-modal-header">
+          <h3>Hold Trip - Reason Required</h3>
+          <button class="close-hold-reason-modal">&times;</button>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151;">Please provide a reason for holding this trip:</label>
+          <textarea id="holdReasonInput" rows="4" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;" placeholder="Enter reason for hold..."></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="btnCancelHoldReason">Cancel</button>
+          <button id="btnSubmitHold" style="padding: 10px 20px; background: #d97706; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+            Submit Hold
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Event listeners
+    document.querySelector('#holdReasonModal .close-hold-reason-modal').addEventListener('click', closeHoldReasonModal);
+    document.querySelector('#holdReasonModal #btnCancelHoldReason').addEventListener('click', closeHoldReasonModal);
+    document.querySelector('#holdReasonModal #btnSubmitHold').addEventListener('click', () => {
+      const reason = document.getElementById('holdReasonInput').value.trim();
+      if (!reason) {
+        showToast('Please provide a reason for holding the trip', 'error');
+        return;
+      }
+      closeHoldReasonModal();
+      proceedWithStatusUpdate('hold', reason);
+    });
+  }
+  
+  // Clear previous reason
+  const reasonInput = document.getElementById('holdReasonInput');
+  if (reasonInput) {
+    reasonInput.value = '';
+  }
+  
+  modal.style.display = 'flex';
+  
+  // Focus on textarea
+  setTimeout(() => {
+    const reasonInput = document.getElementById('holdReasonInput');
+    if (reasonInput) {
+      reasonInput.focus();
+    }
+  }, 100);
+}
+
+function closeHoldReasonModal() {
+  const modal = document.getElementById('holdReasonModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
 }
 
 function addComment() {
@@ -1819,6 +2057,50 @@ function addComment() {
   .catch(error => {
     console.error('Error:', error);
     showToast('Failed to add comment', 'error');
+  });
+}
+
+function addHoldingCharges() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+  
+  const amountInput = document.getElementById('holdingChargesInput');
+  const amount = amountInput.value.trim();
+  
+  if (!amount) {
+    showToast('Please enter the holding charges amount', 'error');
+    return;
+  }
+  
+  if (isNaN(amount) || parseFloat(amount) < 0) {
+    showToast('Please enter a valid positive amount', 'error');
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('amount', amount);
+  
+  fetch(`/api/trip/${currentTripId}/add-holding-charges/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': csrftoken
+    },
+    body: formData
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast(result.message, 'success');
+      loadTripDetails(currentTripId);
+    } else {
+      showToast('Error: ' + (result.error || 'Failed to add holding charges'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to add holding charges', 'error');
   });
 }
 

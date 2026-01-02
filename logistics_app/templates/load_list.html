@@ -601,9 +601,9 @@
 
       <div class="form-row">
         <div class="form-group">
-          <label>Time <span class="required">*</span></label>
+          <label>Time (Optional)</label>
           <div class="time-input-group">
-            <input type="text" id="timeInput" placeholder="02:30" maxlength="5" required>
+            <input type="text" id="timeInput" placeholder="02:30" maxlength="5">
             <select id="ampmSelect">
               <option value="AM">AM</option>
               <option value="PM" selected>PM</option>
@@ -643,17 +643,30 @@
         </div>
       </div>
 
-      <!-- Auto-calculated Payment Split -->
+      <!-- Payment Split Section -->
+      <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <div style="font-weight: 600; color: #1e40af; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <i class="fas fa-coins"></i> Payment Split (90% & 10%)
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>First Half Payment (90%)</label>
+            <input type="number" id="firstHalfPaymentInput" name="first_half_payment" step="0.01" min="0" value="0.00" placeholder="Enter or auto-calculated" style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">You can modify this amount</small>
+          </div>
+          <div class="form-group">
+            <label>Second Half Payment (10%)</label>
+            <input type="number" id="secondHalfPaymentInput" name="second_half_payment" step="0.01" min="0" value="0.00" placeholder="Enter or auto-calculated" style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">You can modify this amount</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Final Payment -->
       <div class="form-row">
         <div class="form-group">
-          <label>First Half Payment (90%)</label>
-          <div class="payment-display first-half-payment">
-            <input type="text" id="firstHalfDisplay" readonly value="₹ 0">
-          </div>
-          <input type="hidden" name="first_half_payment" id="hiddenFirstHalf">
-        </div>
-        <div class="form-group">
-          <label>Final Payment (10%)</label>
+          <label>Final Payment</label>
           <div class="payment-display final-payment">
             <input type="text" id="finalPaymentDisplay" readonly value="₹ 0">
           </div>
@@ -866,29 +879,40 @@ document.addEventListener('DOMContentLoaded', function () {
   // ====================== 90-10 PAYMENT SPLIT CALCULATION ======================
   function calculatePaymentSplit() {
     const totalInput = document.getElementById('totalAmountInput');
-    const firstHalfDisplay = document.getElementById('firstHalfDisplay');
     const finalDisplay = document.getElementById('finalPaymentDisplay');
-    const hiddenFirstHalf = document.getElementById('hiddenFirstHalf');
     const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
+    const firstHalfInput = document.getElementById('firstHalfPaymentInput');
+    const secondHalfInput = document.getElementById('secondHalfPaymentInput');
 
-    if (!totalInput || !firstHalfDisplay || !finalDisplay) return;
+    if (!totalInput || !finalDisplay) return;
 
     const total = parseFloat(totalInput.value) || 0;
 
     if (total > 0) {
-      const firstHalf = Math.round(total * 0.9);
-      const finalPayment = total - firstHalf; // exact 10%
+      const finalPayment = total;
+      const firstHalfPayment = total * 0.90;  // 90%
+      const secondHalfPayment = total * 0.10; // 10%
 
-      firstHalfDisplay.value = '₹ ' + firstHalf.toLocaleString('en-IN');
-      finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN');
-
-      hiddenFirstHalf.value = firstHalf;
+      finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
       hiddenFinalPayment.value = finalPayment;
+      
+      // Update input fields (only if they haven't been manually modified)
+      if (!firstHalfInput.dataset.modified) {
+        firstHalfInput.value = firstHalfPayment.toFixed(2);
+      }
+      if (!secondHalfInput.dataset.modified) {
+        secondHalfInput.value = secondHalfPayment.toFixed(2);
+      }
     } else {
-      firstHalfDisplay.value = '₹ 0';
-      finalDisplay.value = '₹ 0';
-      hiddenFirstHalf.value = '';
+      finalDisplay.value = '₹ 0.00';
       hiddenFinalPayment.value = '';
+      
+      if (!firstHalfInput.dataset.modified) {
+        firstHalfInput.value = '0.00';
+      }
+      if (!secondHalfInput.dataset.modified) {
+        secondHalfInput.value = '0.00';
+      }
     }
   }
 
@@ -897,10 +921,25 @@ document.addEventListener('DOMContentLoaded', function () {
     addLoadModal.style.display = 'flex';
     setTimeout(() => {
       const totalInput = document.getElementById('totalAmountInput');
+      const firstHalfInput = document.getElementById('firstHalfPaymentInput');
+      const secondHalfInput = document.getElementById('secondHalfPaymentInput');
+      
       if (totalInput) {
         totalInput.focus();
         totalInput.addEventListener('input', calculatePaymentSplit);
         calculatePaymentSplit(); // Initial calculation
+      }
+      
+      // Track manual modifications to payment fields
+      if (firstHalfInput) {
+        firstHalfInput.addEventListener('input', function () {
+          this.dataset.modified = 'true';
+        });
+      }
+      if (secondHalfInput) {
+        secondHalfInput.addEventListener('input', function () {
+          this.dataset.modified = 'true';
+        });
       }
     }, 100);
   });

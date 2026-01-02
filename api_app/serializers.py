@@ -346,7 +346,6 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "trip_requested": obj.created_at,
             "loaded": obj.loaded_at,
             "lr_uploaded": obj.lr_uploaded_at,
-            "first_half_payment": obj.first_half_payment_at,
             "in_transit": obj.in_transit_at,
             "unloading": obj.unloading_at,
             "pod_uploaded": obj.pod_uploaded_at,

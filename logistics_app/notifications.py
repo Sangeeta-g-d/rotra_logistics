@@ -84,11 +84,6 @@ def send_trip_status_update_notification(vendor, load, previous_status, new_stat
             'body': f"LR document has been uploaded for Load #{load.load_id}.",
             'emoji': "📄"
         },
-        'first_half_payment': {
-            'title': "💰 First Half Payment Completed",
-            'body': f"First half payment of ₹{load.first_half_payment} processed for Load #{load.load_id}.",
-            'emoji': "💰"
-        },
         'in_transit': {
             'title': "🚛 In Transit",
             'body': f"Load #{load.load_id} is now in transit to destination.",
