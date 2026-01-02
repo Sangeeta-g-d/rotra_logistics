@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification
+from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification, HoldingCharge
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from datetime import datetime, date
@@ -2644,7 +2644,6 @@ def add_holding_charges_api(request, trip_id):
             trip_stage = load.trip_status
         
         # Create HoldingCharge record with tracking info
-        from .models import HoldingCharge
         holding_charge = HoldingCharge.objects.create(
             load=load,
             amount=holding_charge_amount,
@@ -2712,8 +2711,6 @@ def add_holding_charges_api(request, trip_id):
 def delete_holding_charge_api(request, charge_id):
     """Delete a holding charge record"""
     try:
-        from .models import HoldingCharge
-        
         # Get the holding charge
         holding_charge = HoldingCharge.objects.select_related('load', 'added_by').get(id=charge_id)
         load = holding_charge.load
