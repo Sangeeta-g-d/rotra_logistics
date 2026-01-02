@@ -576,7 +576,7 @@ class VendorLRUploadView(APIView):
         if load.trip_status != 'loaded':
             return Response({
                 "success": False,
-                "message": f"LR can only be uploaded when trip status is 'Loaded'. Current status: {load.trip_status}"
+                "message": f"LR can only be uploaded when trip status is 'Reach Loading Point'. Current status: {load.trip_status}"
             }, status=400)
 
         # Check if file is provided

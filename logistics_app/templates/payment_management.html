@@ -1603,8 +1603,8 @@ function getStatusInfo(status, data) {
     },
     loaded: {
       icon: 'fa-box',
-      title: 'Loaded',
-      description: 'Cargo loaded successfully',
+      title: 'Reach Loading Point',
+      description: 'Cargo reached loading point',
       timestamp: formatTimestamp(data.loaded_at),
       hasFile: false
     },
@@ -1633,8 +1633,8 @@ function getStatusInfo(status, data) {
     },
     unloading: {
       icon: 'fa-box-open',
-      title: 'Unloading',
-      description: 'Cargo being unloaded at destination',
+      title: 'Reach Unloading Point',
+      description: 'Cargo reached unloading point at destination',
       timestamp: formatTimestamp(data.unloading_at),
       hasFile: false
     },

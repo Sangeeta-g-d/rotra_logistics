@@ -686,10 +686,10 @@
       <select id="statusFilter" class="search-input" style="width:180px;">
         <option value="all" selected>All Statuses</option>
         <option value="pending">Pending</option>
-        <option value="loaded">Loaded</option>
+        <option value="loaded">Reach Loading Point</option>
         <option value="lr_uploaded">LR Uploaded</option>
         <option value="in_transit">In Transit</option>
-        <option value="unloading">Unloading</option>
+        <option value="unloading">Reach Unloading Point</option>
         <option value="pod_uploaded">POD Uploaded</option>
         <option value="payment_completed">Payment Completed</option>
       </select>
@@ -869,10 +869,10 @@
             <option value="">Select Status...</option>
             <option value="pending">Pending</option>
             <option value="confirmed">Confirmed</option>
-            <option value="loaded">Loaded</option>
+            <option value="loaded">Reach Loading Point</option>
             <option value="lr_uploaded">LR Uploaded</option>
             <option value="in_transit">In Transit</option>
-            <option value="unloading">Unloading</option>
+            <option value="unloading">Reach Unloading Point</option>
             <option value="pod_uploaded">POD Uploaded</option>
             <option value="payment_completed">Payment Completed</option>
             <option value="hold">Hold</option>
@@ -1698,8 +1698,8 @@ function getStatusInfo(status, data) {
     },
     loaded: {
       icon: 'fa-box',
-      title: 'Loaded',
-      description: 'Cargo loaded successfully',
+      title: 'Reach Loading Point',
+      description: 'Cargo reached loading point',
       timestamp: formatTimestamp(data.loaded_at),
       hasFile: false
     },
@@ -1721,8 +1721,8 @@ function getStatusInfo(status, data) {
     },
     unloading: {
       icon: 'fa-box-open',
-      title: 'Unloading',
-      description: 'Cargo being unloaded at destination',
+      title: 'Reach Unloading Point',
+      description: 'Cargo reached unloading point at destination',
       timestamp: formatTimestamp(data.unloading_at),
       hasFile: false
     },
@@ -1793,10 +1793,10 @@ function updateTripStatus() {
   // Status display names
   const statusNames = {
     'pending': 'Pending',
-    'loaded': 'Loaded',
+    'loaded': 'Reach Loading Point',
     'lr_uploaded': 'LR Uploaded',
     'in_transit': 'In Transit',
-    'unloading': 'Unloading',
+    'unloading': 'Reach Unloading Point',
     'pod_uploaded': 'POD Uploaded',
     'payment_completed': 'Payment Completed',
     'hold': 'Hold'

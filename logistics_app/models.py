@@ -295,10 +295,10 @@ class Load(models.Model):
     TRIP_STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('confirmed', 'Confirmed'),
-        ('loaded', 'Loaded'),
+        ('loaded', 'Reach Loading Point'),
         ('lr_uploaded', 'LR Uploaded'),
         ('in_transit', 'In Transit'),
-        ('unloading', 'Unloading'),
+        ('unloading', 'Reach Unloading Point'),
         ('pod_uploaded', 'POD Uploaded'),
         ('payment_completed', 'Payment Completed'),
         ('hold', 'Hold'),

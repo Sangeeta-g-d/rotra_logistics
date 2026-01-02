@@ -1907,7 +1907,7 @@ def upload_lr_document_api(request, trip_id):
         if load.trip_status != 'loaded':
             return JsonResponse({
                 'success': False, 
-                'error': 'LR can only be uploaded when trip status is "Loaded"'
+                'error': 'LR can only be uploaded when trip status is "Reach Loading Point"'
             }, status=400)
         
         if 'lr_document' not in request.FILES:
@@ -2101,10 +2101,10 @@ def update_trip_status_api(request, trip_id):
         # Determine the message to show
         status_messages = {
             'pending': 'Trip status updated to Pending',
-            'loaded': 'Trip status updated to Loaded',
+            'loaded': 'Trip status updated to Reach Loading Point',
             'lr_uploaded': 'LR Uploaded status updated successfully',
             'in_transit': 'Trip status updated to In Transit',
-            'unloading': 'Unloading completed successfully! Ready for POD upload.',
+            'unloading': 'Reached unloading point! Ready for POD upload.',
             'pod_uploaded': 'POD uploaded successfully! Ready for final payment.',
             'payment_completed': 'Payment completed successfully! Trip is now complete.',
             'hold': 'Trip has been put on hold.',
