@@ -1816,7 +1816,7 @@ def get_trip_details_api(request, trip_id):
             'drop_location': load.drop_location,
             'pickup_date': load.pickup_date.strftime('%b %d, %Y'),
             'drop_date': load.drop_date.strftime('%b %d, %Y') if load.drop_date else 'TBD',
-            'time': load.time.strftime('%I:%M %p'),
+            'time': load.time.strftime('%I:%M %p') if load.time else 'Not specified',
 
             'vehicle_no': load.vehicle.reg_no if load.vehicle else 'Not Assigned',
             'vehicle_type': load.vehicle_type.name,
@@ -1833,6 +1833,8 @@ def get_trip_details_api(request, trip_id):
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
 
             'final_payment': float(load.final_payment),
+            'first_half_payment': float(load.first_half_payment or Decimal('0')),
+            'second_half_payment': float(load.second_half_payment or Decimal('0')),
             'holding_charges': float(load.holding_charges or Decimal('0')),
             'total_amount': float(load.final_payment) + float(load.holding_charges or Decimal('0')),
             'final_payment_paid': final_payment_paid,
@@ -1865,13 +1867,14 @@ def get_trip_details_api(request, trip_id):
             
             # All timestamps in ISO format for JavaScript parsing
             'pending_at': load.created_at.isoformat() if load.created_at else None,
-            'loaded_at': load.loaded_at.isoformat() if hasattr(load, 'loaded_at') and load.loaded_at else None,
+            'assigned_at': load.assigned_at.isoformat() if load.assigned_at else None,
+            'loaded_at': load.loaded_at.isoformat() if load.loaded_at else None,
             'lr_uploaded_at': load.lr_uploaded_at.isoformat() if load.lr_uploaded_at else None,
-            'in_transit_at': load.in_transit_at.isoformat() if hasattr(load, 'in_transit_at') and load.in_transit_at else None,
-            'unloading_at': load.unloading_at.isoformat() if hasattr(load, 'unloading_at') and load.unloading_at else None,
+            'in_transit_at': load.in_transit_at.isoformat() if load.in_transit_at else None,
+            'unloading_at': load.unloading_at.isoformat() if load.unloading_at else None,
             'pod_uploaded_at': load.pod_uploaded_at.isoformat() if load.pod_uploaded_at else None,
-            'payment_completed_at': load.payment_completed_at.isoformat() if hasattr(load, 'payment_completed_at') and load.payment_completed_at else None,
-            'hold_at': load.hold_at.isoformat() if hasattr(load, 'hold_at') and load.hold_at else None,
+            'payment_completed_at': load.payment_completed_at.isoformat() if load.payment_completed_at else None,
+            'hold_at': load.hold_at.isoformat() if load.hold_at else None,
             'hold_reason': load.hold_reason or '',
         }
 
