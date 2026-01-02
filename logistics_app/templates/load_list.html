@@ -653,12 +653,12 @@
           <div class="form-group">
             <label>First Half Payment (90%)</label>
             <input type="number" id="firstHalfPaymentInput" name="first_half_payment" step="0.01" min="0" value="0.00" placeholder="Enter or auto-calculated" style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
-            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">You can modify this amount</small>
+            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Edit this amount - second half will auto-adjust to match total</small>
           </div>
           <div class="form-group">
             <label>Second Half Payment (10%)</label>
             <input type="number" id="secondHalfPaymentInput" name="second_half_payment" step="0.01" min="0" value="0.00" placeholder="Enter or auto-calculated" style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
-            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">You can modify this amount</small>
+            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Edit this amount - first half will auto-adjust to match total</small>
           </div>
         </div>
       </div>
@@ -930,15 +930,34 @@ document.addEventListener('DOMContentLoaded', function () {
         calculatePaymentSplit(); // Initial calculation
       }
       
-      // Track manual modifications to payment fields
+      // Track manual modifications to payment fields with auto-adjustment
       if (firstHalfInput) {
         firstHalfInput.addEventListener('input', function () {
           this.dataset.modified = 'true';
+          // Auto-adjust second half payment
+          const finalPayment = parseFloat(document.getElementById('hiddenFinalPayment').value) || 0;
+          const firstHalf = parseFloat(this.value) || 0;
+          const secondHalf = finalPayment - firstHalf;
+          
+          if (secondHalfInput) {
+            secondHalfInput.dataset.modified = 'true';
+            secondHalfInput.value = Math.max(0, secondHalf).toFixed(2);
+          }
         });
       }
+      
       if (secondHalfInput) {
         secondHalfInput.addEventListener('input', function () {
           this.dataset.modified = 'true';
+          // Auto-adjust first half payment
+          const finalPayment = parseFloat(document.getElementById('hiddenFinalPayment').value) || 0;
+          const secondHalf = parseFloat(this.value) || 0;
+          const firstHalf = finalPayment - secondHalf;
+          
+          if (firstHalfInput) {
+            firstHalfInput.dataset.modified = 'true';
+            firstHalfInput.value = Math.max(0, firstHalf).toFixed(2);
+          }
         });
       }
     }, 100);
