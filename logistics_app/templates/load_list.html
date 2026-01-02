@@ -1273,6 +1273,7 @@ document.getElementById('finalConfirmBtn')?.addEventListener('click', function (
   document.getElementById('addLoadForm')?.addEventListener('submit', function (e) {
     e.preventDefault();
     const formData = new FormData(this);
+    console.log('Form data:', Object.fromEntries(formData));
     const btn = this.querySelector('.save-btn');
     const oldText = btn.innerHTML;
     btn.innerHTML = 'Saving...'; 
