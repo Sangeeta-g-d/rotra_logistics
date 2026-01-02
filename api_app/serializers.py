@@ -177,6 +177,7 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "commission",
             "notes",
             "request_status",   # 👈 added here
+            "created_at",
         ]
 
     # 👇 This method fetches vendor's request status
