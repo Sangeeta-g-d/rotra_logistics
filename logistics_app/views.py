@@ -760,8 +760,8 @@ def accept_load_request(request, load_id, request_id):
             load.assigned_at = timezone.now()
             load.status = 'assigned'
             
-            # Update trip status to "loaded" (first status after assignment)
-            load.update_trip_status('pending', user=request.user, send_notification=True)
+            # Update trip status to "confirmed" (vendor has accepted and assigned)
+            load.update_trip_status('confirmed', user=request.user, send_notification=True)
             
             # ✅ SEND FIREBASE + DB NOTIFICATION TO VENDOR
             notification, success = send_trip_assigned_notification(
