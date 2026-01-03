@@ -289,7 +289,7 @@ class SendVendorRequestView(APIView):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_all_vehicles(request):
-    vehicles = Vehicle.objects.all().order_by("-created_at")
+    vehicles = Vehicle.objects.filter(owner=request.user).order_by("-created_at")
     serializer = VehicleSerializer(vehicles, many=True)
 
     return Response({
