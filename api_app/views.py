@@ -758,6 +758,28 @@ class VendorPODUploadView(APIView):
                 # Store exactly what user provided
                 load.tracking_details = tracking_details
 
+            # Handle tracking details image if provided
+            if 'tracking_details_image' in request.FILES:
+                tracking_image = request.FILES['tracking_details_image']
+                
+                # Validate image file type
+                allowed_image_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+                if tracking_image.content_type not in allowed_image_types:
+                    return Response({
+                        "success": False,
+                        "message": "Tracking image must be JPG, PNG, GIF, or WebP format"
+                    }, status=400)
+                
+                # Validate image file size (max 5MB)
+                if tracking_image.size > 5 * 1024 * 1024:
+                    return Response({
+                        "success": False,
+                        "message": "Tracking image size must be less than 5MB"
+                    }, status=400)
+                
+                # Attach image to load
+                load.tracking_details_image = tracking_image
+
             # Update trip status to pod_uploaded
             load.update_trip_status(
                 new_status="pod_uploaded",
@@ -775,6 +797,7 @@ class VendorPODUploadView(APIView):
                     "pod_uploaded_at": load.pod_uploaded_at.isoformat() if load.pod_uploaded_at else None,
                     "trip_status": load.trip_status,
                     "tracking_details": load.tracking_details,
+                    "tracking_details_image": load.tracking_details_image.url if load.tracking_details_image else None,
                     "uploaded_by": vendor.full_name,
                     "load_request_status": load_request.status if load_request else "direct_assignment"
                 }

@@ -367,6 +367,14 @@ class Load(models.Model):
         help_text="Tracking details added by vendor during POD upload or later"
     )
 
+    # TRACKING DETAILS IMAGE
+    tracking_details_image = models.ImageField(
+        upload_to='pod_documents/tracking_images/',
+        null=True,
+        blank=True,
+        help_text="Image evidence of tracking details"
+    )
+
     # LR DOCUMENTS
     lr_document = models.FileField(upload_to='lr_documents/', null=True, blank=True)
     lr_number = models.CharField(max_length=100, blank=True, null=True)
