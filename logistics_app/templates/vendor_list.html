@@ -324,6 +324,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // === SIDEBAR OPEN / CLOSE ===
   function openSidebar(row) {
+    // Safety check: ensure row exists and is in the DOM
+    if (!row || !document.body.contains(row)) {
+      console.warn('⚠️ Row element is invalid or not in DOM');
+      return;
+    }
+
     const data = JSON.parse(row.dataset.vendor);
     currentVendorId = data.id;
 
@@ -353,13 +359,20 @@ document.addEventListener('DOMContentLoaded', function () {
     sidebar.style.transform = 'translateX(0)';
     overlay.classList.add('show');
     document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
-    row.style.backgroundColor = '#f0f9ff';
+    if (document.body.contains(row)) {
+      row.style.backgroundColor = '#f0f9ff';
+    }
   }
 
   function closeSidebar() {
     sidebar.style.transform = 'translateX(100%)';
     overlay.classList.remove('show');
-    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
+    // Clear background colors from all visible rows
+    document.querySelectorAll('.clickable-row').forEach(r => {
+      if (document.body.contains(r)) {
+        r.style.backgroundColor = '';
+      }
+    });
     currentVendorId = null;
   }
 
