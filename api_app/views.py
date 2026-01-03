@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.db.models import Q
 from logistics_app.models import PhoneOTP
 from .utils import generate_otp,send_otp_fast2sms
+from django.db import transaction
 
 # send OTP
 class SendOTPAPIView(APIView):
@@ -112,7 +113,12 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
+            # Ensure user creation and optional vehicle creation are atomic
+            try:
+                with transaction.atomic():
+                    user = serializer.save()
+            except Exception as e:
+                return Response({'status': False, 'errors': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
             refresh = RefreshToken.for_user(user)
 
@@ -122,7 +128,6 @@ class RegisterView(APIView):
                 'email': user.email,
                 'phone_number': user.phone_number,
                 'pan_number': user.pan_number,
-                'vehicle_number': user.vehicle_number,
                 'address': user.address,
                 'role': user.role,
                 'access': str(refresh.access_token),

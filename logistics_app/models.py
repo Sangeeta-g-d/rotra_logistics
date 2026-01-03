@@ -81,14 +81,6 @@ class CustomUser(AbstractUser):
     address = models.TextField(max_length=255, blank=True, null=True)
     phone_number = models.CharField(max_length=15, unique=True)
     pan_number = models.CharField(max_length=10, unique=True, blank=True, null=True)
-    vehicle_number = models.CharField(
-        max_length=20,
-        unique=True,
-        blank=True,
-        null=True,
-        verbose_name='Vehicle Registration Number',
-        help_text='Vehicle registration number for the vendor'
-    )
     fcm_token = models.TextField(blank=True, null=True, verbose_name='FCM Token')
     
     # TDS Declaration

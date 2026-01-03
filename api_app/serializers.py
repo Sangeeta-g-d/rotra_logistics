@@ -14,18 +14,25 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     confirm_password = serializers.CharField(write_only=True, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
+    # Vehicle fields for optional vehicle creation during registration
+    reg_no = serializers.CharField(required=False, allow_blank=True)
+    type = serializers.CharField(required=False, allow_blank=True)
+    load_capacity = serializers.DecimalField(required=False, max_digits=5, decimal_places=2)
+    insurance_doc = serializers.FileField(required=False, allow_null=True)
+    rc_doc = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = CustomUser
         fields = [
             'full_name', 'email', 'phone_number', 'password', 'confirm_password',
-            'pan_number', 'vehicle_number', 'address', 'tds_declaration', 'role'
+            'pan_number', 'address', 'tds_declaration', 'role',
+            # vehicle fields
+            'reg_no', 'type', 'load_capacity', 'insurance_doc', 'rc_doc',
         ]
         extra_kwargs = {
             'role': {'required': False, 'default': 'vendor'},
             'email': {'required': False},
             'pan_number': {'required': False},
-            'vehicle_number': {'required': False},
             'address': {'required': False},
             'tds_declaration': {'required': False},
             'full_name': {'required': True},
@@ -38,7 +45,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         full_name = attrs.get('full_name')
         email = attrs.get('email')
         pan_number = attrs.get('pan_number')
-        vehicle_number = attrs.get('vehicle_number')
+        reg_no = attrs.get('reg_no')
 
         # Validate password and confirm password
         if confirm_password and password != confirm_password:
@@ -71,12 +78,12 @@ class RegisterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"pan_number": "PAN number must be 10 characters long."})
             if CustomUser.objects.filter(pan_number=pan_number).exists():
                 raise serializers.ValidationError({"pan_number": "PAN number already exists."})
-        
-        # Check if vehicle number already exists (if provided)
-        if vehicle_number and vehicle_number.strip():
-            if CustomUser.objects.filter(vehicle_number=vehicle_number).exists():
-                raise serializers.ValidationError({"vehicle_number": "Vehicle number already exists."})
-        
+
+        # Validate vehicle reg_no uniqueness if provided
+        if reg_no and reg_no.strip():
+            from logistics_app.models import Vehicle
+            if Vehicle.objects.filter(reg_no__iexact=reg_no.strip()).exists():
+                raise serializers.ValidationError({"reg_no": "Vehicle with this registration number already exists."})
         return attrs
 
     def create(self, validated_data):
@@ -102,7 +109,31 @@ class RegisterSerializer(serializers.ModelSerializer):
         validated_data['password'] = make_password(validated_data['password'])
         validated_data.pop('confirm_password', None)
 
+        # Extract vehicle fields if present
+        reg_no = validated_data.pop('reg_no', None)
+        vehicle_type = validated_data.pop('type', None)
+        load_capacity = validated_data.pop('load_capacity', None)
+        insurance_doc = validated_data.pop('insurance_doc', None)
+        rc_doc = validated_data.pop('rc_doc', None)
+
         user = CustomUser.objects.create(**validated_data)
+
+        # If vehicle registration provided, create Vehicle instance
+        if reg_no and reg_no.strip():
+            from logistics_app.models import Vehicle
+            vehicle = Vehicle.objects.create(
+                reg_no=reg_no.strip(),
+                owner=user,
+                type=(vehicle_type or ''),
+                load_capacity=load_capacity or None,
+            )
+            # Attach files if provided
+            if insurance_doc:
+                vehicle.insurance_doc = insurance_doc
+            if rc_doc:
+                vehicle.rc_doc = rc_doc
+            vehicle.save()
+
         return user
 
 class PhoneNumberTokenObtainPairSerializer(serializers.Serializer):
