@@ -19,12 +19,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = [
             'full_name', 'email', 'phone_number', 'password', 'confirm_password',
-            'pan_number', 'address', 'tds_declaration', 'role'
+            'pan_number', 'vehicle_number', 'address', 'tds_declaration', 'role'
         ]
         extra_kwargs = {
             'role': {'required': False, 'default': 'vendor'},
             'email': {'required': False},
             'pan_number': {'required': False},
+            'vehicle_number': {'required': False},
             'address': {'required': False},
             'tds_declaration': {'required': False},
             'full_name': {'required': True},
@@ -37,6 +38,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         full_name = attrs.get('full_name')
         email = attrs.get('email')
         pan_number = attrs.get('pan_number')
+        vehicle_number = attrs.get('vehicle_number')
 
         # Validate password and confirm password
         if confirm_password and password != confirm_password:
@@ -69,6 +71,11 @@ class RegisterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"pan_number": "PAN number must be 10 characters long."})
             if CustomUser.objects.filter(pan_number=pan_number).exists():
                 raise serializers.ValidationError({"pan_number": "PAN number already exists."})
+        
+        # Check if vehicle number already exists (if provided)
+        if vehicle_number and vehicle_number.strip():
+            if CustomUser.objects.filter(vehicle_number=vehicle_number).exists():
+                raise serializers.ValidationError({"vehicle_number": "Vehicle number already exists."})
         
         return attrs
 

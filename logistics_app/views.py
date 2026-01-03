@@ -1268,6 +1268,7 @@ def add_vendor(request):
         # Optional fields
         address = request.POST.get('address', '').strip() or None
         pan_number = request.POST.get('pan_number', '').strip() or None
+        vehicle_number = request.POST.get('vehicle_number', '').strip() or None
         tds_file = request.FILES.get('tds_declaration')
         profile_image = request.FILES.get('profile_image')
 
@@ -1286,6 +1287,15 @@ def add_vendor(request):
                     'error': f'PAN number {pan_number} is already registered.'
                 }, status=400)
 
+        # Validate vehicle number if provided
+        if vehicle_number:
+            # Check duplicate vehicle number
+            if CustomUser.objects.filter(vehicle_number=vehicle_number).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Vehicle number {vehicle_number} is already registered.'
+                }, status=400)
+
         # Create vendor
         with transaction.atomic():
             vendor = CustomUser(
@@ -1295,6 +1305,7 @@ def add_vendor(request):
                 email=email.lower(),
                 address=address,
                 pan_number=pan_number,
+                vehicle_number=vehicle_number,
                 role='vendor',
                 created_by=request.user,
                 is_active=True,
@@ -1322,6 +1333,7 @@ def add_vendor(request):
                 'phone_number': vendor.phone_number,
                 'address': vendor.address or '-',
                 'pan_number': vendor.pan_number or '-',
+                'vehicle_number': vendor.vehicle_number or '-',
                 'tds_declaration': vendor.tds_declaration.url if vendor.tds_declaration else '',
                 'profile_image': vendor.profile_image.url if vendor.profile_image else '',
                 'date_joined': vendor.date_joined.strftime('%b %d, %Y'),
@@ -3622,6 +3634,18 @@ def update_vendor(request, vendor_id):
                 }, status=400)
         
         vendor.pan_number = pan_number
+        
+        # Validate and update vehicle number if provided
+        vehicle_number = request.POST.get('vehicle_number', '').strip() or None
+        if vehicle_number:
+            # Check duplicate vehicle number (excluding current vendor)
+            if CustomUser.objects.filter(vehicle_number=vehicle_number).exclude(id=vendor_id).exists():
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Another vendor with this vehicle number already exists'
+                }, status=400)
+        
+        vendor.vehicle_number = vehicle_number
         vendor.address = request.POST.get('address', '').strip() or None
         
         # Handle password change if provided
@@ -3658,6 +3682,7 @@ def update_vendor(request, vendor_id):
                 'email': vendor.email,
                 'phone_number': vendor.phone_number,
                 'pan_number': vendor.pan_number or '',
+                'vehicle_number': vendor.vehicle_number or '',
                 'address': vendor.address or '',
             }
         })

@@ -122,6 +122,7 @@ class RegisterView(APIView):
                 'email': user.email,
                 'phone_number': user.phone_number,
                 'pan_number': user.pan_number,
+                'vehicle_number': user.vehicle_number,
                 'address': user.address,
                 'role': user.role,
                 'access': str(refresh.access_token),
