@@ -365,6 +365,12 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     
     # Add holding charges field
     holding_charges = serializers.SerializerMethodField()
+    
+    # Payment breakdown fields
+    first_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    second_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    total_holding_charges = serializers.SerializerMethodField()
+    total_trip_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Load
@@ -378,6 +384,12 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "time",
             "weight",
             "price_per_unit",
+            
+            # Payment breakdown
+            "first_half_payment",
+            "second_half_payment",
+            "total_holding_charges",
+            "total_trip_amount",
 
             "trip_status",
             "status",
@@ -448,6 +460,14 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
         holding_charges = obj.holding_charge_entries.all().order_by('-created_at')
         serializer = HoldingChargeSerializer(holding_charges, many=True)
         return serializer.data
+    
+    def get_total_holding_charges(self, obj):
+        """Calculate and return total holding charges"""
+        return obj.get_total_holding_charges()
+    
+    def get_total_trip_amount(self, obj):
+        """Calculate and return total trip amount (freight + holding charges)"""
+        return obj.total_trip_amount
     
 
 class LRUploadSerializer(serializers.ModelSerializer):
