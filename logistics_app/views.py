@@ -1215,7 +1215,6 @@ def vendor_list(request):
 
     vendors = CustomUser.objects.filter(
         role='vendor',
-        created_by=request.user
     ).order_by('-date_joined')
 
     return render(request, 'vendor_list.html', {'vendors': vendors})
