@@ -5,7 +5,7 @@ from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 import uuid
-from logistics_app.models import VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment
+from logistics_app.models import VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment, HoldingCharge
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import password_validation
 
@@ -234,6 +234,17 @@ class TripCommentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['sender', 'sender_type', 'created_at', 'is_read']
 
+class HoldingChargeSerializer(serializers.ModelSerializer):
+    added_by_name = serializers.CharField(source='added_by.full_name', read_only=True)
+
+    class Meta:
+        model = HoldingCharge
+        fields = [
+            'id', 'amount', 'trip_stage', 'reason', 
+            'added_by_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
 class VendorAcceptedLoadDetailsSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     creator_phone = serializers.SerializerMethodField()
@@ -289,6 +300,9 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     
     # Add this field to get last 2 comments
     recent_comments = serializers.SerializerMethodField()
+    
+    # Add holding charges field
+    holding_charges = serializers.SerializerMethodField()
 
     class Meta:
         model = Load
@@ -326,6 +340,9 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
 
             # recent comments (last 2)
             "recent_comments",
+            
+            # holding charges
+            "holding_charges",
 
             "created_at",
         ]
@@ -362,6 +379,12 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
         
         # Serialize the comments
         serializer = TripCommentSerializer(recent_comments, many=True)
+        return serializer.data
+    
+    def get_holding_charges(self, obj):
+        """Get all holding charges for this load as a list"""
+        holding_charges = obj.holding_charge_entries.all().order_by('-created_at')
+        serializer = HoldingChargeSerializer(holding_charges, many=True)
         return serializer.data
     
 
