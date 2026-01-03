@@ -121,10 +121,13 @@ class RegisterView(APIView):
                 'full_name': user.full_name,
                 'email': user.email,
                 'phone_number': user.phone_number,
+                'pan_number': user.pan_number,
+                'address': user.address,
                 'role': user.role,
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
-                'tds_declaration': request.build_absolute_uri(user.tds_declaration.url) if user.tds_declaration else None
+                'tds_declaration': request.build_absolute_uri(user.tds_declaration.url) if user.tds_declaration else None,
+                'profile_image': request.build_absolute_uri(user.profile_image.url) if user.profile_image else None
             }
 
             return Response({

@@ -13,19 +13,21 @@ from django.contrib.auth import password_validation
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     confirm_password = serializers.CharField(write_only=True, required=False)
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     class Meta:
         model = CustomUser
         fields = [
-            'full_name', 'phone_number', 'password', 'confirm_password',
+            'full_name', 'email', 'phone_number', 'password', 'confirm_password',
             'pan_number', 'address', 'tds_declaration', 'role'
         ]
         extra_kwargs = {
             'role': {'required': False, 'default': 'vendor'},
+            'email': {'required': False},
             'pan_number': {'required': False},
             'address': {'required': False},
             'tds_declaration': {'required': False},
-            'full_name': {'required': True},  # Make it required in serializer
+            'full_name': {'required': True},
         }
 
     def validate(self, attrs):
@@ -33,32 +35,54 @@ class RegisterSerializer(serializers.ModelSerializer):
         confirm_password = attrs.get('confirm_password')
         phone_number = attrs.get('phone_number')
         full_name = attrs.get('full_name')
+        email = attrs.get('email')
+        pan_number = attrs.get('pan_number')
 
+        # Validate password and confirm password
         if confirm_password and password != confirm_password:
-            raise serializers.ValidationError("Passwords do not match.")
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
         
+        # Validate required fields
         if not phone_number:
-            raise serializers.ValidationError("Phone number is required.")
+            raise serializers.ValidationError({"phone_number": "Phone number is required."})
         
         if not full_name:
-            raise serializers.ValidationError("Full name is required.")
+            raise serializers.ValidationError({"full_name": "Full name is required."})
+        
+        # Validate password length
+        if not password or len(password) < 6:
+            raise serializers.ValidationError({"password": "Password must be at least 6 characters long."})
         
         # Check if phone number already exists
         if CustomUser.objects.filter(phone_number=phone_number).exists():
             raise serializers.ValidationError({"phone_number": "Phone number already exists."})
         
+        # Check if email already exists (if provided)
+        if email and email.strip():
+            if CustomUser.objects.filter(email=email).exists():
+                raise serializers.ValidationError({"email": "Email already exists."})
+        
         # Check if PAN number already exists (if provided)
-        pan_number = attrs.get('pan_number')
-        if pan_number and CustomUser.objects.filter(pan_number=pan_number).exists():
-            raise serializers.ValidationError({"pan_number": "PAN number already exists."})
+        if pan_number and pan_number.strip():
+            # Validate PAN number format (10 alphanumeric characters)
+            if len(pan_number) != 10:
+                raise serializers.ValidationError({"pan_number": "PAN number must be 10 characters long."})
+            if CustomUser.objects.filter(pan_number=pan_number).exists():
+                raise serializers.ValidationError({"pan_number": "PAN number already exists."})
         
         return attrs
 
     def create(self, validated_data):
-        # Generate unique email using phone number + UUID to ensure uniqueness
-        phone_last_6 = validated_data['phone_number'][-6:]
-        unique_id = uuid.uuid4().hex[:4]
-        validated_data['email'] = f"user_{phone_last_6}_{unique_id}@roadfleet.com"
+        email = validated_data.get('email')
+        
+        # If email is provided and valid, use it; otherwise generate one
+        if email and email.strip():
+            validated_data['email'] = email.lower()
+        else:
+            # Generate unique email using phone number + UUID to ensure uniqueness
+            phone_last_6 = validated_data['phone_number'][-6:]
+            unique_id = uuid.uuid4().hex[:4]
+            validated_data['email'] = f"user_{phone_last_6}_{unique_id}@roadfleet.com"
         
         # Set username to None since we're not using it
         validated_data['username'] = None

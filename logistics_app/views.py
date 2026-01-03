@@ -1228,6 +1228,7 @@ def add_vendor(request):
         # Extract fields
         full_name = request.POST.get('full_name', '').strip()
         phone = request.POST.get('phone', '').strip()
+        email = request.POST.get('email', '').strip()
         password = request.POST.get('password', '').strip()
 
         # Validation
@@ -1237,8 +1238,18 @@ def add_vendor(request):
         if not phone:
             return JsonResponse({'success': False, 'error': 'Phone number is required.'}, status=400)
 
+        if not email:
+            return JsonResponse({'success': False, 'error': 'Email is required.'}, status=400)
+
         if not password:
             return JsonResponse({'success': False, 'error': 'Password is required.'}, status=400)
+
+        if len(password) < 6:
+            return JsonResponse({'success': False, 'error': 'Password must be at least 6 characters long.'}, status=400)
+
+        # Validate phone number format (10 digits)
+        if not phone.isdigit() or len(phone) != 10:
+            return JsonResponse({'success': False, 'error': 'Phone number must be 10 digits.'}, status=400)
 
         # Check duplicate phone
         if CustomUser.objects.filter(phone_number=phone).exists():
@@ -1247,20 +1258,33 @@ def add_vendor(request):
                 'error': f'A vendor with phone number {phone} already exists.'
             }, status=400)
 
+        # Check duplicate email
+        if CustomUser.objects.filter(email=email).exists():
+            return JsonResponse({
+                'success': False,
+                'error': f'Email {email} is already registered.'
+            }, status=400)
+
         # Optional fields
         address = request.POST.get('address', '').strip() or None
         pan_number = request.POST.get('pan_number', '').strip() or None
         tds_file = request.FILES.get('tds_declaration')
-        profile_image = request.FILES.get('profile_image')  # Add this
+        profile_image = request.FILES.get('profile_image')
 
-        # Auto-generate email
-        email = f"{phone}@vendor.local"
-
-        if CustomUser.objects.filter(email=email).exists():
-            return JsonResponse({
-                'success': False,
-                'error': 'This phone number is already registered.'
-            }, status=400)
+        # Validate PAN number if provided
+        if pan_number:
+            if len(pan_number) != 10:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'PAN number must be 10 characters long.'
+                }, status=400)
+            
+            # Check duplicate PAN
+            if CustomUser.objects.filter(pan_number=pan_number).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': f'PAN number {pan_number} is already registered.'
+                }, status=400)
 
         # Create vendor
         with transaction.atomic():
@@ -1268,7 +1292,7 @@ def add_vendor(request):
                 username=None,
                 full_name=full_name,
                 phone_number=phone,
-                email=email,
+                email=email.lower(),
                 address=address,
                 pan_number=pan_number,
                 role='vendor',
@@ -1283,7 +1307,7 @@ def add_vendor(request):
             if tds_file:
                 vendor.tds_declaration = tds_file
             
-            if profile_image:  # Add this
+            if profile_image:
                 vendor.profile_image = profile_image
 
             vendor.save()
@@ -1294,11 +1318,12 @@ def add_vendor(request):
             'vendor': {
                 'id': vendor.id,
                 'full_name': vendor.full_name,
+                'email': vendor.email,
                 'phone_number': vendor.phone_number,
                 'address': vendor.address or '-',
                 'pan_number': vendor.pan_number or '-',
                 'tds_declaration': vendor.tds_declaration.url if vendor.tds_declaration else '',
-                'profile_image': vendor.profile_image.url if vendor.profile_image else '',  # Add this
+                'profile_image': vendor.profile_image.url if vendor.profile_image else '',
                 'date_joined': vendor.date_joined.strftime('%b %d, %Y'),
             }
         })
@@ -3537,6 +3562,7 @@ def update_vendor(request, vendor_id):
         # Validate required fields
         full_name = request.POST.get('full_name', '').strip()
         phone = request.POST.get('phone', '').strip()
+        email = request.POST.get('email', '').strip()
         
         if not full_name:
             return JsonResponse({
@@ -3549,23 +3575,60 @@ def update_vendor(request, vendor_id):
                 'success': False, 
                 'error': 'Phone number is required'
             }, status=400)
+
+        if not email:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Email is required'
+            }, status=400)
         
+        # Validate phone number format (10 digits)
+        if not phone.isdigit() or len(phone) != 10:
+            return JsonResponse({'success': False, 'error': 'Phone number must be 10 digits.'}, status=400)
+
         # Check if phone number already exists (excluding current vendor)
         if CustomUser.objects.filter(phone_number=phone).exclude(id=vendor_id).exists():
             return JsonResponse({
                 'success': False, 
                 'error': 'Another vendor with this phone number already exists'
             }, status=400)
+
+        # Check if email already exists (excluding current vendor)
+        if CustomUser.objects.filter(email=email.lower()).exclude(id=vendor_id).exists():
+            return JsonResponse({
+                'success': False, 
+                'error': 'Another vendor with this email already exists'
+            }, status=400)
         
         # Update basic fields
         vendor.full_name = full_name
         vendor.phone_number = phone
-        vendor.pan_number = request.POST.get('pan_number', '').strip() or None
+        vendor.email = email.lower()
+        
+        # Validate and update PAN number if provided
+        pan_number = request.POST.get('pan_number', '').strip() or None
+        if pan_number:
+            if len(pan_number) != 10:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'PAN number must be 10 characters long.'
+                }, status=400)
+            
+            # Check duplicate PAN (excluding current vendor)
+            if CustomUser.objects.filter(pan_number=pan_number).exclude(id=vendor_id).exists():
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Another vendor with this PAN number already exists'
+                }, status=400)
+        
+        vendor.pan_number = pan_number
         vendor.address = request.POST.get('address', '').strip() or None
         
         # Handle password change if provided
         new_password = request.POST.get('password', '').strip()
         if new_password:
+            if len(new_password) < 6:
+                return JsonResponse({'success': False, 'error': 'Password must be at least 6 characters long.'}, status=400)
             vendor.set_password(new_password)
         
         # Handle profile photo upload
@@ -3592,6 +3655,7 @@ def update_vendor(request, vendor_id):
             'vendor': {
                 'id': vendor.id,
                 'full_name': vendor.full_name,
+                'email': vendor.email,
                 'phone_number': vendor.phone_number,
                 'pan_number': vendor.pan_number or '',
                 'address': vendor.address or '',
