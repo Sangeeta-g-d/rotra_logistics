@@ -280,6 +280,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // === ELEMENTS ===
   const table = document.getElementById('vendorTable');
+  if (!table) {
+    console.error('❌ vendorTable not found');
+    throw new Error('Critical: vendorTable element missing');
+  }
+
   const tbody = table.querySelector('tbody');
   const sidebar = document.getElementById('profileSidebar');
   const overlay = document.getElementById('sidebarOverlay');
@@ -330,37 +335,66 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    const data = JSON.parse(row.dataset.vendor);
-    currentVendorId = data.id;
+    try {
+      const data = JSON.parse(row.dataset.vendor);
+      currentVendorId = data.id;
 
-    document.getElementById('profileName').textContent = data.name;
-    document.getElementById('profileEmail').textContent = `Email: ${data.email}`;
-    document.getElementById('profilePhone').textContent = `Phone: ${data.phone}`;
-    document.getElementById('profilePan').textContent = `PAN: ${data.panNumber}`;
-    document.getElementById('profileJoinDate').textContent = data.joinDate;
-    document.getElementById('profileAddress').textContent = data.address;
+      const profileName = document.getElementById('profileName');
+      const profileEmail = document.getElementById('profileEmail');
+      const profilePhone = document.getElementById('profilePhone');
+      const profilePan = document.getElementById('profilePan');
+      const profileJoinDate = document.getElementById('profileJoinDate');
+      const profileAddress = document.getElementById('profileAddress');
+      const statusEl = document.getElementById('profileStatus');
+      const tdsLink = document.getElementById('tdsLink');
+      const profileTds = document.getElementById('profileTds');
+      const toggleStatusBtn = document.getElementById('toggleStatusBtn');
 
-    const statusEl = document.getElementById('profileStatus');
-    statusEl.textContent = data.status;
-    statusEl.className = 'status-badge ' + (data.status === 'Active' ? 'status-active' : 'status-inactive');
+      // Safety checks before setting properties
+      if (profileName) profileName.textContent = data.name;
+      if (profileEmail) profileEmail.textContent = `Email: ${data.email}`;
+      if (profilePhone) profilePhone.textContent = `Phone: ${data.phone}`;
+      if (profilePan) profilePan.textContent = `PAN: ${data.panNumber}`;
+      if (profileJoinDate) profileJoinDate.textContent = data.joinDate;
+      if (profileAddress) profileAddress.textContent = data.address;
 
-    const tdsLink = document.getElementById('tdsLink');
-    if (data.tdsFile) {
-      tdsLink.href = data.tdsFile;
-      tdsLink.style.display = 'inline';
-    } else {
-      tdsLink.style.display = 'none';
-      document.getElementById('profileTds').textContent = 'No file uploaded';
-    }
+      if (statusEl) {
+        statusEl.textContent = data.status;
+        statusEl.className = 'status-badge ' + (data.status === 'Active' ? 'status-active' : 'status-inactive');
+      }
 
-    document.getElementById('toggleStatusBtn').textContent =
-      data.status === 'Active' ? 'Deactivate Account' : 'Activate Account';
+      if (tdsLink) {
+        if (data.tdsFile) {
+          tdsLink.href = data.tdsFile;
+          tdsLink.style.display = 'inline';
+        } else {
+          tdsLink.style.display = 'none';
+          if (profileTds) profileTds.textContent = 'No file uploaded';
+        }
+      }
 
-    sidebar.style.transform = 'translateX(0)';
-    overlay.classList.add('show');
-    document.querySelectorAll('.clickable-row').forEach(r => r.style.backgroundColor = '');
-    if (document.body.contains(row)) {
-      row.style.backgroundColor = '#f0f9ff';
+      if (toggleStatusBtn) {
+        toggleStatusBtn.textContent = data.status === 'Active' ? 'Deactivate Account' : 'Activate Account';
+      }
+
+      if (sidebar) {
+        sidebar.style.transform = 'translateX(0)';
+      }
+      if (overlay) {
+        overlay.classList.add('show');
+      }
+
+      document.querySelectorAll('.clickable-row').forEach(r => {
+        if (r && document.body.contains(r)) {
+          r.style.backgroundColor = '';
+        }
+      });
+
+      if (document.body.contains(row)) {
+        row.style.backgroundColor = '#f0f9ff';
+      }
+    } catch (e) {
+      console.error('❌ Error in openSidebar:', e);
     }
   }
 
@@ -379,38 +413,51 @@ document.addEventListener('DOMContentLoaded', function () {
   table.addEventListener('click', e => {
     if (e.target.closest('.action-col')) return;
     const row = e.target.closest('.clickable-row');
-    if (row) openSidebar(row);
+    if (row) {
+      try {
+        openSidebar(row);
+      } catch (e) {
+        console.error('❌ Error opening sidebar:', e);
+      }
+    }
   });
 
-  closeBtn.addEventListener('click', closeSidebar);
-  overlay.addEventListener('click', closeSidebar);
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeSidebar);
+  }
+  if (overlay) {
+    overlay.addEventListener('click', closeSidebar);
+  }
 
   // === TOGGLE STATUS ===
-  document.getElementById('toggleStatusBtn').addEventListener('click', function () {
-    if (!currentVendorId) return;
-    if (!confirm('Are you sure you want to change the status of this vendor?')) return;
+  const toggleStatusBtn = document.getElementById('toggleStatusBtn');
+  if (toggleStatusBtn) {
+    toggleStatusBtn.addEventListener('click', function () {
+      if (!currentVendorId) return;
+      if (!confirm('Are you sure you want to change the status of this vendor?')) return;
 
-    fetch(`/vendor/${currentVendorId}/toggle-status/`, {
-      method: 'POST',
-      headers: { 
-        'X-CSRFToken': csrftoken, 
-        'Content-Type': 'application/json' 
-      }
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success) {
-        showToast(data.message, 'success');
-        setTimeout(() => location.reload(), 800);
-      } else {
-        showToast(data.error || 'Failed to update status', 'error');
-      }
-    })
-    .catch(err => {
-      console.error('Toggle status error:', err);
-      showToast('Network error', 'error');
+      fetch(`/vendor/${currentVendorId}/toggle-status/`, {
+        method: 'POST',
+        headers: { 
+          'X-CSRFToken': csrftoken, 
+          'Content-Type': 'application/json' 
+        }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showToast(data.message, 'success');
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showToast(data.error || 'Failed to update status', 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Toggle status error:', err);
+        showToast('Network error', 'error');
+      });
     });
-  });
+  }
 
   // === ACTION BUTTONS (View, Edit, Delete) ===
   function attachActionListeners(row) {
@@ -465,40 +512,45 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // === ADD VENDOR MODAL ===
   const showModal = () => {
-    addModal.style.display = 'flex';
-    addForm.reset();
+    if (addModal) addModal.style.display = 'flex';
+    if (addForm) addForm.reset();
   };
   
   const hideModal = () => {
-    addModal.style.display = 'none';
-    addForm.reset();
+    if (addModal) addModal.style.display = 'none';
+    if (addForm) addForm.reset();
   };
 
-  openAddModalBtn.addEventListener('click', showModal);
-  closeAddModalBtn.addEventListener('click', hideModal);
-  cancelAddModalBtn.addEventListener('click', hideModal);
-  addModal.addEventListener('click', e => { 
-    if (e.target === addModal) hideModal(); 
-  });
+  if (openAddModalBtn) openAddModalBtn.addEventListener('click', showModal);
+  if (closeAddModalBtn) closeAddModalBtn.addEventListener('click', hideModal);
+  if (cancelAddModalBtn) cancelAddModalBtn.addEventListener('click', hideModal);
+  if (addModal) {
+    addModal.addEventListener('click', e => { 
+      if (e.target === addModal) hideModal(); 
+    });
+  }
 
   // === ADD VENDOR SUBMIT ===
-  addForm.addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    console.log('📤 Form submission started');
-    
-    // Get form data
-    const formData = new FormData(addForm);
-    
-    // Log form data for debugging
-    console.log('Form Data:');
-    for (let [key, value] of formData.entries()) {
-      console.log(`  ${key}:`, value instanceof File ? `File: ${value.name}` : value);
-    }
-    
-    // Disable submit button
-    saveVendorBtn.disabled = true;
-    saveVendorBtn.textContent = 'Saving...';
+  if (addForm) {
+    addForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      console.log('📤 Form submission started');
+      
+      // Get form data
+      const formData = new FormData(addForm);
+      
+      // Log form data for debugging
+      console.log('Form Data:');
+      for (let [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File: ${value.name}` : value);
+      }
+      
+      // Disable submit button
+      if (saveVendorBtn) {
+        saveVendorBtn.disabled = true;
+        saveVendorBtn.textContent = 'Saving...';
+      }
     
     // Send request
     fetch('{% url "add_vendor" %}', {
@@ -588,10 +640,13 @@ document.addEventListener('DOMContentLoaded', function () {
       showToast('Network error: ' + error.message, 'error');
     })
     .finally(() => {
-      saveVendorBtn.disabled = false;
-      saveVendorBtn.textContent = 'Save Vendor';
+      if (saveVendorBtn) {
+        saveVendorBtn.disabled = false;
+        saveVendorBtn.textContent = 'Save Vendor';
+      }
     });
-  });
+    });
+  }
 
   // === PAGINATION SYSTEM ===
   function showNoDataRow() {
@@ -631,20 +686,24 @@ document.addEventListener('DOMContentLoaded', function () {
     renderPage();
   });
 
-  prevBtn.addEventListener('click', () => {
-    if (currentPage > 1) {
-      currentPage--;
-      renderPage();
-    }
-  });
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderPage();
+      }
+    });
+  }
 
-  nextBtn.addEventListener('click', () => {
-    const totalPages = Math.ceil(filteredRows.length / perPage);
-    if (currentPage < totalPages) {
-      currentPage++;
-      renderPage();
-    }
-  });
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      const totalPages = Math.ceil(filteredRows.length / perPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderPage();
+      }
+    });
+  }
 
   // === INITIALIZE ===
   initRows();
@@ -653,16 +712,17 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <script>
   const profileImageInput = document.getElementById('profile_image');
-const profilePreview = document.getElementById('profilePreview');
+  const profilePreview = document.getElementById('profilePreview');
 
-profileImageInput.addEventListener('change', function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+  if (profileImageInput && profilePreview) {
+    profileImageInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
 
-  // Validate file size (max 2MB)
-  if (file.size > 2 * 1024 * 1024) {
-    showToast('File size must be less than 2MB', 'error');
-    this.value = '';
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        showToast('File size must be less than 2MB', 'error');
+        this.value = '';
     return;
   }
 
@@ -698,7 +758,8 @@ profileImageInput.addEventListener('change', function(e) {
     });
   };
   reader.readAsDataURL(file);
-});
+    });
+  }
 </script>
 
 <style>
