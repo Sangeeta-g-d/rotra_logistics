@@ -299,6 +299,91 @@
       font-size: 12px;
       color: #6b7280;
     }
+    .assign-vendor-btn {
+  width: 100%;
+  padding: 12px 20px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.assign-vendor-btn:hover {
+  background: #b91c1c;
+}
+.vendor-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vendor-card:hover {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.vendor-card.selected {
+  border-color: #dc2626;
+  background: #fef2f2;
+  border-width: 2px;
+}
+
+.vendor-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vendor-avatar {
+  width: 40px;
+  height: 40px;
+  background: #dc2626;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.vendor-details {
+  flex: 1;
+}
+
+.vendor-name {
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.vendor-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.vendor-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vendor-meta-item i {
+  font-size: 12px;
+}
   </style>
 </head>
 <body>
@@ -490,7 +575,12 @@
         </div>
       </div>
     </div>
-
+<!-- Add this after the Trip Info section in your sidebar -->
+<div class="sidebar-section">
+  <button class="assign-vendor-btn" id="openAssignVendorModal">
+    <i class="fas fa-user-plus"></i> Assign Vendor
+  </button>
+</div>
     <!-- Chat -->
     <div class="sidebar-section chat-container">
       <h4 class="chat-header">Chat</h4>
@@ -843,6 +933,59 @@
   </div>
 </div>
 
+
+<!-- vendor modal -->
+<!-- ====================== ASSIGN VENDOR MODAL ====================== -->
+<div id="assignVendorModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-header">
+      <h3>Assign Vendor to Load</h3>
+      <button class="modal-close" id="closeAssignVendorModal">×</button>
+    </div>
+    <p class="modal-subtitle">Select a vendor to assign to Load ID: <span id="assignLoadId"></span></p>
+
+    <div class="modal-body">
+      <!-- Search Bar -->
+      <div class="form-row" style="margin: 0 32px 20px;">
+        <div class="form-group full-width">
+          <input type="text" id="vendorSearchInput" placeholder="Search vendors by name or phone..." 
+                 style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+        </div>
+      </div>
+
+      <!-- Vendors List -->
+      <div class="vendors-list-container" style="max-height: 400px; overflow-y: auto; margin: 0 32px;">
+        <div id="vendorsList">
+          <!-- Vendors will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="vendorsLoading" style="text-align: center; padding: 40px; color: #6b7280; display: none;">
+        <i class="fas fa-spinner fa-spin"></i> Loading vendors...
+      </div>
+
+      <!-- Empty State -->
+      <div id="vendorsEmpty" style="text-align: center; padding: 40px; color: #9ca3af; display: none;">
+        <i class="fas fa-users-slash" style="font-size: 48px; margin-bottom: 16px;"></i>
+        <p>No vendors available to assign</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="vendorsError" style="text-align: center; padding: 40px; color: #dc2626; display: none;">
+        <i class="fas fa-exclamation-circle" style="font-size: 48px; margin-bottom: 16px;"></i>
+        <p>Error loading vendors</p>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="cancel-btn" id="cancelAssignVendorModal">Cancel</button>
+      <button type="button" class="save-btn" id="confirmVendorAssignment" disabled>Assign Vendor</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
 // Global variables
@@ -850,6 +993,8 @@ let currentLoadId = null;
 let selectedRequestId = null;
 let currentVendorId = null;
 let csrftoken = null;
+let selectedVendorId = null;
+let selectedVendorName = null;
 
 document.addEventListener('DOMContentLoaded', function () {
   csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -864,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const addLoadModal = document.getElementById('addLoadModal');
   const addDriverModal = document.getElementById('addDriverModal');
   const addVehicleModal = document.getElementById('addVehicleModal');
+  const assignVendorModal = document.getElementById('assignVendorModal');
 
   const openAddModalBtn = document.getElementById('openAddModal');
   const closeLoadModal = document.getElementById('closeLoadModal');
@@ -1046,7 +1192,7 @@ document.addEventListener('DOMContentLoaded', function () {
           div.className = 'trip-request-item';
           div.innerHTML = `
             <div class="trip-request-info">
-              <div class="vendor-avatar">${initials}</div>
+              
               <div class="vendor-details">
                 <div>${req.vendor_name}</div>
                 <div>${req.vendor_phone}</div>
@@ -1135,70 +1281,70 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Final Assignment with Firebase Notification
   // Final Assignment
-document.getElementById('finalConfirmBtn')?.addEventListener('click', function () {
-    const vehicleId = vehicleTypeSelect.value;
-    const driverId = driverSelect.value;
+  document.getElementById('finalConfirmBtn')?.addEventListener('click', function () {
+      const vehicleId = vehicleTypeSelect.value;
+      const driverId = driverSelect.value;
 
-    if (!vehicleId || !driverId) {
-        showToast('Please select both vehicle and driver', 'error');
-        return;
-    }
+      if (!vehicleId || !driverId) {
+          showToast('Please select both vehicle and driver', 'error');
+          return;
+      }
 
-    this.innerHTML = 'Assigning...';
-    this.disabled = true;
+      this.innerHTML = 'Assigning...';
+      this.disabled = true;
 
-    // Use the correct URL endpoint
-    fetch(`/loads/${currentLoadId}/requests/${selectedRequestId}/accepted/`, {
-        method: 'POST',
-        headers: { 
-            'X-CSRFToken': csrftoken, 
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer YOUR_ADMIN_TOKEN'  // Add if using JWT
-        },
-        body: JSON.stringify({ 
-            vehicle_id: vehicleId, 
-            driver_id: driverId 
-        })
-    })
-    .then(r => {
-        if (!r.ok) {
-            throw new Error(`HTTP error! status: ${r.status}`);
-        }
-        return r.json();
-    })
-    .then(data => {
-        if (data.success) {
-            showToast('Trip assigned successfully! Notification sent to vendor.', 'success');
-            
-            // Remove the row from table
-            const assignedRow = document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"]`);
-            if (assignedRow) {
-                assignedRow.remove();
-                updatePaginationAfterRemoval();
-            }
-            
-            // Close sidebar
-            sidebar.classList.remove('open');
-            overlay.classList.remove('show');
-            
-            // Reset modal
-            confirmPanel.style.display = 'none';
-            vehicleTypeSelect.innerHTML = '<option value="">Select vehicle</option>';
-            driverSelect.innerHTML = '<option value="">Select Driver</option>';
-            
-        } else {
-            showToast(data.error || 'Failed to assign trip', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error assigning trip:', error);
-        showToast('Error assigning trip: ' + error.message, 'error');
-    })
-    .finally(() => {
-        this.innerHTML = 'Confirm Assignment';
-        this.disabled = false;
-    });
-});
+      // Use the correct URL endpoint
+      fetch(`/loads/${currentLoadId}/requests/${selectedRequestId}/accepted/`, {
+          method: 'POST',
+          headers: { 
+              'X-CSRFToken': csrftoken, 
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer YOUR_ADMIN_TOKEN'  // Add if using JWT
+          },
+          body: JSON.stringify({ 
+              vehicle_id: vehicleId, 
+              driver_id: driverId 
+          })
+      })
+      .then(r => {
+          if (!r.ok) {
+              throw new Error(`HTTP error! status: ${r.status}`);
+          }
+          return r.json();
+      })
+      .then(data => {
+          if (data.success) {
+              showToast('Trip assigned successfully! Notification sent to vendor.', 'success');
+              
+              // Remove the row from table
+              const assignedRow = document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"]`);
+              if (assignedRow) {
+                  assignedRow.remove();
+                  updatePaginationAfterRemoval();
+              }
+              
+              // Close sidebar
+              sidebar.classList.remove('open');
+              overlay.classList.remove('show');
+              
+              // Reset modal
+              confirmPanel.style.display = 'none';
+              vehicleTypeSelect.innerHTML = '<option value="">Select vehicle</option>';
+              driverSelect.innerHTML = '<option value="">Select Driver</option>';
+              
+          } else {
+              showToast(data.error || 'Failed to assign trip', 'error');
+          }
+      })
+      .catch(error => {
+          console.error('Error assigning trip:', error);
+          showToast('Error assigning trip: ' + error.message, 'error');
+      })
+      .finally(() => {
+          this.innerHTML = 'Confirm Assignment';
+          this.disabled = false;
+      });
+  });
 
   // Update pagination after removing a row
   function updatePaginationAfterRemoval() {
@@ -1606,8 +1752,250 @@ document.getElementById('finalConfirmBtn')?.addEventListener('click', function (
       }
     });
   }
+
+  // ====================== VENDOR ASSIGNMENT ======================
+  
+  // Add event listener for Assign Vendor button
+  document.getElementById('openAssignVendorModal')?.addEventListener('click', function() {
+    if (!currentLoadId) {
+      showToast('Please select a load first', 'error');
+      return;
+    }
+    
+    // Get load data from active row
+    const activeRow = document.querySelector('.clickable-row.active');
+    if (!activeRow) {
+      showToast('Please select a load first', 'error');
+      return;
+    }
+    
+    const loadData = JSON.parse(activeRow.dataset.load);
+    document.getElementById('assignLoadId').textContent = loadData.load_id;
+    
+    // Reset selection
+    selectedVendorId = null;
+    selectedVendorName = null;
+    document.getElementById('confirmVendorAssignment').disabled = true;
+    
+    // Show modal and load vendors
+    assignVendorModal.style.display = 'flex';
+    loadVendorsForAssignment();
+  });
+
+  // Close Assign Vendor Modal
+  document.getElementById('closeAssignVendorModal')?.addEventListener('click', closeAssignVendorModal);
+  document.getElementById('cancelAssignVendorModal')?.addEventListener('click', closeAssignVendorModal);
+
+  function closeAssignVendorModal() {
+    assignVendorModal.style.display = 'none';
+    document.getElementById('vendorSearchInput').value = '';
+    selectedVendorId = null;
+    selectedVendorName = null;
+  }
+
+  // Load vendors function
+  function loadVendorsForAssignment() {
+    const vendorsList = document.getElementById('vendorsList');
+    const loadingDiv = document.getElementById('vendorsLoading');
+    const emptyDiv = document.getElementById('vendorsEmpty');
+    const errorDiv = document.getElementById('vendorsError');
+    
+    // Show loading state
+    vendorsList.innerHTML = '';
+    loadingDiv.style.display = 'block';
+    emptyDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+    
+    fetch('/loads/get-vendors/')
+      .then(response => {
+        // Always parse JSON, even for non-200 responses
+        return response.json().then(data => ({
+          ok: response.ok,
+          data: data
+        }));
+      })
+      .then(({ ok, data }) => {
+        loadingDiv.style.display = 'none';
+        
+        if (ok && data.success && data.vendors && data.vendors.length > 0) {
+          renderVendorsList(data.vendors);
+        } else {
+          if (data.error) {
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = `
+              <i class="fas fa-exclamation-circle" style="font-size: 48px; margin-bottom: 16px;"></i>
+              <p>${data.error}</p>
+            `;
+          } else {
+            emptyDiv.style.display = 'block';
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Error loading vendors:', error);
+        loadingDiv.style.display = 'none';
+        errorDiv.style.display = 'block';
+        errorDiv.innerHTML = `
+          <i class="fas fa-exclamation-circle" style="font-size: 48px; margin-bottom: 16px;"></i>
+          <p>${error.message}</p>
+        `;
+        showToast('Error loading vendors: ' + error.message, 'error');
+      });
+  }
+
+  // Render vendors list
+  function renderVendorsList(vendors) {
+    const vendorsList = document.getElementById('vendorsList');
+    vendorsList.innerHTML = '';
+    
+    vendors.forEach(vendor => {
+      const initials = vendor.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+      const div = document.createElement('div');
+      div.className = 'vendor-card';
+      div.dataset.vendorId = vendor.id;
+      div.dataset.vendorName = vendor.full_name;
+      div.innerHTML = `
+        <div class="vendor-info">
+          <div class="vendor-details">
+            <div class="vendor-name">${vendor.full_name}</div>
+            <div class="vendor-meta">
+              <div class="vendor-meta-item">
+                <i class="fas fa-phone"></i>
+                <span>${vendor.phone_number}</span>
+              </div>
+              <div class="vendor-meta-item">
+                <i class="fas fa-envelope"></i>
+                <span>${vendor.email}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Add click event to select vendor
+      div.addEventListener('click', () => {
+        // Remove selection from all vendor cards
+        document.querySelectorAll('.vendor-card').forEach(card => {
+          card.classList.remove('selected');
+        });
+        
+        // Add selection to clicked card
+        div.classList.add('selected');
+        
+        // Update selected vendor
+        selectedVendorId = div.dataset.vendorId;
+        selectedVendorName = div.dataset.vendorName;
+        
+        // Enable confirm button
+        document.getElementById('confirmVendorAssignment').disabled = false;
+      });
+      
+      vendorsList.appendChild(div);
+    });
+    
+    // Add search functionality
+    const searchInput = document.getElementById('vendorSearchInput');
+    searchInput.addEventListener('input', function() {
+      const searchTerm = this.value.toLowerCase().trim();
+      const vendorCards = document.querySelectorAll('.vendor-card');
+      
+      let visibleCount = 0;
+      vendorCards.forEach(card => {
+        const vendorName = card.dataset.vendorName.toLowerCase();
+        const vendorPhone = card.querySelector('.vendor-meta-item span').textContent.toLowerCase();
+        const isVisible = vendorName.includes(searchTerm) || vendorPhone.includes(searchTerm);
+        card.style.display = isVisible ? 'block' : 'none';
+        if (isVisible) visibleCount++;
+      });
+      
+      // Show/hide empty state
+      const emptyDiv = document.getElementById('vendorsEmpty');
+      emptyDiv.style.display = visibleCount === 0 ? 'block' : 'none';
+    });
+  }
+
+  // Confirm vendor assignment - FIXED VERSION
+  // Confirm vendor assignment - UPDATES WITHOUT PAGE RELOAD
+  document.getElementById('confirmVendorAssignment')?.addEventListener('click', function() {
+    if (!currentLoadId || !selectedVendorId) {
+      showToast('Please select a vendor', 'error');
+      return;
+    }
+    
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'Assigning...';
+    btn.disabled = true;
+    
+    // Send assignment request
+    fetch(`/loads/${currentLoadId}/assign-vendor/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        vendor_id: selectedVendorId
+      })
+    })
+    .then(response => {
+      // Always parse JSON first, then check status
+      return response.json().then(data => ({
+        ok: response.ok,
+        data: data
+      }));
+    })
+    .then(({ ok, data }) => {
+      if (data.success) {  // Check the success flag in the JSON response
+        showToast(`Vendor ${selectedVendorName} assigned successfully!`, 'success');
+        
+        // Close modal
+        closeAssignVendorModal();
+        
+        // Close sidebar drawer
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+        
+        // Clear active row selection
+        const activeRow = document.querySelector('.clickable-row.active');
+        if (activeRow) {
+          activeRow.classList.remove('active');
+          
+          // Update load status in table WITHOUT removing the row
+          const statusBadge = document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"] .status-badge`);
+          if (statusBadge) {
+            statusBadge.textContent = 'Confirmed';
+            statusBadge.className = 'status-badge status-assigned';
+          }
+          
+          // Update load data attribute
+          const loadData = JSON.parse(activeRow.dataset.load);
+          loadData.status = 'confirmed';
+          loadData.status_display = 'Confirmed';
+          activeRow.dataset.load = JSON.stringify(loadData);
+        }
+        
+        // Reset current load selection
+        currentLoadId = null;
+        
+      } else {
+        // Show error from data if available
+        showToast(data.error || data.message || 'Failed to assign vendor', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error assigning vendor:', error);
+      showToast('Error assigning vendor: ' + error.message, 'error');
+    })
+    .finally(() => {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+    });
+  });
+
 });
 </script>
+<!-- vendor assign script -->
 </body>
 </html>
 {% endblock %}

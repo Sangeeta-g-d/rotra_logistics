@@ -3740,3 +3740,129 @@ def update_vendor(request, vendor_id):
             'success': False,
             'error': str(e)
         }, status=500)
+    
+
+# assign vendor
+@login_required
+def get_vendors_list(request):
+    """Get list of all vendors for assignment"""
+    try:
+        vendors = CustomUser.objects.filter(role='vendor', is_active=True).values(
+            'id', 'full_name', 'email', 'phone_number', 'address'
+        )
+        
+        vendors_list = list(vendors)
+        return JsonResponse({
+            'success': True,
+            'vendors': vendors_list
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+@csrf_exempt
+@login_required
+def assign_vendor_to_load(request, load_id):
+    """Assign a vendor to a load"""
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False, 
+            'error': 'Invalid request method'
+        })
+    
+    try:
+        data = json.loads(request.body)
+        vendor_id = data.get('vendor_id')
+        
+        if not vendor_id:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Vendor ID is required'
+            })
+        
+        # Get the load
+        try:
+            load = Load.objects.get(id=load_id)
+        except Load.DoesNotExist:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Load not found'
+            })
+        
+        # Get the vendor
+        try:
+            vendor = CustomUser.objects.get(id=vendor_id, role='vendor', is_active=True)
+        except CustomUser.DoesNotExist:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Vendor not found'
+            })
+        
+        # Check if load is already assigned
+        if load.status == 'assigned':
+            return JsonResponse({
+                'success': False, 
+                'error': 'Load is already assigned'
+            })
+        
+        # Create a LoadRequest for this vendor
+        load_request, created = LoadRequest.objects.get_or_create(
+            load=load,
+            vendor=vendor,
+            defaults={
+                'message': f'Manually assigned by admin {request.user.full_name}',
+                'status': 'accepted'
+            }
+        )
+        
+        if not created:
+            # Update existing request
+            load_request.status = 'accepted'
+            load_request.message = f'Manually assigned by admin {request.user.full_name}'
+            load_request.save()
+        
+        # Update load status to indicate vendor assigned but vehicle/driver not yet selected
+        load.status = 'confirmed'
+        load.save()
+        
+        # Send notification to vendor
+        notification_message = ""
+        try:
+            from .notifications import send_trip_assigned_notification
+            
+            notification, notification_success = send_trip_assigned_notification(
+                vendor=vendor,
+                load=load,
+                vehicle=None,
+                driver=None
+            )
+            
+            if notification_success:
+                notification_message = " and notification sent to vendor"
+        except ImportError as e:
+            print(f"❌ Cannot import notifications module: {e}")
+            notification_message = " but notification module not available"
+        except Exception as e:
+            print(f"❌ Error sending assignment notification: {e}")
+            notification_message = " but notification failed"
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Vendor {vendor.full_name} assigned successfully{notification_message}',
+            'load_id': load.load_id,
+            'vendor_name': vendor.full_name,
+            'notification_sent': bool(notification_message and "sent" in notification_message)
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False, 
+            'error': 'Invalid JSON data'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False, 
+            'error': str(e)
+        })

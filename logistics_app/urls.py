@@ -26,6 +26,8 @@ urlpatterns = [
     path('loads/<int:load_id>/requests/<int:request_id>/accepted-old/', 
     views.accept_load_request_with_assignment, 
     name='accept_load_request_with_assignment'),
+    path('loads/<int:load_id>/assign-vendor/', views.assign_vendor_to_load, name='assign_vendor_to_load'),
+    path('loads/get-vendors/', views.get_vendors_list, name='get_vendors_list'),
     path('requests/<int:request_id>/update/', views.update_request_status, name='update_request_status'),
     path('api/vendors/<int:vendor_id>/vehicles/', views.vendor_vehicles_api, name='vendor_vehicles_api'),
     path('api/vendors/<int:vendor_id>/drivers/', views.vendor_drivers_api, name='vendor_drivers_api'),
