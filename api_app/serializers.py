@@ -371,6 +371,9 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     second_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     total_holding_charges = serializers.SerializerMethodField()
     total_trip_amount = serializers.SerializerMethodField()
+    
+    # Hold reason field
+    hold_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = Load
@@ -417,6 +420,9 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             
             # holding charges
             "holding_charges",
+            
+            # hold reason
+            "hold_reason",
 
             "created_at",
         ]
@@ -468,6 +474,12 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     def get_total_trip_amount(self, obj):
         """Calculate and return total trip amount (freight + holding charges)"""
         return obj.total_trip_amount
+    
+    def get_hold_reason(self, obj):
+        """Return hold reason if trip status is 'hold', otherwise None"""
+        if obj.trip_status == 'hold':
+            return obj.hold_reason
+        return None
     
 
 class LRUploadSerializer(serializers.ModelSerializer):

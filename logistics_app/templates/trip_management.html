@@ -1728,6 +1728,17 @@ function createTimelineItem(status, isCompleted, isCurrent, isPending, data) {
       </button>
     `;
   }
+
+  // If this is POD stage, optionally show Tracking Details button when image URL available
+  let trackingButton = '';
+  const trackingUrl = data.tracking_details_image || data.tracking_image || data.tracking_details_image_url || data.tracking_image_url;
+  if (status === 'pod_uploaded' && trackingUrl) {
+    trackingButton = `
+      <button class="view-file-btn" style="background:#f3f4f6;color:#111;border-color:#e5e7eb;margin-left:8px;" onclick="showTrackingImageModal('${trackingUrl}')" title="View Tracking Details">
+        <i class="fas fa-image" style="color:#6b7280"></i> Tracking Details
+      </button>
+    `;
+  }
   
   // Add "Next Action" indicator for current stage
   let actionIndicator = '';
@@ -1743,6 +1754,7 @@ function createTimelineItem(status, isCompleted, isCurrent, isPending, data) {
       <div class="timeline-main ${mainClass}">${statusInfo.title}</div>
       <div class="timeline-sub">${statusInfo.description}</div>
       ${fileButton}
+      ${trackingButton}
       ${actionIndicator}
     </div>
     <div class="timeline-time">${statusInfo.timestamp}</div>
@@ -2397,6 +2409,61 @@ function createAllChargesModal() {
   });
   
   return document.getElementById('allChargesModal');
+}
+
+// Tracking image modal helpers
+function showTrackingImageModal(url) {
+  if (!url) {
+    showToast('No tracking image available', 'error');
+    return;
+  }
+
+  const modal = document.getElementById('trackingImageModal') || createTrackingModal();
+  const img = document.getElementById('trackingImageContentImg');
+  if (img) {
+    img.src = url;
+  }
+  modal.style.display = 'flex';
+}
+
+function createTrackingModal() {
+  const modalHTML = `
+  <div class="tracking-image-modal" id="trackingImageModal">
+    <div class="modal-content" style="width: 95%; max-width: 720px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="margin:0;">Tracking Details</h3>
+        <button class="close-tracking-modal" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
+      </div>
+      <div style="text-align:center;">
+        <img id="trackingImageContentImg" src="" alt="Tracking Image" style="max-width:100%; height:auto; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.12);"/>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;">
+        <button class="close-tracking-modal" style="padding:10px; background:#e5e7eb; color:#374151; border:none; border-radius:6px; cursor:pointer;">Close</button>
+      </div>
+    </div>
+  </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  if (!document.getElementById('trackingModalStyles')) {
+    const style = document.createElement('style');
+    style.id = 'trackingModalStyles';
+    style.textContent = `
+      .tracking-image-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); align-items: center; justify-content: center; z-index: 10000; }
+      .tracking-image-modal .modal-content { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.querySelectorAll('.close-tracking-modal').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = document.getElementById('trackingImageModal');
+      if (m) m.style.display = 'none';
+    });
+  });
+
+  return document.getElementById('trackingImageModal');
 }
 
 function closeTrip() {
