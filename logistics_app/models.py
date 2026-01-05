@@ -108,6 +108,8 @@ class CustomUser(AbstractUser):
         verbose_name='Created By',
         help_text='Admin who created this user account'
     )
+    acc_no = models.CharField(max_length=30, blank=True, null=True)
+    ifsc_code = models.CharField(max_length=11, blank=True, null=True)
     
     # Use custom manager
     objects = CustomUserManager()

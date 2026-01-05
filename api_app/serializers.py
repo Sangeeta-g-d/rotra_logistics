@@ -27,7 +27,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'full_name', 'email', 'phone_number', 'password', 'confirm_password',
             'pan_number', 'address', 'tds_declaration', 'role',
             # vehicle fields
-            'reg_no', 'type', 'load_capacity', 'insurance_doc', 'rc_doc',
+            'reg_no', 'type', 'load_capacity', 'insurance_doc', 'rc_doc','acc_no','ifsc_code'
         ]
         extra_kwargs = {
             'role': {'required': False, 'default': 'vendor'},
