@@ -1879,6 +1879,11 @@ def get_trip_details_api(request, trip_id):
             })
             total_holding_charges += charge.amount
 
+        # Get first half payment paid date
+        first_half_payment_date = None
+        if load.first_half_payment_paid_at:
+            first_half_payment_date = load.first_half_payment_paid_at.strftime('%b %d, %Y %I:%M %p')
+
         data = {
             'id': load.id,
             'load_id': load.load_id,
@@ -1905,6 +1910,7 @@ def get_trip_details_api(request, trip_id):
             'vendor_name': load.driver.owner.full_name if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'Not Assigned',
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
 
+            # Payment details
             'final_payment': float(load.final_payment),
             'first_half_payment': float(load.first_half_payment or Decimal('0')),
             'second_half_payment': float(load.second_half_payment or Decimal('0')),
@@ -1914,6 +1920,10 @@ def get_trip_details_api(request, trip_id):
             'final_payment_paid': final_payment_paid,
             'holding_charges_added_at': load.holding_charges_added_at.isoformat() if load.holding_charges_added_at else None,
             'holding_charges_added_at_status': load.holding_charges_added_at_status or '',
+            
+            # First half payment status (ADD THIS)
+            'first_half_payment_paid': load.first_half_payment_paid,
+            'first_half_payment_paid_at': first_half_payment_date,
 
             'weight': load.weight or 'N/A',
             'material': load.material or 'N/A',
@@ -1961,7 +1971,6 @@ def get_trip_details_api(request, trip_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
-
 
 @login_required
 @require_http_methods(["POST"])
@@ -2530,22 +2539,55 @@ def get_payment_details_api(request, trip_id):
         # Admin can access any payment, traffic person only their own
         if request.user.role == 'traffic_person':
             load = Load.objects.select_related(
-                'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by', 'driver__owner'
+                'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by', 
+                'driver__owner'
             ).get(id=trip_id, created_by=request.user)
         else:
             # Admin can access any payment
             load = Load.objects.select_related(
-                'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by', 'driver__owner'
+                'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by', 
+                'driver__owner', 
             ).get(id=trip_id)
         
         # Determine payment status
         final_payment_paid = load.trip_status == 'payment_completed'
 
-        # Get payment date
+        # Get payment dates
         final_payment_date = None
-        
         if hasattr(load, 'payment_completed_at') and load.payment_completed_at:
             final_payment_date = load.payment_completed_at.strftime('%b %d, %Y %I:%M %p')
+        
+        first_half_payment_date = None
+        if load.first_half_payment_paid_at:
+            first_half_payment_date = load.first_half_payment_paid_at.strftime('%b %d, %Y %I:%M %p')
+
+        # Calculate adjustment
+        adjustment_amount = Decimal('0.00')
+        adjustment_type = 'none'  # 'increase', 'decrease', or 'none'
+        
+        if load.confirmed_paid_amount and load.before_payment_amount:
+            adjustment_amount = load.confirmed_paid_amount - load.before_payment_amount
+            if adjustment_amount > 0:
+                adjustment_type = 'increase'
+            elif adjustment_amount < 0:
+                adjustment_type = 'decrease'
+
+        # Get holding charges
+        holding_charges = load.get_total_holding_charges()
+        
+        # Get holding charges list
+        holding_charges_list = []
+        for charge in load.holding_charge_entries.all().order_by('-created_at'):
+            holding_charges_list.append({
+                'id': charge.id,
+                'amount': float(charge.amount),
+                'trip_stage': charge.trip_stage,
+                'trip_stage_display': charge.get_trip_stage_display(),
+                'reason': charge.reason,
+                'added_by': charge.added_by.full_name if charge.added_by else 'System',
+                'created_at': charge.created_at.strftime('%b %d, %Y %I:%M %p'),
+                'created_at_display': charge.created_at.strftime('%d %b %Y, %I:%M %p')
+            })
 
         data = {
             'id': load.id,
@@ -2578,6 +2620,22 @@ def get_payment_details_api(request, trip_id):
             'confirmed_amount': float(getattr(load, 'confirmed_paid_amount', 0) or 0),
             'final_payment_paid': final_payment_paid,
             'final_payment_date': final_payment_date,
+            
+            # First half payment status
+            'first_half_payment_paid': load.first_half_payment_paid,
+            'first_half_payment_paid_at': first_half_payment_date,
+            
+            # Payment adjustment info
+            'adjustment_amount': float(adjustment_amount),
+            'adjustment_type': adjustment_type,
+            'adjustment_percentage': float((adjustment_amount / load.before_payment_amount * 100) if load.before_payment_amount > 0 else 0),
+            'payment_adjustment_reason': load.payment_adjustment_reason,
+            
+            # Holding charges
+            'holding_charges': float(holding_charges),
+            'holding_charges_added_at': load.holding_charges_added_at.strftime('%b %d, %Y %I:%M %p') if load.holding_charges_added_at else None,
+            'holding_charges_added_at_status': load.holding_charges_added_at_status,
+            'holding_charges_list': holding_charges_list,
 
             # Show creator information for admin
             'created_by_name': load.created_by.full_name if load.created_by else 'System',
@@ -2603,9 +2661,12 @@ def get_payment_details_api(request, trip_id):
 def mark_final_payment_paid_api(request, trip_id):
     """Mark final payment as paid"""
     try:
-        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
-        
-        # Pod upload is optional now; allow marking final payment regardless of POD status
+        # Admin can access any trip, traffic person only their own
+        if request.user.role == 'traffic_person':
+            load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        else:
+            # Admin can access any trip
+            load = Load.objects.select_related('driver__owner').get(id=trip_id)
         
         # Determine expected before amount (default to second half if first half exists)
         try:
@@ -2613,48 +2674,81 @@ def mark_final_payment_paid_api(request, trip_id):
             import json
             from django.utils import timezone
 
-            # expected amount before adjustment
-            expected_before = None
-            if getattr(load, 'first_half_payment', None) and load.first_half_payment and load.first_half_payment > 0:
-                # if first half was defined/paid, expected before is second half
-                expected_before = load.second_half_payment or load.final_payment
-            else:
-                expected_before = load.final_payment
-
-            # Read confirmed amount from POST (form) or JSON body
-            confirmed_amount_str = request.POST.get('confirmed_amount') or request.POST.get('confirmed_paid_amount')
-            if not confirmed_amount_str:
-                # try JSON
+            # Calculate total trip amount including holding charges
+            total_trip_amount = load.total_trip_amount
+            
+            # Determine remaining amount before final payment
+            remaining_amount = total_trip_amount
+            if load.first_half_payment_paid:
+                remaining_amount = total_trip_amount - load.first_half_payment
+            
+            # Read confirmed amount and adjustment reason from POST (form) or JSON body
+            confirmed_amount_str = None
+            adjustment_reason = None
+            
+            if request.content_type == 'application/json':
+                # JSON request
                 try:
                     payload = json.loads(request.body.decode('utf-8') or '{}')
                     confirmed_amount_str = payload.get('confirmed_amount') or payload.get('confirmed_paid_amount')
-                except Exception:
-                    confirmed_amount_str = None
+                    adjustment_reason = payload.get('adjustment_reason')
+                except Exception as e:
+                    print(f"Error parsing JSON: {e}")
+            else:
+                # Form data
+                confirmed_amount_str = request.POST.get('confirmed_amount') or request.POST.get('confirmed_paid_amount')
+                adjustment_reason = request.POST.get('adjustment_reason')
 
             if confirmed_amount_str:
                 confirmed_amount = Decimal(str(confirmed_amount_str)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             else:
-                confirmed_amount = expected_before or Decimal('0.00')
+                # If no confirmed amount provided, use the remaining amount
+                confirmed_amount = remaining_amount
+            
+            # Calculate adjustment
+            adjustment = confirmed_amount - remaining_amount
+            
+            # Only require adjustment reason if there's actually an adjustment
+            if adjustment != Decimal('0.00') and not adjustment_reason:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'adjustment_reason_required',
+                    'message': 'Please provide a reason for the payment adjustment'
+                }, status=400)
+            
+            # If no adjustment, clear any previous adjustment reason
+            if adjustment == Decimal('0.00'):
+                adjustment_reason = None
 
             # Save previous expected amount and confirmed amount on the load
-            load.before_payment_amount = expected_before or Decimal('0.00')
+            load.before_payment_amount = remaining_amount
             load.confirmed_paid_amount = confirmed_amount
+            load.payment_adjustment_reason = adjustment_reason
+            
+            # Mark both payments as paid
+            load.first_half_payment_paid = True
+            load.first_half_payment_paid_at = timezone.now()
+            
+            # Save the model
             load.save()
 
             # Update status to payment_completed WITH notification
             previous_status = load.trip_status
             load.update_trip_status('payment_completed', user=request.user, send_notification=True)
 
-            adjustment = (confirmed_amount - (load.before_payment_amount or Decimal('0.00')))
-
             return JsonResponse({
                 'success': True,
                 'message': 'Final payment marked as paid',
                 'notification_sent': bool(load.driver and load.driver.owner),
                 'payment_date': load.payment_completed_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'payment_completed_at') and load.payment_completed_at else None,
-                'before_amount': float(load.before_payment_amount or Decimal('0.00')),
-                'confirmed_amount': float(load.confirmed_paid_amount or Decimal('0.00')),
-                'adjustment': float(adjustment),
+                'before_amount': float(remaining_amount),  # What was expected before adjustment
+                'confirmed_amount': float(confirmed_amount),  # What was actually paid
+                'adjustment': float(adjustment),  # Difference
+                'adjustment_reason': adjustment_reason,
+                'remaining_amount': 0.00,  # Remaining amount is now 0 after final payment
+                'first_half_payment_paid': True,  # Mark first half as paid too
+                'first_half_payment_paid_at': load.first_half_payment_paid_at.strftime('%b %d, %Y %I:%M %p') if load.first_half_payment_paid_at else None,
+                'total_trip_amount': float(total_trip_amount)  # Total trip amount for reference
             })
         except Exception as e:
             print('Error processing payment amounts:', e)
@@ -2667,6 +2761,59 @@ def mark_final_payment_paid_api(request, trip_id):
     except Exception as e:
         print(f"Error marking final payment: {e}")
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+        
+@login_required
+@require_http_methods(["POST"])
+def mark_first_half_payment_paid_api(request, trip_id):
+    """Mark first half payment as paid"""
+    try:
+        load = Load.objects.get(id=trip_id, created_by=request.user)
+        
+        # Check if first half payment exists
+        if not load.first_half_payment or load.first_half_payment <= 0:
+            return JsonResponse({
+                'success': False, 
+                'error': 'No first half payment amount set'
+            }, status=400)
+        
+        # Toggle payment status
+        if load.first_half_payment_paid:
+            # Mark as unpaid
+            load.mark_first_half_payment_unpaid()
+            message = 'First half payment marked as unpaid'
+            is_paid = False
+        else:
+            # Mark as paid
+            load.mark_first_half_payment_paid(user=request.user)
+            message = 'First half payment marked as paid'
+            is_paid = True
+        
+        # Calculate remaining amount
+        remaining_amount = load.total_trip_amount
+        if is_paid:
+            remaining_amount = load.total_trip_amount - load.first_half_payment
+        
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'is_paid': is_paid,
+            'first_half_amount': float(load.first_half_payment),
+            'total_amount': float(load.total_trip_amount),
+            'remaining_amount': float(remaining_amount),
+            'paid_at': load.first_half_payment_paid_at.strftime('%b %d, %Y %I:%M %p') if load.first_half_payment_paid_at else None,
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
+    except Exception as e:
+        print(f"Error marking first half payment: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+
+
 
 @login_required
 @require_http_methods(["POST"])

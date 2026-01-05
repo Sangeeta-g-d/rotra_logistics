@@ -358,6 +358,19 @@ class Load(models.Model):
         help_text="Second payment installment - 10% of total freight"
     )
 
+    first_half_payment_paid = models.BooleanField(
+        default=False,
+        verbose_name="First Half Payment Paid",
+        help_text="Whether the first half payment has been paid"
+    )
+    
+    first_half_payment_paid_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="First Half Payment Paid At",
+        help_text="When the first half payment was marked as paid"
+    )
+
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     trip_status = models.CharField(max_length=20, choices=TRIP_STATUS_CHOICES, default='pending')
@@ -426,6 +439,12 @@ class Load(models.Model):
         help_text="Confirmed amount actually paid for final settlement"
     )
 
+    payment_adjustment_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Reason for payment adjustment (increase/decrease)"
+    )
+
     # Holding charges (kept for backward compatibility - now calculated from HoldingCharge model)
     holding_charges = models.DecimalField(
         max_digits=14,
@@ -482,6 +501,27 @@ class Load(models.Model):
             self.final_payment = self.final_payment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
         super().save(*args, **kwargs)
+
+    def mark_first_half_payment_paid(self, user=None):
+        """Mark first half payment as paid"""
+        self.first_half_payment_paid = True
+        self.first_half_payment_paid_at = timezone.now()
+  
+        self.save(update_fields=[
+            'first_half_payment_paid',
+            'first_half_payment_paid_at',
+        ])
+        return self
+
+    def mark_first_half_payment_unpaid(self):
+        """Mark first half payment as unpaid"""
+        self.first_half_payment_paid = False
+        self.first_half_payment_paid_at = None
+        self.save(update_fields=[
+            'first_half_payment_paid',
+            'first_half_payment_paid_at',
+        ])
+        return self
 
     def update_trip_status(self, new_status, user=None, lr_number=None, tracking_details=None, send_notification=True):
         """Update trip status and send notifications"""

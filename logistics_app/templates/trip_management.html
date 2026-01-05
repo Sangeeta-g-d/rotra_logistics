@@ -18,664 +18,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
-
-  <style>
-    :root {
-      --primary: #ef4444;
-      --blue: #2563eb;
-      --green: #16a34a;
-      --amber: #d97706;
-      --gray-light: #f9fafb;
-      --border: #e5e7eb;
-      --icon-color: #6b7280;
-      --icon-hover-bg: #f3f4f6;
-      --text: #111827;
-      --muted: #6b7280;
-      --light: #f3f4f6;
-      --success: #16a34a;
-    }
-
-    * { box-sizing: border-box; margin:0; padding:0; }
-    body { 
-      font-family: "Inter", sans-serif;
-      background-color: #f8fafc;
-      margin: 0;
-      padding: 0;
-    }
-
-    .dashboard {
-      padding: 20px;
-      background: #f8fafc;
-      min-height: 100vh;
-    }
-
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .top-bar h2 {
-      font-size: 20px;
-      font-weight: 600;
-      color: #1f2937;
-      margin: 0;
-    }
-
-    .search-add-container {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .search-input {
-      width: 250px;
-      padding: 10px 14px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      font-size: 14px;
-      background: white;
-    }
-
-    .add-button {
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 10px 16px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .add-button:hover {
-      background: #dc2626;
-    }
-
-    .table-card {
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.1);
-      border: 1px solid #e5e7eb;
-      overflow: hidden;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 16px 20px;
-      font-size: 14px;
-      text-align: left;
-      border-bottom: 1px solid #f1f5f9;
-    }
-
-    th { 
-      color: #64748b; 
-      background: #f8fafc; 
-      font-weight: 600;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    tbody tr:hover { background: #f8fafc; cursor: pointer; }
-    tbody tr.selected { background: #fef2f2; }
-
-    .route-display { display: flex; align-items: center; gap: 8px; font-weight: 0; }
-    .route-arrow { color: var(--primary); }
-
-    .status-badge {
-      padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
-    }
-    .status-pending { background: #fef3c7; color: #d97706; }
-    .status-confirmed { background: #dbeafe; color: #2563eb; }
-    .status-loaded { background: #ffedd5; color: #ea580c; }
-    .status-lr_uploaded { background: #dbeafe; color: #2563eb; }
-    .status-in_transit { background: #ffedd5; color: #ea580c; }
-    .status-unloading { background: #dbeafe; color: #2563eb; }
-    .status-pod_uploaded { background: #d1fae5; color: #16a34a; }
-    .status-payment_completed { background: #d1fae5; color: #16a34a; }
-    .status-hold { background: #fee2e2; color: #dc2626; }
-
-    .pagination-container {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 20px;
-      background: #fff;
-      border-top: 1px solid #e5e7eb;
-      flex-wrap: wrap;
-      gap: 12px;
-      font-size: 14px;
-      color: #6b7280;
-    }
-
-    .entries-per-page select {
-      padding: 4px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      margin: 0 6px;
-    }
-
-    .pagination-controls button {
-      padding: 6px 12px;
-      border: 1px solid #d1d5db;
-      background: white;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .pagination-controls button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      background: #f9fafb;
-    }
-
-    .pagination-info {
-      color: #6b7280;
-    }
-
-    #profileSidebar {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: 420px;
-      height: 100vh;
-      background: white;
-      box-shadow: -8px 0 30px rgba(0,0,0,0.1);
-      transform: translateX(100%);
-      transition: transform 0.35s ease;
-      z-index: 1001;
-      overflow-y: auto;
-    }
-    #profileSidebar.open { transform: translateX(0); }
-
-    .sidebar-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: white;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    .sidebar-header h3 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-    }
-    .close-btn {
-      background: none;
-      border: none;
-      font-size: 28px;
-      color: var(--muted);
-      cursor: pointer;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .close-btn:hover { background: var(--light); }
-
-    .route-header {
-      padding: 20px;
-      text-align: center;
-      background: #fafafa;
-      border-bottom: 1px solid var(--border);
-    }
-    .route-title {
-      font-size: 14px;
-      color: var(--muted);
-      margin-bottom: 12px;
-      font-weight: 600;
-    }
-    .route-path {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      font-size: 16px;
-      font-weight: 600;
-    }
-    .route-line {
-      flex: 1;
-      height: 2px;
-      border-bottom: 3px dotted #dc2626;
-      position: relative;
-    }
-    .route-line::before, .route-line::after {
-      content: '';
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      background: var(--primary);
-      border-radius: 50%;
-      top: -5px;
-    }
-    .route-line::before { left: 0; }
-    .route-line::after { right: 0; }
-    .truck-icon {
-      background: var(--primary);
-      color: white;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      z-index: 1;
-    }
-
-    .trip-info-section { padding: 24px 20px; border-bottom: 1px solid var(--border); }
-    .section-title { font-size: 16px; font-weight: 700; margin: 0 0 20px 0; color: var(--text); }
-    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .info-item { font-size: 14px; }
-    .info-label { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
-    .info-value { font-weight: 600; color: var(--text); }
-    .current-location { display: flex; align-items: center; gap: 8px; margin: 20px 0 0; font-weight: 600; color: var(--primary); }
-    .current-location i { font-size: 18px; }
-
-    .payment-box {
-      background: #fffbeb;
-      padding: 16px;
-      border-radius: 12px;
-      margin: 20px 0;
-      border: 1px solid #fde68a;
-    }
-    .payment-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
-      font-size: 14px;
-    }
-    .paid { color: var(--success); font-weight: 600; }
-    .pending { color: #f59e0b; font-weight: 600; }
-
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px dashed #e5e7eb;
-    }
-    .detail-label { color: var(--muted); font-size: 13px; }
-    .detail-value { font-weight: 600; text-align: right; font-size: 13px; }
-
-    .progress-container { margin: 32px 0 24px; }
-    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .progress-title { font-size: 16px; font-weight: 700; }
-    .progress-percent { font-size: 15px; font-weight: 600; color: var(--primary); }
-    .progress-bar { height: 8px; background: #fee2e2; border-radius: 4px; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.6s ease; }
-
-    .timeline-section { margin-top: 32px; }
-    .timeline-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
-    .timeline { position: relative; padding-left: 36px; }
-    .timeline::before { content: ''; position: absolute; left: 17px; top: 0; bottom: 0; width: 2px; background: #e5e7eb; }
-    .timeline-item { position: relative; padding-bottom: 28px; }
-    .timeline-item:last-child { padding-bottom: 0; }
-    .timeline-dot {
-      position: absolute;
-      left: -36px;
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      background: white;
-      border: 2px solid #e5e7eb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #9ca3af;
-      font-size: 16px;
-    }
-    .timeline-dot.completed { 
-      background: var(--primary); 
-      color: white; 
-      border-color: var(--primary); 
-    }
-    .timeline-dot.current { 
-      background: white; 
-      border-color: var(--primary); 
-      color: var(--primary); 
-      animation: pulse 2s infinite; 
-    }
-    .timeline-dot.pending { 
-      background: white; 
-      border-color: #e5e7eb; 
-      color: #9ca3af; 
-    }
-    .timeline-content { padding-left: 8px; }
-    .timeline-main { font-weight: 600; font-size: 14px; }
-    .timeline-main.completed { color: var(--text); }
-    .timeline-main.current { color: var(--primary); font-weight: 700; }
-    .timeline-main.pending { color: #9ca3af; }
-    .timeline-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
-    .timeline-time { position: absolute; right: 0; top: 0; font-size: 12px; color: var(--muted); }
-    
-    .view-file-btn {
-      margin-top: 8px;
-      padding: 6px 12px;
-      background: #fef2f2;
-      color: var(--primary);
-      border: 1px solid #fecaca;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    
-    .view-file-btn:hover {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-    }
-    
-    .view-file-btn i {
-      font-size: 14px;
-    }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.1); }
-    }
-
-    .chat-section { margin-top: 0; padding: 0 20px 20px; border-top: 1px solid var(--border); background: white; }
-    .chat-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; padding-top: 20px; }
-    
-    .chat-messages-container {
-      max-height: 300px;
-      overflow-y: auto;
-      margin-bottom: 16px;
-      padding: 12px;
-      background: #f9fafb;
-      border-radius: 8px;
-      scrollbar-width: none;
-    }
-    
-    .chat-messages-container::-webkit-scrollbar {
-      width: 0px;
-    }
-    
-    .chat-message {
-      margin-bottom: 16px;
-      padding: 12px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-    
-    .chat-message:last-child {
-      margin-bottom: 0;
-    }
-    
-    .chat-message-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    
-    .chat-message-sender {
-      font-weight: 600;
-      font-size: 14px;
-      color: var(--text);
-    }
-    
-    .chat-message-time {
-      font-size: 12px;
-      color: var(--muted);
-    }
-    
-    .chat-message-content {
-      font-size: 14px;
-      color: #4b5563;
-      line-height: 1.5;
-    }
-    
-    .no-messages {
-      text-align: center;
-      color: var(--muted);
-      padding: 24px;
-      font-size: 14px;
-    }
-    
-    .chat-input-wrapper { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-    .chat-input { flex: 1; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: white; outline: none; }
-    .send-rocket { width: 30px; height: 30px; background: var(--primary); color: white; border: none; border-radius: 50%; font-size: 12px; cursor: pointer; transition: all 0.2s; }
-    .send-rocket:hover { background: #dc2626; transform: scale(1.05); }
-    .chat-buttons { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-    .btn-update, .btn-close-trip { background: var(--primary); color: white; padding: 12px 20px; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-    .btn-add-comment { background: white; color: var(--primary); padding: 12px 20px; border: 2px solid var(--primary); border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-    .btn-close-trip { background: var(--green); width: 100%; padding: 14px; font-size: 15px; }
-    .btn-update:hover { background: #dc2626; }
-    .btn-add-comment:hover { background: #fef2f2; }
-    .btn-close-trip:hover { background: #15803d; }
-
-    #sidebarOverlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.4);
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s;
-      z-index: 1000;
-    }
-    #sidebarOverlay.show { opacity: 1; visibility: visible; }
-
-    #profileSidebar::-webkit-scrollbar { width: 0px; }
-    #profileSidebar::-webkit-scrollbar-track { background: transparent; }
-    #profileSidebar::-webkit-scrollbar-thumb { background: transparent; }
-    
-    #profileSidebar {
-      scrollbar-width: none;
-    }
-
-    .action-view {
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .action-view:hover {
-      background: #dc2626;
-    }
-    
-    .btn-upload-lr {
-      background: #dc2626;
-      color: white;
-      padding: 12px 20px;
-      border: none;
-      border-radius: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .btn-upload-lr:hover {
-      background: #b91c1c;
-    }
-
-    .btn-upload-lr:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .btn-upload-pod {
-      background: #2563eb;
-      color: white;
-      padding: 12px 20px;
-      border: none;
-      border-radius: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .btn-upload-pod:hover {
-      background: #1d4ed8;
-    }
-
-    .btn-upload-pod:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .lr-modal, .pod-modal, .hold-modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 2000;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .lr-modal-content, .pod-modal-content, .hold-modal-content {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      width: 90%;
-      max-width: 500px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    }
-
-    .lr-modal-header, .pod-modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .lr-modal-header h3, .pod-modal-header h3 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-    }
-
-    .close-modal, .close-pod-modal {
-      background: none;
-      border: none;
-      font-size: 24px;
-      color: #6b7280;
-      cursor: pointer;
-    }
-
-    .upload-area {
-      border: 2px dashed #d1d5db;
-      border-radius: 8px;
-      padding: 40px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      background: #fafafa;
-      margin-bottom: 20px;
-    }
-
-    .upload-area:hover {
-      border-color: #ef4444;
-      background: #fef2f2;
-    }
-
-    .upload-area.dragover {
-      border-color: #ef4444;
-      background: #fef2f2;
-    }
-
-    .file-preview {
-      display: none;
-      padding: 16px;
-      background: #f8fafc;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-
-    .file-info {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .file-name {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 500;
-    }
-
-    .remove-file, .remove-pod-file {
-      background: none;
-      border: none;
-      color: #ef4444;
-      cursor: pointer;
-    }
-
-    .modal-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-    }
-
-    .btn-cancel {
-      padding: 10px 20px;
-      border: 1px solid #d1d5db;
-      background: white;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-
-    .btn-submit-lr {
-      padding: 10px 20px;
-      background: #ef4444;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-
-    .btn-submit-pod {
-      padding: 10px 20px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-
-    .btn-submit-lr:disabled, .btn-submit-pod:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .toastify-custom {
-      border-radius: 8px;
-      font-weight: 500;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      padding: 12px 20px;
-    }
-  </style>
+  <link rel="stylesheet" href="/static/css/trip.css">
 </head>
 <body>
 
@@ -835,6 +178,37 @@
           <span id="chargesAddedAtStatus"></span>
         </div>
       </div>
+      <!-- Add this after the payment-box div -->
+<div id="paymentAdjustmentBox" style="display: none; margin-top: 16px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+    <h3 class="section-title" style="font-size: 14px; margin-top: 0; margin-bottom: 12px; color: #475569;">Payment Adjustment Details</h3>
+    
+    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #64748b; font-size: 13px;">Expected Amount:</span>
+        <span id="expectedAmount" style="font-weight: 600; color: #334155;">₹0</span>
+    </div>
+    
+    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #64748b; font-size: 13px;">Actual Paid:</span>
+        <span id="actualPaidAmount" style="font-weight: 600; color: #16a34a;">₹0</span>
+    </div>
+    
+    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #64748b; font-size: 13px;">Adjustment:</span>
+        <span id="adjustmentAmount" style="font-weight: 600; color: #dc2626;">₹0</span>
+    </div>
+    
+    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #64748b; font-size: 13px;">Adjustment %:</span>
+        <span id="adjustmentPercentage" style="font-weight: 600; color: #dc2626;">0%</span>
+    </div>
+    
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+        <div style="color: #64748b; font-size: 13px; margin-bottom: 4px;">Adjustment Reason:</div>
+        <div id="adjustmentReason" style="color: #334155; font-size: 13px; line-height: 1.4; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e2e8f0;">
+            No adjustment reason provided
+        </div>
+    </div>
+</div>
 
       <h3 class="section-title" style="margin-top:28px;">Customer Details</h3>
       <div class="detail-row"><span class="detail-label">Customer Name</span><span class="detail-value" id="customerName">-</span></div>
@@ -952,42 +326,75 @@ function attachSidebarEventListeners() {
   overlay.addEventListener('click', closeSidebar);
 
   // First half payment checkbox listener
-  document.getElementById('firstHalfPaymentCheckbox').addEventListener('change', function() {
-    const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
-    const remainingAmountStatus = document.getElementById('remainingAmountStatus');
-    const totalAmountStatus = document.getElementById('totalAmountStatus');
-    
-    if (this.checked) {
-      // Mark first half as paid
-      firstHalfPaymentStatus.className = 'paid';
-      // Extract the amount from the text
-      const amountText = firstHalfPaymentStatus.textContent.replace(/₹|,/g, '');
-      const firstHalfAmount = parseFloat(amountText) || 0;
+// First half payment checkbox listener
+document.getElementById('firstHalfPaymentCheckbox').addEventListener('change', function() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    this.checked = !this.checked; // Revert checkbox
+    return;
+  }
+  
+  const tripId = currentTripId;
+  const isPaid = this.checked;
+  console.log('Sending request for trip ID:', tripId, 'is_paid:', isPaid);
+  // Call API to update first half payment status
+  fetch(`/api/payment/${tripId}/mark-first-half-paid/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify({ is_paid: isPaid })
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      // Update UI with backend data
+      const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
+      const remainingAmountStatus = document.getElementById('remainingAmountStatus');
+      const totalAmountStatus = document.getElementById('totalAmountStatus');
       
-      // Get total amount
-      const totalText = totalAmountStatus.textContent.replace(/₹|,/g, '');
-      const totalAmount = parseFloat(totalText) || 0;
+      // Update first half payment status
+      if (isPaid) {
+        firstHalfPaymentStatus.className = 'paid';
+        // Add tooltip with payment info
+        let tooltipText = 'First half payment paid';
+        if (result.paid_at) {
+          tooltipText += `\nOn: ${result.paid_at}`;
+        }
+        if (result.paid_by) {
+          tooltipText += `\nBy: ${result.paid_by}`;
+        }
+        firstHalfPaymentStatus.title = tooltipText;
+      } else {
+        firstHalfPaymentStatus.className = 'pending';
+        firstHalfPaymentStatus.title = '';
+      }
       
-      // Calculate new remaining: Total - First Half
-      const newRemaining = totalAmount - firstHalfAmount;
-      remainingAmountStatus.textContent = `₹${newRemaining.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-      remainingAmountStatus.className = 'paid';
+      // Update remaining amount
+      remainingAmountStatus.textContent = `₹${parseFloat(result.remaining_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
       
-      showToast('First half payment marked as paid! Remaining amount updated.', 'success');
+      // Update remaining amount color based on payment status
+      if (result.is_paid) {
+        remainingAmountStatus.className = 'paid';
+      } else {
+        remainingAmountStatus.className = 'pending';
+      }
+      
+      showToast(result.message || 'First half payment status updated', 'success');
     } else {
-      // Mark first half as pending
-      firstHalfPaymentStatus.className = 'pending';
-      const amountText = firstHalfPaymentStatus.textContent.replace(/₹|,/g, '');
-      const firstHalfAmount = parseFloat(amountText) || 0;
-      const totalText = totalAmountStatus.textContent.replace(/₹|,/g, '');
-      const totalAmount = parseFloat(totalText) || 0;
-      const newRemaining = totalAmount - firstHalfAmount;
-      remainingAmountStatus.textContent = `₹${newRemaining.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-      remainingAmountStatus.className = 'pending';
-      
-      showToast('First half payment marked as pending.', 'success');
+      // Revert checkbox on error
+      this.checked = !isPaid;
+      showToast('Error: ' + (result.error || 'Failed to update payment status'), 'error');
     }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    // Revert checkbox on error
+    this.checked = !isPaid;
+    showToast('Failed to update payment status', 'error');
   });
+});
 
   document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
   document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
@@ -1477,6 +884,8 @@ function loadTripDetails(tripId) {
   })
   .then(result => {
     if (result.success) {
+      console.log('Backend data:', result.data); // Add this for debugging
+      console.log('First half payment paid:', result.data.first_half_payment_paid);
       populateSidebar(result.data);
     } else {
       showToast('Error loading trip details: ' + (result.error || 'Unknown error'), 'error');
@@ -1485,12 +894,19 @@ function loadTripDetails(tripId) {
   })
   .catch(error => {
     console.error('Error:', error);
-  
     closeSidebar();
   });
 }
 
 function populateSidebar(data) {
+
+currentTripId = data.id; 
+      // Update payment adjustment display
+  const paymentAdjustmentBox = document.getElementById('paymentAdjustmentBox');
+  const adjustmentAmount = parseFloat(data.adjustment_amount || 0);
+  const adjustmentType = data.adjustment_type || 'none';
+
+
   document.getElementById('sidebarTripId').textContent = data.load_id;
   const statusBadge = document.getElementById('sidebarStatusBadge');
   statusBadge.textContent = data.trip_status_display;
@@ -1514,7 +930,36 @@ function populateSidebar(data) {
   document.getElementById('currentLocation').textContent = data.current_location;
   
   const finalPaymentStatus = document.getElementById('finalPaymentStatus');
-  
+      if (adjustmentAmount !== 0 && data.confirmed_amount && data.before_amount) {
+        paymentAdjustmentBox.style.display = 'block';
+        
+        // Set colors based on adjustment type
+        const adjustmentColor = adjustmentType === 'increase' ? '#16a34a' : 
+                              adjustmentType === 'decrease' ? '#dc2626' : '#64748b';
+        
+        const adjustmentSign = adjustmentAmount > 0 ? '+' : '';
+        
+        document.getElementById('expectedAmount').textContent = 
+            `₹${parseFloat(data.before_amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+        
+        document.getElementById('actualPaidAmount').textContent = 
+            `₹${parseFloat(data.confirmed_amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+        
+        document.getElementById('adjustmentAmount').textContent = 
+            `${adjustmentSign}₹${Math.abs(adjustmentAmount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+        document.getElementById('adjustmentAmount').style.color = adjustmentColor;
+        
+        document.getElementById('adjustmentPercentage').textContent = 
+            `${adjustmentSign}${parseFloat(data.adjustment_percentage || 0).toFixed(2)}%`;
+        document.getElementById('adjustmentPercentage').style.color = adjustmentColor;
+        
+        // Show adjustment reason if available
+        document.getElementById('adjustmentReason').textContent = 
+            data.payment_adjustment_reason || 'No adjustment reason provided';
+        
+    } else {
+        paymentAdjustmentBox.style.display = 'none';
+    }
   if (data.final_payment_paid) {
     finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
     finalPaymentStatus.className = 'paid';
@@ -1545,21 +990,42 @@ function populateSidebar(data) {
   secondHalfPaymentStatus.textContent = `₹${secondHalfPayment.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   holdingChargesStatus.textContent = `₹${holdingCharges.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   totalAmountStatus.textContent = `₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-  
+      // Set checkbox state based on backend data
+  firstHalfPaymentCheckbox.checked = data.first_half_payment_paid || false;
+  firstHalfPaymentCheckbox.dataset.tripId = data.id;
   // Calculate remaining amount: Total - First Half Payment
-  const remainingAmount = totalAmount - firstHalfPayment;
-  remainingAmountStatus.textContent = `₹${remainingAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-  
+      if (data.first_half_payment_paid) {
+        firstHalfPaymentStatus.className = 'paid';
+        // Add tooltip with payment info
+        let tooltipText = 'First half payment paid';
+        if (data.first_half_payment_paid_at) {
+            tooltipText += `\nOn: ${data.first_half_payment_paid_at}`;
+        }
+
+        firstHalfPaymentStatus.title = tooltipText;
+    } else {
+        firstHalfPaymentStatus.className = 'pending';
+        firstHalfPaymentStatus.title = '';
+    }
+    // Calculate remaining amount based on payment status
+    let remainingAmount = totalAmount;
+    if (data.first_half_payment_paid) {
+        remainingAmount = totalAmount - firstHalfPayment;
+    }
+    
+    remainingAmountStatus.textContent = `₹${remainingAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   // Update remaining amount color based on payment status
-  if (data.final_payment_paid) {
-    remainingAmountStatus.className = 'paid';
-  } else {
-    remainingAmountStatus.className = 'pending';
-  }
+    if (data.final_payment_paid) {
+        remainingAmountStatus.className = 'paid';
+    } else if (data.first_half_payment_paid) {
+        remainingAmountStatus.className = 'paid';
+    } else {
+        remainingAmountStatus.className = 'pending';
+    }
   
   // Reset checkbox state
-  firstHalfPaymentCheckbox.checked = false;
-  firstHalfPaymentCheckbox.dataset.tripId = data.load_id;
+  // firstHalfPaymentCheckbox.checked = false;
+  firstHalfPaymentCheckbox.dataset.tripId = data.id;
   
   // Store trip status for modal
   window.currentTripStatus = data.trip_status;
@@ -2012,9 +1478,7 @@ function proceedWithStatusUpdate(newStatus, holdReason = null) {
 }
 
 function showHoldCompletedModal() {
-  // Create payment completion modal if it doesn't exist. This modal fetches payment details,
-  // displays the expected amount (before), allows increase/decrease, shows confirmed total,
-  // and sends the confirmed amount to backend when user confirms.
+  // Create payment completion modal
   let modal = document.getElementById('paymentCompleteModal');
   if (!modal) {
     modal = document.createElement('div');
@@ -2039,7 +1503,11 @@ function showHoldCompletedModal() {
             <div style="flex:1;">Confirmed Total</div>
             <div id="pcConfirmedAmount" style="font-weight:800; color:#16a34a;"></div>
           </div>
-          <div style="font-size:13px; color:#6b7280;">You can increase or decrease the expected amount. The confirmed amount will be saved as the total paid and visible to users.</div>
+          <div id="pcAdjustmentReasonSection" style="margin-top:12px; display:none;">
+            <label style="display:block; margin-bottom:8px; font-weight:500; color:#374151;">Adjustment Reason (required for increase/decrease)</label>
+            <textarea id="pcAdjustmentReason" rows="3" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:14px; resize:vertical;" placeholder="Explain why the payment is being adjusted..."></textarea>
+          </div>
+          <div style="font-size:13px; color:#6b7280; margin-top:8px;">If you increase or decrease the amount, please provide a reason.</div>
         </div>
         <div class="modal-actions">
           <button class="btn-cancel" id="pcCancel">Cancel</button>
@@ -2052,7 +1520,20 @@ function showHoldCompletedModal() {
     // Event listeners
     document.querySelector('#paymentCompleteModal .close-payment-modal').addEventListener('click', closePaymentCompleteModal);
     document.querySelector('#paymentCompleteModal #pcCancel').addEventListener('click', closePaymentCompleteModal);
-    document.querySelector('#paymentCompleteModal #pcAdjustment').addEventListener('input', updateConfirmedAmountDisplay);
+    document.querySelector('#paymentCompleteModal #pcAdjustment').addEventListener('input', function() {
+      updateConfirmedAmountDisplay();
+      // Show/hide reason field based on adjustment
+      const adj = parseFloat(this.value || 0);
+      const reasonSection = document.getElementById('pcAdjustmentReasonSection');
+      const reasonField = document.getElementById('pcAdjustmentReason');
+      if (adj !== 0) {
+        reasonSection.style.display = 'block';
+        reasonField.required = true;
+      } else {
+        reasonSection.style.display = 'none';
+        reasonField.required = false;
+      }
+    });
     document.querySelector('#paymentCompleteModal #pcConfirm').addEventListener('click', submitConfirmedPayment);
   }
 
@@ -2080,12 +1561,68 @@ function showHoldCompletedModal() {
       modal.dataset.beforeAmount = beforeAmount;
       modal.dataset.currentConfirmed = confirmed;
 
+      // Show/hide reason field
+      const adj = parseFloat(adjInput.value || 0);
+      const reasonSection = document.getElementById('pcAdjustmentReasonSection');
+      const reasonField = document.getElementById('pcAdjustmentReason');
+      if (adj !== 0) {
+        reasonSection.style.display = 'block';
+        reasonField.value = data.payment_adjustment_reason || '';
+      }
+
       modal.style.display = 'flex';
     })
     .catch(err => {
       console.error(err);
       showToast('Failed to load payment details', 'error');
     });
+}
+
+function submitConfirmedPayment() {
+  if (!currentTripId) return showToast('No trip selected', 'error');
+  const modal = document.getElementById('paymentCompleteModal');
+  if (!modal) return;
+  const before = parseFloat(modal.dataset.beforeAmount || 0);
+  const adj = parseFloat(document.getElementById('pcAdjustment').value || 0);
+  const confirmed = (before + adj).toFixed(2);
+  
+  // Get adjustment reason
+  const adjustmentReason = document.getElementById('pcAdjustmentReason').value.trim();
+  if (adj !== 0 && !adjustmentReason) {
+    showToast('Please provide a reason for the payment adjustment', 'error');
+    return;
+  }
+
+  // send to backend
+  fetch(`/api/payment/${currentTripId}/mark-final-payment-paid/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify({ 
+      confirmed_amount: confirmed,
+      adjustment_reason: adj !== 0 ? adjustmentReason : null
+    })
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.success) {
+      showToast(result.message || 'Payment completed', 'success');
+      closePaymentCompleteModal();
+      // update UI: update row and sidebar
+      updateTableRow(currentTripId, 'payment_completed', 'Payment Completed');
+      setTimeout(() => loadTripDetails(currentTripId), 300);
+    } else if (result.error === 'adjustment_reason_required') {
+      showToast(result.message, 'error');
+    } else {
+      showToast('Error: ' + (result.error || 'Failed to process payment'), 'error');
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    showToast('Failed to process payment', 'error');
+  });
 }
 
 function closeHoldCompletedModal() {
@@ -2105,41 +1642,6 @@ function updateConfirmedAmountDisplay(e) {
   const adj = parseFloat(document.getElementById('pcAdjustment').value || 0);
   const confirmed = before + adj;
   document.getElementById('pcConfirmedAmount').textContent = `₹${confirmed.toLocaleString('en-IN',{minimumFractionDigits:2})}`;
-}
-
-function submitConfirmedPayment() {
-  if (!currentTripId) return showToast('No trip selected', 'error');
-  const modal = document.getElementById('paymentCompleteModal');
-  if (!modal) return;
-  const before = parseFloat(modal.dataset.beforeAmount || 0);
-  const adj = parseFloat(document.getElementById('pcAdjustment').value || 0);
-  const confirmed = (before + adj).toFixed(2);
-
-  // send to backend
-  fetch(`/api/payment/${currentTripId}/mark-final-payment-paid/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrftoken
-    },
-    body: JSON.stringify({ confirmed_amount: confirmed })
-  })
-  .then(r => r.json())
-  .then(result => {
-    if (result.success) {
-      showToast(result.message || 'Payment completed', 'success');
-      closePaymentCompleteModal();
-      // update UI: update row and sidebar
-      updateTableRow(currentTripId, 'payment_completed', 'Payment Completed');
-      setTimeout(() => loadTripDetails(currentTripId), 300);
-    } else {
-      showToast('Error: ' + (result.error || 'Failed to process payment'), 'error');
-    }
-  })
-  .catch(err => {
-    console.error(err);
-    showToast('Failed to process payment', 'error');
-  });
 }
 
 function showHoldReasonModal() {

@@ -84,6 +84,8 @@ path('reassign-trips/action/', views.reassign_trips_action, name='reassign_trips
 path('forgot-password/', views.forgot_password_view, name='forgot_password'),
 path('reset-password/<int:user_id>/', views.reset_password_view, name='reset_password'),
 
+ path('api/payment/<int:trip_id>/mark-first-half-paid/', views.mark_first_half_payment_paid_api, name='mark_first_half_payment_paid'),
+
 
     
     
