@@ -374,6 +374,10 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     
     # Hold reason field
     hold_reason = serializers.SerializerMethodField()
+    
+    # Payment adjustment fields
+    before_payment_amount = serializers.SerializerMethodField()
+    confirmed_paid_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Load
@@ -423,6 +427,10 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             
             # hold reason
             "hold_reason",
+            
+            # payment adjustment tracking
+            "before_payment_amount",
+            "confirmed_paid_amount",
 
             "created_at",
         ]
@@ -480,6 +488,20 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
         if obj.trip_status == 'hold':
             return obj.hold_reason
         return None
+    
+    def get_before_payment_amount(self, obj):
+        """Return the amount that was expected before any manual adjustment."""
+        # If explicitly set, use it; otherwise default to second half or final payment
+        if getattr(obj, 'before_payment_amount', None) is not None and obj.before_payment_amount != 0:
+            return obj.before_payment_amount
+        # prefer second half if available
+        if getattr(obj, 'second_half_payment', None):
+            return obj.second_half_payment
+        return obj.final_payment
+
+    def get_confirmed_paid_amount(self, obj):
+        """Return the confirmed paid amount if present, otherwise None."""
+        return obj.confirmed_paid_amount if getattr(obj, 'confirmed_paid_amount', None) is not None else None
     
 
 class LRUploadSerializer(serializers.ModelSerializer):

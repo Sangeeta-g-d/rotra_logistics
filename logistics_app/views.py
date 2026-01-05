@@ -2572,6 +2572,10 @@ def get_payment_details_api(request, trip_id):
             # Payment details
             'final_payment': float(load.final_payment),
             'total_amount': float(load.final_payment),
+            'first_half_payment': float(getattr(load, 'first_half_payment', 0) or 0),
+            'second_half_payment': float(getattr(load, 'second_half_payment', 0) or 0),
+            'before_amount': float(getattr(load, 'before_payment_amount', 0) or 0),
+            'confirmed_amount': float(getattr(load, 'confirmed_paid_amount', 0) or 0),
             'final_payment_paid': final_payment_paid,
             'final_payment_date': final_payment_date,
 
@@ -2601,23 +2605,62 @@ def mark_final_payment_paid_api(request, trip_id):
     try:
         load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
         
-        # Check if POD is uploaded
-        if load.trip_status != 'pod_uploaded':
+        # Pod upload is optional now; allow marking final payment regardless of POD status
+        
+        # Determine expected before amount (default to second half if first half exists)
+        try:
+            from decimal import Decimal, ROUND_HALF_UP
+            import json
+            from django.utils import timezone
+
+            # expected amount before adjustment
+            expected_before = None
+            if getattr(load, 'first_half_payment', None) and load.first_half_payment and load.first_half_payment > 0:
+                # if first half was defined/paid, expected before is second half
+                expected_before = load.second_half_payment or load.final_payment
+            else:
+                expected_before = load.final_payment
+
+            # Read confirmed amount from POST (form) or JSON body
+            confirmed_amount_str = request.POST.get('confirmed_amount') or request.POST.get('confirmed_paid_amount')
+            if not confirmed_amount_str:
+                # try JSON
+                try:
+                    payload = json.loads(request.body.decode('utf-8') or '{}')
+                    confirmed_amount_str = payload.get('confirmed_amount') or payload.get('confirmed_paid_amount')
+                except Exception:
+                    confirmed_amount_str = None
+
+            if confirmed_amount_str:
+                confirmed_amount = Decimal(str(confirmed_amount_str)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            else:
+                confirmed_amount = expected_before or Decimal('0.00')
+
+            # Save previous expected amount and confirmed amount on the load
+            load.before_payment_amount = expected_before or Decimal('0.00')
+            load.confirmed_paid_amount = confirmed_amount
+            load.save()
+
+            # Update status to payment_completed WITH notification
+            previous_status = load.trip_status
+            load.update_trip_status('payment_completed', user=request.user, send_notification=True)
+
+            adjustment = (confirmed_amount - (load.before_payment_amount or Decimal('0.00')))
+
             return JsonResponse({
-                'success': False,
-                'error': 'Final payment can only be marked after POD is uploaded'
-            }, status=400)
-        
-        # Update status to payment_completed WITH notification
-        previous_status = load.trip_status
-        load.update_trip_status('payment_completed', user=request.user, send_notification=True)
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Final payment marked as paid',
-            'notification_sent': bool(load.driver and load.driver.owner),
-            'payment_date': load.payment_completed_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'payment_completed_at') and load.payment_completed_at else None
-        })
+                'success': True,
+                'message': 'Final payment marked as paid',
+                'notification_sent': bool(load.driver and load.driver.owner),
+                'payment_date': load.payment_completed_at.strftime('%b %d, %Y %I:%M %p') if hasattr(load, 'payment_completed_at') and load.payment_completed_at else None,
+                'before_amount': float(load.before_payment_amount or Decimal('0.00')),
+                'confirmed_amount': float(load.confirmed_paid_amount or Decimal('0.00')),
+                'adjustment': float(adjustment),
+            })
+        except Exception as e:
+            print('Error processing payment amounts:', e)
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'success': False, 'error': 'Invalid amount provided'}, status=400)
         
     except Load.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)

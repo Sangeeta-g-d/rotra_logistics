@@ -406,6 +406,24 @@ class Load(models.Model):
         help_text="Reason for putting the trip on hold"
     )
 
+    # Payment adjustment tracking
+    # Stores the amount expected before any manual adjustment (e.g., second half expected)
+    before_payment_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Amount expected before manual adjustment"
+    )
+
+    # Stores the final confirmed amount that was paid (may be adjusted up/down)
+    confirmed_paid_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Confirmed amount actually paid for final settlement"
+    )
+
     # Holding charges (kept for backward compatibility - now calculated from HoldingCharge model)
     holding_charges = models.DecimalField(
         max_digits=14,
