@@ -444,7 +444,7 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "second_half_payment",
             "total_holding_charges",
             "total_trip_amount",
-
+            "current_location",
             "trip_status",
             "status",
 
