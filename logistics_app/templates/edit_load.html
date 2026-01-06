@@ -298,6 +298,45 @@
       color: #991b1b;
     }
 
+    /* Checkbox styling */
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-check-input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .form-check-label {
+      cursor: pointer;
+      font-size: 14px;
+      color: #333;
+      font-weight: 500;
+      margin-bottom: 0;
+    }
+
+    /* Payment split section */
+    .payment-split-section {
+      background: #f0f9ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+
+    .payment-split-header {
+      font-weight: 600;
+      color: #1e40af;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .form-grid {
@@ -408,7 +447,7 @@
         <div class="form-group">
           <label>Drop Date</label>
           <input type="date" name="dropDate" id="dropDate" 
-                 value="{{ load.drop_date|date:'Y-m-d' }}">
+                 value="{% if load.drop_date %}{{ load.drop_date|date:'Y-m-d' }}{% endif %}">
         </div>
       </div>
 
@@ -416,14 +455,23 @@
         <div class="form-group">
           <label>Time <span class="required">*</span></label>
           <div class="time-input-group">
-            {% with time_str=load.time|time:"g:i A" %}
-            <input type="text" id="timeInput" placeholder="02:30" maxlength="5" 
-                   value="{{ time_str|slice:'0:5' }}" required>
-            <select id="ampmSelect">
-              <option value="AM" {% if 'AM' in time_str %}selected{% endif %}>AM</option>
-              <option value="PM" {% if 'PM' in time_str %}selected{% endif %}>PM</option>
-            </select>
-            <input type="hidden" name="time" id="hiddenTimeInput" value="{{ time_str }}">
+            {% with load_time=load.time %}
+              {% if load_time %}
+                <input type="text" id="timeInput" placeholder="02:30" maxlength="5" 
+                       value="{{ load_time|time:'g:i' }}" required>
+                <select id="ampmSelect">
+                  <option value="AM" {% if load_time|time:'A' == 'AM' %}selected{% endif %}>AM</option>
+                  <option value="PM" {% if load_time|time:'A' == 'PM' %}selected{% endif %}>PM</option>
+                </select>
+                <input type="hidden" name="time" id="hiddenTimeInput" value="{{ load_time|time:'g:i A' }}">
+              {% else %}
+                <input type="text" id="timeInput" placeholder="02:30" maxlength="5" value="12:00" required>
+                <select id="ampmSelect">
+                  <option value="AM">AM</option>
+                  <option value="PM" selected>PM</option>
+                </select>
+                <input type="hidden" name="time" id="hiddenTimeInput" value="12:00 PM">
+              {% endif %}
             {% endwith %}
           </div>
         </div>
@@ -447,6 +495,24 @@
         </div>
       </div>
 
+      <!-- TDS Checkbox -->
+      <div class="form-grid">
+        <div class="form-group">
+          <div class="checkbox-container">
+            <input 
+              type="checkbox" 
+              name="apply_tds" 
+              id="apply_tds" 
+              class="form-check-input"
+              {% if load.apply_tds %}checked{% endif %}
+            >
+            <label for="apply_tds" class="form-check-label">
+              Apply TDS Deduction
+            </label>
+          </div>
+        </div>
+      </div>
+
       <!-- Payment Section -->
       <div class="section-header">
         <i class="fas fa-money-bill-wave"></i> Payment Information
@@ -462,9 +528,43 @@
                  min="1000" 
                  required 
                  placeholder="Enter full freight amount"
-                 value="{{ load.price_per_unit|floatformat:'0' }}"
+                 value="{% if load.price_per_unit %}{{ load.price_per_unit|floatformat:'0' }}{% endif %}"
                  style="font-size:16px; font-weight:600; padding: 12px;">
           <small>Enter the complete freight amount for the trip</small>
+        </div>
+      </div>
+
+      <!-- Payment Split Section -->
+      <div class="payment-split-section">
+        <div class="payment-split-header">
+          <i class="fas fa-coins"></i> Payment Split (90% & 10%)
+        </div>
+        
+        <div class="form-grid">
+          <div class="form-group">
+            <label>First Half Payment (90%)</label>
+            <input type="number" 
+                   id="firstHalfPaymentInput" 
+                   name="first_half_payment" 
+                   step="0.01" 
+                   min="0" 
+                   value="{% if load.first_half_payment %}{{ load.first_half_payment|floatformat:'2' }}{% else %}0.00{% endif %}"
+                   placeholder="Enter or auto-calculated" 
+                   style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+            <small>Edit this amount - second half will auto-adjust to match total</small>
+          </div>
+          <div class="form-group">
+            <label>Second Half Payment (10%)</label>
+            <input type="number" 
+                   id="secondHalfPaymentInput" 
+                   name="second_half_payment" 
+                   step="0.01" 
+                   min="0" 
+                   value="{% if load.second_half_payment %}{{ load.second_half_payment|floatformat:'2' }}{% else %}0.00{% endif %}"
+                   placeholder="Enter or auto-calculated" 
+                   style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+            <small>Edit this amount - first half will auto-adjust to match total</small>
+          </div>
         </div>
       </div>
 
@@ -474,10 +574,10 @@
           <label>Final Payment</label>
           <div class="payment-display final-payment">
             <input type="text" id="finalPaymentDisplay" readonly 
-                   value="₹ {{ load.final_payment|floatformat:0|default:'0' }}">
+                   value="₹ {% if load.final_payment %}{{ load.final_payment|floatformat:'2' }}{% else %}0.00{% endif %}">
           </div>
           <input type="hidden" name="final_payment" id="hiddenFinalPayment" 
-                 value="{{ load.final_payment|default:'0' }}">
+                 value="{% if load.final_payment %}{{ load.final_payment|floatformat:'2' }}{% else %}0.00{% endif %}">
         </div>
       </div>
 
@@ -519,44 +619,141 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('contactPersonPhone').value = selected.dataset.contactPhone || '';
   });
 
-  // ====================== 90-10 PAYMENT SPLIT CALCULATION ======================
+  // ====================== PAYMENT CALCULATION LOGIC (Same as Add Load) ======================
   function calculatePaymentSplit() {
     const totalInput = document.getElementById('totalAmountInput');
     const finalDisplay = document.getElementById('finalPaymentDisplay');
     const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
+    const firstHalfInput = document.getElementById('firstHalfPaymentInput');
+    const secondHalfInput = document.getElementById('secondHalfPaymentInput');
+
+    if (!totalInput || !finalDisplay) return;
 
     const total = parseFloat(totalInput.value) || 0;
 
     if (total > 0) {
       const finalPayment = total;
 
-      finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN');
+      finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
       hiddenFinalPayment.value = finalPayment;
+      
+      // Update input fields (only if they haven't been manually modified)
+      if (!firstHalfInput.dataset.modified) {
+        firstHalfInput.value = (total * 0.90).toFixed(2);
+      }
+      if (!secondHalfInput.dataset.modified) {
+        secondHalfInput.value = (total * 0.10).toFixed(2);
+      }
     } else {
-      finalDisplay.value = '₹ 0';
+      finalDisplay.value = '₹ 0.00';
       hiddenFinalPayment.value = '';
+      
+      if (!firstHalfInput.dataset.modified) {
+        firstHalfInput.value = '0.00';
+      }
+      if (!secondHalfInput.dataset.modified) {
+        secondHalfInput.value = '0.00';
+      }
     }
   }
 
   // Initialize payment calculation
-  document.getElementById('totalAmountInput').addEventListener('input', calculatePaymentSplit);
-  calculatePaymentSplit(); // Initial calculation
+  const totalInput = document.getElementById('totalAmountInput');
+  const firstHalfInput = document.getElementById('firstHalfPaymentInput');
+  const secondHalfInput = document.getElementById('secondHalfPaymentInput');
+
+  if (totalInput) {
+    totalInput.addEventListener('input', calculatePaymentSplit);
+    
+    // Initial calculation
+    calculatePaymentSplit();
+  }
+  
+  // Track manual modifications to payment fields with auto-adjustment
+  if (firstHalfInput) {
+    firstHalfInput.addEventListener('input', function () {
+      this.dataset.modified = 'true';
+      // Auto-adjust second half payment
+      const total = parseFloat(totalInput.value) || 0;
+      const firstHalf = parseFloat(this.value) || 0;
+      const secondHalf = total - firstHalf;
+      
+      if (secondHalfInput) {
+        secondHalfInput.dataset.modified = 'true';
+        secondHalfInput.value = Math.max(0, secondHalf).toFixed(2);
+      }
+      
+      // Update final payment display
+      const finalDisplay = document.getElementById('finalPaymentDisplay');
+      const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
+      finalDisplay.value = '₹ ' + total.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      hiddenFinalPayment.value = total;
+    });
+  }
+  
+  if (secondHalfInput) {
+    secondHalfInput.addEventListener('input', function () {
+      this.dataset.modified = 'true';
+      // Auto-adjust first half payment
+      const total = parseFloat(totalInput.value) || 0;
+      const secondHalf = parseFloat(this.value) || 0;
+      const firstHalf = total - secondHalf;
+      
+      if (firstHalfInput) {
+        firstHalfInput.dataset.modified = 'true';
+        firstHalfInput.value = Math.max(0, firstHalf).toFixed(2);
+      }
+      
+      // Update final payment display
+      const finalDisplay = document.getElementById('finalPaymentDisplay');
+      const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
+      finalDisplay.value = '₹ ' + total.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      hiddenFinalPayment.value = total;
+    });
+  }
 
   // ====================== TIME INPUT FORMAT ======================
   const timeInput = document.getElementById('timeInput');
   const ampmSelect = document.getElementById('ampmSelect');
   const hiddenTimeInput = document.getElementById('hiddenTimeInput');
 
-  timeInput.addEventListener('input', function (e) {
-    let v = e.target.value.replace(/\D/g, '');
-    if (v.length > 2) v = v.slice(0, 2) + ':' + v.slice(2, 4);
-    e.target.value = v.slice(0, 5);
-    hiddenTimeInput.value = v + ' ' + ampmSelect.value;
-  });
+  function updateHiddenTime() {
+    if (timeInput && hiddenTimeInput && ampmSelect) {
+      const timeValue = timeInput.value.trim();
+      if (timeValue) {
+        // Ensure format HH:MM
+        let formattedTime = timeValue;
+        if (!formattedTime.includes(':')) {
+          if (formattedTime.length === 1) {
+            formattedTime = '0' + formattedTime + ':00';
+          } else if (formattedTime.length === 2) {
+            formattedTime = formattedTime + ':00';
+          } else if (formattedTime.length === 3) {
+            formattedTime = '0' + formattedTime.charAt(0) + ':' + formattedTime.substring(1) + '0';
+          } else if (formattedTime.length === 4) {
+            formattedTime = formattedTime.substring(0, 2) + ':' + formattedTime.substring(2);
+          }
+        }
+        hiddenTimeInput.value = formattedTime + ' ' + ampmSelect.value;
+      }
+    }
+  }
 
-  ampmSelect.addEventListener('change', () => {
-    hiddenTimeInput.value = timeInput.value + ' ' + ampmSelect.value;
-  });
+  if (timeInput) {
+    timeInput.addEventListener('input', function (e) {
+      let v = e.target.value.replace(/\D/g, '');
+      if (v.length > 2) v = v.slice(0, 2) + ':' + v.slice(2, 4);
+      e.target.value = v.slice(0, 5);
+      updateHiddenTime();
+    });
+  }
+
+  if (ampmSelect) {
+    ampmSelect.addEventListener('change', updateHiddenTime);
+  }
+  
+  // Initial time setup
+  updateHiddenTime();
 
   // ====================== DATE VALIDATION ======================
   const pickupDate = document.getElementById('pickupDate');
@@ -580,8 +777,17 @@ document.addEventListener('DOMContentLoaded', function () {
     
     // Validate time format
     const timeValue = hiddenTimeInput.value;
-    if (!timeValue.match(/^\d{1,2}:\d{2} [AP]M$/)) {
+    if (!timeValue || !timeValue.match(/^\d{1,2}:\d{2} [AP]M$/)) {
       showAlert('Please enter a valid time (e.g., 02:30 PM)', 'error');
+      if (timeInput) timeInput.focus();
+      return;
+    }
+
+    // Validate total amount
+    const totalAmount = parseFloat(totalInput.value);
+    if (!totalAmount || totalAmount < 1000) {
+      showAlert('Total trip amount must be at least ₹1000', 'error');
+      totalInput.focus();
       return;
     }
 
@@ -664,7 +870,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Initialize customer fields if already selected
   const customerSelect = document.getElementById('customerSelect');
-  if (customerSelect.value) {
+  if (customerSelect && customerSelect.value) {
     const selected = customerSelect.options[customerSelect.selectedIndex];
     document.getElementById('contactPersonName').value = selected.dataset.contactPerson || '';
     document.getElementById('contactPersonPhone').value = selected.dataset.contactPhone || '';

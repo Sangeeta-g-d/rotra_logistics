@@ -1690,3 +1690,46 @@ class LogoutView(APIView):
                 "status": False,
                 "message": f"Error during logout: {str(e)}"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# update current location
+class UpdateTripCurrentLocationAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, trip_id):
+        """
+        Update current location of a trip
+        """
+        try:
+            load = Load.objects.get(id=trip_id)
+        except Load.DoesNotExist:
+            return Response(
+                {'success': False, 'error': 'Trip not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        current_location = request.data.get('current_location', '').strip()
+
+        if not current_location:
+            return Response(
+                {'success': False, 'error': 'current_location is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        load.current_location = current_location
+        load.updated_at = timezone.now()
+        load.save(update_fields=['current_location', 'updated_at'])
+
+        return Response(
+            {
+                'success': True,
+                'message': 'Current location updated successfully',
+                'data': {
+                    'trip_id': load.id,
+                    'load_id': load.load_id,
+                    'current_location': load.current_location,
+                    'updated_at': load.updated_at
+                }
+            },
+            status=status.HTTP_200_OK
+        )

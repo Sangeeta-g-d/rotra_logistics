@@ -1,5 +1,7 @@
 # urls.py
 from django.urls import path
+
+from logistics_app import views
 from .views import RegisterView, LoginView, VehicleTypeListView, AddVehicleView, AddDriverView, get_all_loads, SendVendorRequestView, get_all_vehicles, update_vehicle, delete_vehicle
 from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -49,5 +51,12 @@ urlpatterns = [
 
     path("send-otp/", SendOTPAPIView.as_view()),
     path("verify-otp/", VerifyOTPAPIView.as_view()),
- 
+
+    path(
+        'api/trips/<int:trip_id>/location/',
+        UpdateTripCurrentLocationAPIView.as_view(),
+        name='update_trip_current_location'
+    ),
+
+    
 ]

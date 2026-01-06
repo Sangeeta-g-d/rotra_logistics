@@ -2,11 +2,12 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification, HoldingCharge
+from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification, HoldingCharge, TDSRate
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from rest_framework.decorators import api_view
 import re
 from django.db import transaction
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Count
@@ -651,6 +652,7 @@ def load_list(request):
         'customer', 'vehicle_type', 'driver', 'vehicle'
     ).order_by('-created_at')
 
+    tds_rate = TDSRate.objects.first()
     customers = Customer.objects.filter(is_active=True).order_by('customer_name')
     vehicle_types = VehicleType.objects.all().order_by('name')
 
@@ -658,6 +660,7 @@ def load_list(request):
         'loads': loads,
         'customers': customers,
         'vehicle_types': vehicle_types,
+        'tds_rate': tds_rate.rate if tds_rate else 2,
     }
     return render(request, 'load_list.html', context)
 
@@ -991,105 +994,154 @@ def update_request_status(request, request_id):
 def add_load(request):
     try:
         with transaction.atomic():
+
+            # =========================
             # 1. Customer
+            # =========================
             customer_id = request.POST.get('customer')
             if not customer_id:
                 return JsonResponse({'success': False, 'error': 'Customer is required'}, status=400)
+
             try:
                 customer = Customer.objects.get(id=customer_id)
             except Customer.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Invalid customer'}, status=400)
 
+            # =========================
             # 2. Vehicle Type
+            # =========================
             vehicle_type_id = request.POST.get('vehicleType')
             if not vehicle_type_id:
                 return JsonResponse({'success': False, 'error': 'Vehicle type is required'}, status=400)
+
             try:
                 vehicle_type = VehicleType.objects.get(id=vehicle_type_id)
             except VehicleType.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Invalid vehicle type'}, status=400)
 
+            # =========================
             # 3. Locations
+            # =========================
             pickup_location = request.POST.get('pickupLocation', '').strip()
             drop_location = request.POST.get('dropLocation', '').strip()
-            if not pickup_location or not drop_location:
-                return JsonResponse({'success': False, 'error': 'Both pickup & drop locations are required'}, status=400)
 
+            if not pickup_location or not drop_location:
+                return JsonResponse(
+                    {'success': False, 'error': 'Both pickup & drop locations are required'},
+                    status=400
+                )
+
+            # =========================
             # 4. Dates
+            # =========================
             pickup_date_str = request.POST.get('pickupDate')
             if not pickup_date_str:
                 return JsonResponse({'success': False, 'error': 'Pickup date is required'}, status=400)
+
             try:
                 pickup_date = datetime.strptime(pickup_date_str, '%Y-%m-%d').date()
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Invalid pickup date format'}, status=400)
 
-            drop_date_str = request.POST.get('dropDate', '').strip()
             drop_date = None
+            drop_date_str = request.POST.get('dropDate', '').strip()
             if drop_date_str:
                 try:
                     drop_date = datetime.strptime(drop_date_str, '%Y-%m-%d').date()
                 except ValueError:
                     return JsonResponse({'success': False, 'error': 'Invalid drop date format'}, status=400)
 
+            # =========================
             # 5. Time (Optional)
-            time_str = request.POST.get('time', '').strip()
+            # =========================
             time_obj = None
+            time_str = request.POST.get('time', '').strip()
             if time_str:
                 try:
                     time_obj = datetime.strptime(time_str, '%I:%M %p').time()
                 except ValueError:
-                    return JsonResponse({'success': False, 'error': 'Invalid time format. Use: 02:30 PM'}, status=400)
+                    return JsonResponse(
+                        {'success': False, 'error': 'Invalid time format. Use: 02:30 PM'},
+                        status=400
+                    )
 
-            # 6. Total Trip Amount (this is what admin enters)
+            # =========================
+            # 6. Total Trip Amount
+            # =========================
             total_amount_str = request.POST.get('total_amount', '').replace(',', '').strip()
-            if not total_amount_str:
-                return JsonResponse({'success': False, 'error': 'Total trip amount is required'}, status=400)
-            try:
-                total_amount = Decimal(total_amount_str)
-                if total_amount <= 0:
-                    return JsonResponse({'success': False, 'error': 'Amount must be greater than 0'}, status=400)
-            except:
-                return JsonResponse({'success': False, 'error': 'Invalid amount format'}, status=400)
 
-            # 7. Final payment is the full amount
+            if total_amount_str:
+                try:
+                    total_amount = Decimal(total_amount_str)
+                    if total_amount <= 0:
+                        return JsonResponse(
+                            {'success': False, 'error': 'Amount must be greater than 0'},
+                            status=400
+                        )
+                except:
+                    return JsonResponse(
+                        {'success': False, 'error': 'Invalid amount format'},
+                        status=400
+                    )
+            else:
+                total_amount = Decimal('0.00')
+
             final_payment = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-            # 7a. Get first and second half payments from form (if user manually changed them)
-            # If not provided, calculate default 90% and 10% split
+            # =========================
+            # 7. First & Second Payment
+            # =========================
             first_half_str = request.POST.get('first_half_payment', '').replace(',', '').strip()
             second_half_str = request.POST.get('second_half_payment', '').replace(',', '').strip()
-            
-            if first_half_str and first_half_str != '0.00':
-                try:
-                    first_half_payment = Decimal(first_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                except:
-                    # If invalid, use default 90%
-                    first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            else:
-                first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            
-            if second_half_str and second_half_str != '0.00':
-                try:
-                    second_half_payment = Decimal(second_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                except:
-                    # If invalid, use default 10%
-                    second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            else:
-                second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-            # price_per_unit = full freight amount entered by admin
-            price_per_unit = total_amount
+            if total_amount > 0:
+                # First half
+                if first_half_str:
+                    try:
+                        first_half_payment = Decimal(first_half_str).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                    except:
+                        first_half_payment = (total_amount * Decimal('0.90')).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                else:
+                    first_half_payment = (total_amount * Decimal('0.90')).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP
+                    )
 
-            # 8. Optional fields
+                # Second half
+                if second_half_str:
+                    try:
+                        second_half_payment = Decimal(second_half_str).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                    except:
+                        second_half_payment = (total_amount * Decimal('0.10')).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                else:
+                    second_half_payment = (total_amount * Decimal('0.10')).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP
+                    )
+            else:
+                first_half_payment = Decimal('0.00')
+                second_half_payment = Decimal('0.00')
+
+            # =========================
+            # 8. Optional Fields
+            # =========================
             contact_person_name = request.POST.get('contactPersonName', '').strip() or None
             contact_person_phone = request.POST.get('contactPersonPhone', '').strip() or None
             weight = request.POST.get('weight', '').strip() or None
             material = request.POST.get('material', '').strip() or None
             notes = request.POST.get('notes', '').strip() or None
+            apply_tds = request.POST.get('apply_tds') == 'on' and total_amount > 0
 
-            # 9. Create Load Instance
-            load = Load(
+            # =========================
+            # 9. Create Load
+            # =========================
+            load = Load.objects.create(
                 customer=customer,
                 contact_person_name=contact_person_name,
                 contact_person_phone=contact_person_phone,
@@ -1102,21 +1154,21 @@ def add_load(request):
                 weight=weight,
                 material=material,
                 notes=notes,
+                apply_tds=apply_tds,
 
-                # PAYMENTS
-                price_per_unit=price_per_unit,                    # Full amount saved here
-                final_payment=final_payment,                      # Full payment
-                first_half_payment=first_half_payment,            # 90%
-                second_half_payment=second_half_payment,          # 10%
+                price_per_unit=total_amount,
+                final_payment=final_payment,
+                first_half_payment=first_half_payment,
+                second_half_payment=second_half_payment,
 
                 created_by=request.user,
                 status='pending',
                 trip_status='pending'
             )
 
-            load.save()  # This will also auto-generate load_id and sync price_per_unit via save()
-
+            # =========================
             # 10. Success Response
+            # =========================
             return JsonResponse({
                 'success': True,
                 'message': f'Load {load.load_id} created successfully!',
@@ -1132,14 +1184,15 @@ def add_load(request):
                 }
             })
 
-    except Exception as e:
+    except Exception:
         print("=== ADD LOAD ERROR ===")
         traceback.print_exc()
         print("=== END ERROR ===")
-        return JsonResponse({
-            'success': False,
-            'error': 'Failed to create load. Please try again.'
-        }, status=500)
+
+        return JsonResponse(
+            {'success': False, 'error': 'Failed to create load. Please try again.'},
+            status=500
+        )
 @login_required
 @require_http_methods(["GET"])
 def get_customer_details(request, customer_id):
@@ -1832,6 +1885,32 @@ def trip_management(request):
 
     return render(request, 'trip_management.html', {'trips': trips})
 
+@api_view(['POST'])
+def update_trip_location(request, trip_id):
+    """
+    Update current location for a trip
+    """
+    try:
+        load = Load.objects.get(id=trip_id)
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
+    
+    location = request.data.get('location', '').strip()
+    
+    if not location:
+        return JsonResponse({'success': False, 'error': 'Location is required'}, status=400)
+    
+    # Update the location
+    load.current_location = location
+    load.updated_at = timezone.now()
+    load.save()
+    
+    return JsonResponse({
+        'success': True,
+        'message': 'Location updated successfully',
+        'updated_at': load.updated_at.isoformat(),
+        'location': location
+    })
 
 @login_required
 @require_http_methods(["GET"])
@@ -1948,6 +2027,8 @@ def get_trip_details_api(request, trip_id):
             'distance': 'Calculating...',
             'current_location': 'Location tracking not available',
             'notes': load.notes or '',
+            'current_location': load.current_location or 'N/A',
+            
 
             'progress': progress,
             'comments': comments,
@@ -3291,110 +3372,162 @@ def edit_load(request, load_id):
 @login_required
 @require_http_methods(["POST"])
 def update_load(request, load_id):
-    """API endpoint to update load"""
+    """API endpoint to update load (same logic as add_load)"""
     try:
         load = Load.objects.get(id=load_id)
-        
-        # Check permissions
+
+        # Permission check
         if request.user.role == 'traffic_person' and load.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
-        
+
         with transaction.atomic():
+
+            # =========================
             # 1. Customer
+            # =========================
             customer_id = request.POST.get('customer')
             if not customer_id:
                 return JsonResponse({'success': False, 'error': 'Customer is required'}, status=400)
+
             try:
                 customer = Customer.objects.get(id=customer_id)
             except Customer.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Invalid customer'}, status=400)
-            
+
+            # =========================
             # 2. Vehicle Type
+            # =========================
             vehicle_type_id = request.POST.get('vehicleType')
             if not vehicle_type_id:
                 return JsonResponse({'success': False, 'error': 'Vehicle type is required'}, status=400)
+
             try:
                 vehicle_type = VehicleType.objects.get(id=vehicle_type_id)
             except VehicleType.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Invalid vehicle type'}, status=400)
-            
+
+            # =========================
             # 3. Locations
+            # =========================
             pickup_location = request.POST.get('pickupLocation', '').strip()
             drop_location = request.POST.get('dropLocation', '').strip()
+
             if not pickup_location or not drop_location:
-                return JsonResponse({'success': False, 'error': 'Both pickup & drop locations are required'}, status=400)
-            
+                return JsonResponse(
+                    {'success': False, 'error': 'Both pickup & drop locations are required'},
+                    status=400
+                )
+
+            # =========================
             # 4. Dates
+            # =========================
             pickup_date_str = request.POST.get('pickupDate')
             if not pickup_date_str:
                 return JsonResponse({'success': False, 'error': 'Pickup date is required'}, status=400)
+
             try:
                 pickup_date = datetime.strptime(pickup_date_str, '%Y-%m-%d').date()
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Invalid pickup date format'}, status=400)
-            
-            drop_date_str = request.POST.get('dropDate', '').strip()
+
             drop_date = None
+            drop_date_str = request.POST.get('dropDate', '').strip()
             if drop_date_str:
                 try:
                     drop_date = datetime.strptime(drop_date_str, '%Y-%m-%d').date()
                 except ValueError:
                     return JsonResponse({'success': False, 'error': 'Invalid drop date format'}, status=400)
-            
+
+            # =========================
             # 5. Time (Optional)
-            time_str = request.POST.get('time', '').strip()
+            # =========================
             time_obj = None
+            time_str = request.POST.get('time', '').strip()
             if time_str:
                 try:
                     time_obj = datetime.strptime(time_str, '%I:%M %p').time()
                 except ValueError:
-                    return JsonResponse({'success': False, 'error': 'Invalid time format. Use: 02:30 PM'}, status=400)
-            
+                    return JsonResponse(
+                        {'success': False, 'error': 'Invalid time format. Use: 02:30 PM'},
+                        status=400
+                    )
+
+            # =========================
             # 6. Total Trip Amount
+            # =========================
             total_amount_str = request.POST.get('total_amount', '').replace(',', '').strip()
-            if not total_amount_str:
-                return JsonResponse({'success': False, 'error': 'Total trip amount is required'}, status=400)
-            try:
-                total_amount = Decimal(total_amount_str)
-                if total_amount <= 0:
-                    return JsonResponse({'success': False, 'error': 'Amount must be greater than 0'}, status=400)
-            except:
-                return JsonResponse({'success': False, 'error': 'Invalid amount format'}, status=400)
-            
-            # 7. Final payment is the full amount
+
+            if total_amount_str:
+                try:
+                    total_amount = Decimal(total_amount_str)
+                    if total_amount <= 0:
+                        return JsonResponse(
+                            {'success': False, 'error': 'Amount must be greater than 0'},
+                            status=400
+                        )
+                except:
+                    return JsonResponse(
+                        {'success': False, 'error': 'Invalid amount format'},
+                        status=400
+                    )
+            else:
+                total_amount = Decimal('0.00')
+
             final_payment = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            
-            # 7a. Get first and second half payments from form (if user manually changed them)
-            # If not provided, calculate default 90% and 10% split
+
+            # =========================
+            # 7. First & Second Payment (90/10)
+            # =========================
             first_half_str = request.POST.get('first_half_payment', '').replace(',', '').strip()
             second_half_str = request.POST.get('second_half_payment', '').replace(',', '').strip()
-            
-            if first_half_str and first_half_str != '0.00':
-                try:
-                    first_half_payment = Decimal(first_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                except:
-                    # If invalid, use default 90%
-                    first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+            if total_amount > 0:
+                # First half
+                if first_half_str:
+                    try:
+                        first_half_payment = Decimal(first_half_str).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                    except:
+                        first_half_payment = (total_amount * Decimal('0.90')).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                else:
+                    first_half_payment = (total_amount * Decimal('0.90')).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP
+                    )
+
+                # Second half
+                if second_half_str:
+                    try:
+                        second_half_payment = Decimal(second_half_str).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                    except:
+                        second_half_payment = (total_amount * Decimal('0.10')).quantize(
+                            Decimal('0.01'), rounding=ROUND_HALF_UP
+                        )
+                else:
+                    second_half_payment = (total_amount * Decimal('0.10')).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP
+                    )
             else:
-                first_half_payment = (total_amount * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            
-            if second_half_str and second_half_str != '0.00':
-                try:
-                    second_half_payment = Decimal(second_half_str).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                except:
-                    # If invalid, use default 10%
-                    second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            else:
-                second_half_payment = (total_amount * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            
-            # 8. Optional fields
+                first_half_payment = Decimal('0.00')
+                second_half_payment = Decimal('0.00')
+
+            # =========================
+            # 8. Optional Fields
+            # =========================
             contact_person_name = request.POST.get('contactPersonName', '').strip() or None
             contact_person_phone = request.POST.get('contactPersonPhone', '').strip() or None
             weight = request.POST.get('weight', '').strip() or None
             material = request.POST.get('material', '').strip() or None
             notes = request.POST.get('notes', '').strip() or None
-            
+            apply_tds = request.POST.get('apply_tds') == 'on' and total_amount > 0
+
+            # =========================
             # 9. Update Load
+            # =========================
             load.customer = customer
             load.contact_person_name = contact_person_name
             load.contact_person_phone = contact_person_phone
@@ -3407,13 +3540,15 @@ def update_load(request, load_id):
             load.weight = weight
             load.material = material
             load.notes = notes
+            load.apply_tds = apply_tds
+
             load.price_per_unit = total_amount
             load.final_payment = final_payment
             load.first_half_payment = first_half_payment
             load.second_half_payment = second_half_payment
-            
+
             load.save()
-            
+
             return JsonResponse({
                 'success': True,
                 'message': f'Load {load.load_id} updated successfully!',
@@ -3426,17 +3561,19 @@ def update_load(request, load_id):
                     'second_half_payment': str(load.second_half_payment),
                 }
             })
-            
+
     except Load.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Load not found'}, status=404)
-    except Exception as e:
-        print(f"Error updating load: {e}")
-        import traceback
+
+    except Exception:
+        print("=== UPDATE LOAD ERROR ===")
         traceback.print_exc()
-        return JsonResponse({
-            'success': False,
-            'error': 'Failed to update load. Please try again.'
-        }, status=500)
+        print("=== END ERROR ===")
+
+        return JsonResponse(
+            {'success': False, 'error': 'Failed to update load. Please try again.'},
+            status=500
+        )
 
 @login_required
 def edit_driver(request, driver_id):

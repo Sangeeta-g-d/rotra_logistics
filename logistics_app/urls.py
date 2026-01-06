@@ -50,6 +50,7 @@ urlpatterns = [
     path('profile/data/', views.get_profile_data, name='get_profile_data'),
     path('loads/add-driver/', views.add_load_driver, name='quick_add_driver'),
     path('loads/add-vehicle/', views.add_load_vehicle, name='quick_add_vehicle'),
+    path('api/trip/<int:trip_id>/update-location/', views.update_trip_location, name='update_trip_location'),
 
     path('trips/', views.trip_management, name='trip_management'),
     path('api/trip/<int:trip_id>/details/', views.get_trip_details_api, name='get_trip_details_api'),

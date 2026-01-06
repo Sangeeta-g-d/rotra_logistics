@@ -327,6 +327,20 @@ class Load(models.Model):
         default=Decimal('0.00'),
         verbose_name="Price Per Unit (Full Freight Amount)"
     )
+    user_price = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="User Price (Optional)",
+        null=True,
+        blank=True,
+        help_text="Additional price field for user reference"
+    )
+    apply_tds = models.BooleanField(
+        default=False,
+        verbose_name="Apply TDS",
+        help_text="Check if TDS should be applied to this load"
+    )
 
     # Driver + Vehicle
     driver = models.ForeignKey(Driver, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_loads')
@@ -420,6 +434,7 @@ class Load(models.Model):
     pod_uploaded_at = models.DateTimeField(null=True, blank=True)
     payment_completed_at = models.DateTimeField(null=True, blank=True)
     hold_at = models.DateTimeField(null=True, blank=True)
+    current_location = models.CharField(max_length=255, blank=True, null=True)
 
     # Hold reason
     hold_reason = models.TextField(
@@ -758,6 +773,30 @@ class HoldingCharge(models.Model):
         if self.load:
             self.load.update_holding_charges_total()
 
+class TDSRate(models.Model):
+    rate = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=2.00,  # Default 2%
+        help_text="TDS percentage rate"
+    )
+
+    class Meta:
+        verbose_name = "TDS Rate"
+        verbose_name_plural = "TDS Rate"
+
+    def save(self, *args, **kwargs):
+        # Ensure only ONE row exists
+        if not self.pk and TDSRate.objects.exists():
+            # If trying to create a new row, update the existing one instead
+            existing = TDSRate.objects.first()
+            existing.rate = self.rate
+            existing.save()
+        else:
+            super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"TDS Rate: {self.rate}%"
 
 
 class LoadRequest(models.Model):

@@ -135,6 +135,35 @@
         <div class="info-item"><div class="info-label">Distance</div><div class="info-value" id="distance">-</div></div>
         <div class="info-item"><div class="info-label">Start Date</div><div class="info-value" id="startDate">-</div></div>
         <div class="info-item"><div class="info-label">ETA</div><div class="info-value" id="eta">-</div></div>
+        <div class="current-location" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+  <i class="fas fa-map-marker-alt"></i>
+
+  <!-- Display mode -->
+  <span id="currentLocationText">-</span>
+
+  <!-- Edit mode -->
+  <input
+    type="text"
+    id="currentLocationInput"
+    placeholder="Enter current location"
+    style="display:none; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;"
+  />
+
+  <button
+    id="btnEditLocation"
+    style="padding:4px 8px; background:#2563eb; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
+  >
+    Update
+  </button>
+
+  <button
+    id="btnSaveLocation"
+    style="display:none; padding:4px 8px; background:#16a34a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
+  >
+    Save
+  </button>
+</div>
+
       </div>
 
       <div class="current-location">
@@ -2088,7 +2117,101 @@ function updateTableRow(tripId, newStatus, newStatusDisplay) {
   }
 }
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Get the trip ID from the sidebar data (currentTripId should be set when loading trip details)
+  let tripId = currentTripId;
+  
+  const locationText = document.getElementById('currentLocationText');
+  const locationInput = document.getElementById('currentLocationInput');
+  const btnEdit = document.getElementById('btnEditLocation');
+  const btnSave = document.getElementById('btnSaveLocation');
 
+  // Initial value - this will be updated when loadTripDetails is called
+  locationText.textContent = 'Not updated';
+
+  // Switch to edit mode
+  btnEdit.addEventListener('click', function () {
+    if (!tripId) {
+      showToast('No trip selected. Please select a trip first.', 'error');
+      return;
+    }
+    
+    locationInput.value = locationText.textContent === 'Not updated' ? '' : locationText.textContent;
+    locationText.style.display = 'none';
+    btnEdit.style.display = 'none';
+
+    locationInput.style.display = 'inline-block';
+    btnSave.style.display = 'inline-block';
+    locationInput.focus();
+  });
+
+  // Save updated location
+  btnSave.addEventListener('click', async function () {
+    if (!tripId) {
+      showToast('No trip selected. Please select a trip first.', 'error');
+      return;
+    }
+    
+    const newLocation = locationInput.value.trim();
+    if (!newLocation) {
+      showToast('Please enter a location', 'error');
+      return;
+    }
+
+    try {
+      // Get CSRF token
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || csrftoken;
+      
+      const response = await fetch(`/api/trip/${tripId}/update-location/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ location: newLocation })
+      });
+
+      // First check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        // Handle HTML error response (like 404 page)
+        throw new Error('Server returned non-JSON response. Check the API endpoint.');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        locationText.textContent = data.location;
+        showToast('Location updated successfully', 'success');
+        
+        // Back to display mode
+        locationInput.style.display = 'none';
+        btnSave.style.display = 'none';
+        locationText.style.display = 'inline';
+        btnEdit.style.display = 'inline';
+        
+        // Update the sidebar current location as well
+        document.getElementById('currentLocation').textContent = data.location;
+      } else {
+        showToast(data.error || 'Failed to update location', 'error');
+      }
+    } catch (err) {
+      console.error('Location update error:', err);
+      showToast('Failed to update location. Please check if the trip ID is valid.', 'error');
+    }
+  });
+  
+  // Also update the location when trip details are loaded
+  // We'll modify the loadTripDetails function to update this
+  const originalLoadTripDetails = window.loadTripDetails;
+  window.loadTripDetails = function(tripIdParam) {
+    originalLoadTripDetails(tripIdParam);
+    // Update the local tripId variable
+    tripId = tripIdParam;
+  };
+});
+</script>
 </body>
 </html>
 {% endblock %}

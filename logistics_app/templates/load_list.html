@@ -15,7 +15,25 @@
     crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/load_management.css' %}">
-  <style>
+<style>
+  .form-check-input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  .form-check-label {
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    margin-left: 8px;
+  }
+
+  .checkbox-container {
+    display: flex;
+    align-items: center;
+  }
+    <style>
     .route-display {
       display: flex;
       align-items: center;
@@ -384,7 +402,44 @@
 .vendor-meta-item i {
   font-size: 12px;
 }
-  </style>
+
+/* TDS Checkbox Styling */
+.tds-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+}
+
+.tds-checkbox-container input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.tds-checkbox-container label {
+  margin: 0;
+  font-weight: 600;
+  color: #dc2626;
+  cursor: pointer;
+}
+
+.tds-rate-display {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 4px;
+  padding-left: 28px;
+}
+
+.tds-rate-value {
+  font-weight: 600;
+  color: #dc2626;
+}
+</style>
 </head>
 <body>
 <div class="dashboard">
@@ -717,16 +772,28 @@
         <div class="form-group"></div>
       </div>
 
-    
+      <div class="form-row">
+  <div class="checkbox-container">
+  <input 
+    type="checkbox" 
+    name="apply_tds" 
+    id="apply_tds" 
+    class="form-check-input"
+  >
+  <label for="apply_tds" class="form-check-label fw-semibold">
+    Apply TDS Deduction
+  </label>
+</div>
+</div>
       <div class="form-row">
         <div class="form-group full-width">
-          <label>Total Trip Amount <span class="required">*</span></label>
+          <label>Total Trip Amount</label>
           <input type="number" 
                  name="total_amount" 
                  id="totalAmountInput"
                  step="1" 
                  min="1000" 
-                 required 
+                  
                  placeholder="Enter full freight amount"
                  style="font-size:16px; font-weight:600; padding: 12px;">
           <small style="color:#6b7280; font-size: 12px; margin-top: 4px;">Enter the complete freight amount for the trip</small>
