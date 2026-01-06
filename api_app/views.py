@@ -905,76 +905,80 @@ class LoadFilterOptionsView(APIView):
                 'message': f'Error retrieving filter options: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@method_decorator(csrf_exempt, name='dispatch')        
+@method_decorator(csrf_exempt, name='dispatch')
 class FilteredLoadsView(APIView):
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
-        """
-        Get loads with optional filters
-        Use consistent parameter names:
-        - from_location (for pickup_location)
-        - to_location (for drop_location)
-        - vehicle_type
-        - load_capacity
-        """
         try:
-            # Get filter parameters from query params
-            from_location = request.GET.get('from_location')
-            to_location = request.GET.get('to_location')  # Use this instead of drop_location
-            vehicle_type = request.GET.get('vehicle_type')
-            load_capacity = request.GET.get('load_capacity')
-            pickup_date = request.GET.get('pickup_date')  # Add date filtering
+            # ✅ Multi-select filters
+            from_locations = request.GET.getlist('from_location')
+            to_locations = request.GET.getlist('to_location')
+            vehicle_types = request.GET.getlist('vehicle_type')
+            load_capacities = request.GET.getlist('load_capacity')
+
+            pickup_date = request.GET.get('pickup_date')
             drop_date = request.GET.get('drop_date')
-            
-            # Start with all loads
+
             loads = Load.objects.all()
-            
-            # Apply filters only if they are provided
-            if from_location:
-                loads = loads.filter(pickup_location__icontains=from_location)
-            
-            if to_location:
-                loads = loads.filter(drop_location__icontains=to_location)
-            
-            if vehicle_type:
-                # Filter by vehicle type name
-                loads = loads.filter(vehicle_type__name__icontains=vehicle_type)
-            
-            if load_capacity:
-                # Exact match for weight since we're using values from dropdown
-                loads = loads.filter(weight=load_capacity)
+
+            # ✅ MULTI from_location
+            if from_locations:
+                q = Q()
+                for loc in from_locations:
+                    q |= Q(pickup_location__icontains=loc)
+                loads = loads.filter(q)
+
+            # ✅ MULTI to_location
+            if to_locations:
+                q = Q()
+                for loc in to_locations:
+                    q |= Q(drop_location__icontains=loc)
+                loads = loads.filter(q)
+
+            # ✅ MULTI vehicle types
+            if vehicle_types:
+                loads = loads.filter(
+                    vehicle_type__name__in=vehicle_types
+                )
+
+            # ✅ MULTI load capacity
+            if load_capacities:
+                loads = loads.filter(
+                    weight__in=load_capacities
+                )
 
             if pickup_date:
                 loads = loads.filter(pickup_date=pickup_date)
-            
+
             if drop_date:
                 loads = loads.filter(drop_date=drop_date)
-            
-            # Order by creation date (newest first)
+
             loads = loads.order_by('-created_at')
-            
+
             serializer = LoadDetailsSerializer(
-                loads, 
+                loads,
                 many=True,
                 context={"vendor": request.user}
             )
-            
+
             return Response({
                 'status': True,
                 'message': 'Filtered loads retrieved successfully',
                 'data': {
                     'filters_applied': {
-                        'from_location': from_location,
-                        'to_location': to_location,
-                        'vehicle_type': vehicle_type,
-                        'load_capacity': load_capacity,
+                        'from_location': from_locations,
+                        'to_location': to_locations,
+                        'vehicle_type': vehicle_types,
+                        'load_capacity': load_capacities,
+                        'pickup_date': pickup_date,
+                        'drop_date': drop_date,
                     },
-                    'loads': serializer.data,
-                    'total_count': loads.count()
+                    'total_count': loads.count(),
+                    'loads': serializer.data
                 }
             }, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             return Response({
                 'status': False,
