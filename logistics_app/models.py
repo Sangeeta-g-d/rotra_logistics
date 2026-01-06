@@ -7,6 +7,7 @@ from django.utils import timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.conf import settings
 from datetime import timedelta
+from django.contrib.postgres.fields import ArrayField
 
 
 class CustomUserManager(BaseUserManager):
@@ -276,6 +277,11 @@ class Vehicle(models.Model):
     rc_doc = models.FileField(upload_to='vehicles/rc/', null=True, blank=True)
 
     location = models.CharField(max_length=255, null=True, blank=True)
+    to_location = ArrayField(
+        models.CharField(max_length=100),
+        blank=True,
+        default=list
+    )
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True)

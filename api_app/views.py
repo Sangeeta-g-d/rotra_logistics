@@ -185,12 +185,12 @@ class AddVehicleView(APIView):
 
     def post(self, request):
         data = request.data.copy()
-        data["owner"] = request.user.id   # Auto-assign logged-in user
+        data["owner"] = request.user.id
 
         serializer = VehicleSerializer(data=data)
 
         if serializer.is_valid():
-            serializer.save(owner=request.user)  
+            serializer.save(owner=request.user)
             return Response({
                 "status": True,
                 "message": "Vehicle added successfully!",
@@ -201,6 +201,7 @@ class AddVehicleView(APIView):
             "status": False,
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
 
 @method_decorator(csrf_exempt, name='dispatch')    
 class AddDriverView(APIView):

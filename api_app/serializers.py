@@ -269,6 +269,12 @@ class VehicleSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source="owner.full_name", read_only=True)
     owner_phone = serializers.CharField(source="owner.phone_number", read_only=True)
 
+    # ✅ ADD THIS
+    to_location = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+
     class Meta:
         model = Vehicle
         fields = [
@@ -279,11 +285,13 @@ class VehicleSerializer(serializers.ModelSerializer):
             "insurance_doc",
             "rc_doc",
             "location",
+            "to_location",   # ✅ include here
             "status",
             "created_at",
             "owner_name",
             "owner_phone",
         ]
+
 
 class TripCommentSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source='sender.full_name', read_only=True)
