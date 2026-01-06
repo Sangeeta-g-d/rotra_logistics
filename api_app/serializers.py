@@ -272,7 +272,8 @@ class VehicleSerializer(serializers.ModelSerializer):
     # ✅ ADD THIS
     to_location = serializers.ListField(
         child=serializers.CharField(),
-        required=False
+        required=False,
+        allow_empty=True
     )
 
     class Meta:
