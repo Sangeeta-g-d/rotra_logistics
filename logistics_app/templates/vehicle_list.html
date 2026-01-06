@@ -288,6 +288,75 @@
         .btn-deactivate:hover {
             background-color: #fef2f2;
         }
+
+        /* Tags input styles */
+        .tags-input-container {
+            margin-top: 4px;
+        }
+        
+        .tags-input-wrapper {
+            position: relative;
+            margin-bottom: 8px;
+        }
+        
+        #toLocationInput {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        #toLocationInput:focus {
+            outline: none;
+            border-color: #dc2626;
+        }
+        
+        .tags-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+            min-height: 34px;
+        }
+        
+        .tag {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .tag-remove {
+            background: none;
+            border: none;
+            color: #dc2626;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .field-hint {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        /* Additional info styles for sidebar */
+        .info-section .info-row .info-value {
+            max-width: 60%;
+            text-align: right;
+            word-break: break-word;
+        }
     </style>
 </head>
 <body>
@@ -308,6 +377,7 @@
                 <tr>
                     <th>Reg No</th>
                     <th>Owner</th>
+                    <th>Type</th>
                     <th>Status</th>
                     <th style="width:10%">Actions</th>
                 </tr>
@@ -322,6 +392,10 @@
                             "reg_no": "{{ vehicle.reg_no|escapejs }}",
                             "owner_name": "{{ vehicle.owner.full_name|escapejs }}",
                             "owner_phone": "{{ vehicle.owner.phone_number }}",
+                            "type": "{{ vehicle.type|escapejs }}",
+                            "load_capacity": "{{ vehicle.load_capacity|default_if_none:'' }}",
+                            "location": "{{ vehicle.location|default_if_none:''|escapejs }}",
+                            "to_locations": {{ vehicle.to_location|safe|default:"[]" }},
                             "insurance_doc": "{% if vehicle.insurance_doc %}{{ vehicle.insurance_doc.url }}{% endif %}",
                             "rc_doc": "{% if vehicle.rc_doc %}{{ vehicle.rc_doc.url }}{% endif %}",
                             "hasInsurance": {% if vehicle.insurance_doc %}true{% else %}false{% endif %},
@@ -334,6 +408,7 @@
                             <div>{{ vehicle.owner.full_name }}</div>
                             <div style="font-size:12px;color:#6b7280;">{{ vehicle.owner.phone_number }}</div>
                         </td>
+                        <td>{{ vehicle.type }}</td>
                         <td>
                             <span class="status-badge {% if vehicle.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
                                 {{ vehicle.get_status_display }}
@@ -350,7 +425,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="4" style="text-align:center;padding:40px;color:#6b7280;">
+                        <td colspan="5" style="text-align:center;padding:40px;color:#6b7280;">
                             No vehicles found. Click "Add Vehicle" to get started.
                         </td>
                     </tr>
@@ -411,6 +486,43 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
+                            <label>Vehicle Type <span class="required">*</span></label>
+                            <select name="type" required>
+                                <option value="">Select Vehicle Type</option>
+                                {% for vehicle_type in vehicle_types %}
+                                <option value="{{ vehicle_type.name }}">{{ vehicle_type.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Load Capacity (tons)</label>
+                            <input type="number" name="load_capacity" placeholder="e.g., 5.5" step="0.01" min="0" />
+                            <small class="field-hint">Optional - enter in tons</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Current Location</label>
+                            <input type="text" name="location" placeholder="e.g., Delhi, Mumbai" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Destinations (To Locations)</label>
+                            <div class="tags-input-container" id="toLocationsContainer">
+                                <div class="tags-input-wrapper">
+                                    <input type="text" id="toLocationInput" placeholder="Type destination and press Enter" />
+                                </div>
+                                <div class="tags-display" id="toLocationsDisplay"></div>
+                                <input type="hidden" name="to_locations" id="toLocationsHidden" />
+                            </div>
+                            <small class="field-hint">Press Enter after each destination</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
                             <label>Insurance Document</label>
                             <div class="file-upload-area">
                                 <i class="fas fa-cloud-upload-alt"></i>
@@ -455,7 +567,30 @@
             <p class="profile-id" id="profileOwnerPhone"></p>
         </div>
 
-        <div class="info-section">
+        <div class="info-section" id="vehicleInfoSection">
+            <h4 class="info-section-title">
+                <i class="fas fa-user"></i>
+                Vehicle Information
+            </h4>
+            <div class="info-row" id="vehicleTypeRow">
+                <span class="info-label">Vehicle Type:</span>
+                <span class="info-value" id="vehicleTypeValue"></span>
+            </div>
+            <div class="info-row" id="loadCapacityRow">
+                <span class="info-label">Load Capacity:</span>
+                <span class="info-value" id="loadCapacityValue"></span>
+            </div>
+            <div class="info-row" id="locationRow">
+                <span class="info-label">Current Location:</span>
+                <span class="info-value" id="locationValue"></span>
+            </div>
+            <div class="info-row" id="toLocationsRow">
+                <span class="info-label">Destinations:</span>
+                <span class="info-value" id="toLocationsValue"></span>
+            </div>
+        </div>
+
+        <div class="info-section" id="ownerInfoSection">
             <h4 class="info-section-title">
                 <i class="fas fa-user"></i>
                 Owner Information
@@ -616,6 +751,71 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     /* --------------------------------------------------------------
+       TAGS INPUT FOR TO LOCATIONS
+    -------------------------------------------------------------- */
+    function initTagsInput() {
+        const input = document.getElementById('toLocationInput');
+        const display = document.getElementById('toLocationsDisplay');
+        const hidden = document.getElementById('toLocationsHidden');
+        let tags = [];
+        
+        function updateTags() {
+            display.innerHTML = '';
+            tags.forEach((tag, index) => {
+                const tagEl = document.createElement('div');
+                tagEl.className = 'tag';
+                tagEl.innerHTML = `
+                    ${tag}
+                    <button type="button" class="tag-remove" data-index="${index}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                display.appendChild(tagEl);
+            });
+            hidden.value = JSON.stringify(tags);
+        }
+        
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && input.value.trim()) {
+                e.preventDefault();
+                const value = input.value.trim();
+                if (value && !tags.includes(value)) {
+                    tags.push(value);
+                    updateTags();
+                    input.value = '';
+                }
+            }
+        });
+        
+        display.addEventListener('click', (e) => {
+            if (e.target.closest('.tag-remove')) {
+                const index = parseInt(e.target.closest('.tag-remove').dataset.index);
+                tags.splice(index, 1);
+                updateTags();
+            }
+        });
+        
+        // Also update hidden field on form submission
+        document.getElementById('addVehicleForm').addEventListener('submit', () => {
+            hidden.value = JSON.stringify(tags);
+        });
+        
+        return { tags, updateTags };
+    }
+
+    let tagsHandler = null;
+
+    /* --------------------------------------------------------------
+       INITIALIZE TAGS INPUT ON MODAL OPEN
+    -------------------------------------------------------------- */
+    openAddModalBtn.addEventListener('click', () => {
+        // Reset tags when opening modal
+        document.getElementById('toLocationsDisplay').innerHTML = '';
+        document.getElementById('toLocationsHidden').value = '[]';
+        tagsHandler = initTagsInput();
+    });
+
+    /* --------------------------------------------------------------
        INITIAL ROWS + SEARCH
     -------------------------------------------------------------- */
     function initRows() {
@@ -658,6 +858,39 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("profileOwnerName").textContent = data.owner_name;
         document.getElementById("profileOwnerPhone").textContent = data.owner_phone;
 
+        // Update vehicle information section
+        document.getElementById("vehicleTypeValue").textContent = data.type;
+        
+        // Update load capacity
+        const loadCapacityRow = document.getElementById("loadCapacityRow");
+        const loadCapacityValue = document.getElementById("loadCapacityValue");
+        if (data.load_capacity && data.load_capacity.trim() !== '') {
+            loadCapacityValue.textContent = `${data.load_capacity} tons`;
+            loadCapacityRow.style.display = 'flex';
+        } else {
+            loadCapacityRow.style.display = 'none';
+        }
+        
+        // Update current location
+        const locationRow = document.getElementById("locationRow");
+        const locationValue = document.getElementById("locationValue");
+        if (data.location && data.location.trim() !== '') {
+            locationValue.textContent = data.location;
+            locationRow.style.display = 'flex';
+        } else {
+            locationRow.style.display = 'none';
+        }
+        
+        // Update destinations
+        const toLocationsRow = document.getElementById("toLocationsRow");
+        const toLocationsValue = document.getElementById("toLocationsValue");
+        if (data.to_locations && Array.isArray(data.to_locations) && data.to_locations.length > 0) {
+            toLocationsValue.textContent = data.to_locations.join(', ');
+            toLocationsRow.style.display = 'flex';
+        } else {
+            toLocationsRow.style.display = 'none';
+        }
+
         // Update owner information section
         document.getElementById("ownerInfoName").textContent = data.owner_name;
         document.getElementById("ownerInfoPhone").textContent = data.owner_phone;
@@ -693,8 +926,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const toggleBtn = document.getElementById('toggleStatusBtn');
         if (data.status === 'active') {
             toggleBtn.innerHTML = '<i class="fas fa-ban"></i> Deactivate';
+            toggleBtn.classList.remove('btn-activate');
+            toggleBtn.classList.add('btn-deactivate');
         } else {
             toggleBtn.innerHTML = '<i class="fas fa-check-circle"></i> Activate';
+            toggleBtn.classList.remove('btn-deactivate');
+            toggleBtn.classList.add('btn-activate');
         }
         
         sidebar.classList.add('open');
@@ -746,9 +983,9 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
        row.querySelector('.action-edit')?.addEventListener('click', e => { 
-    e.stopPropagation(); 
-    window.location.href = `/vehicle/${row.dataset.vehicleId}/edit/`;
-});
+            e.stopPropagation(); 
+            window.location.href = `/vehicle/${row.dataset.vehicleId}/edit/`;
+        });
 
         row.querySelector(".action-delete")?.addEventListener("click", e => {
             e.stopPropagation();
@@ -782,6 +1019,10 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll('.file-upload-area p').forEach(p => {
             p.innerHTML = `Drag and drop files here or <span class="browse">Browse Files</span>`;
         });
+        // Initialize tags input
+        document.getElementById('toLocationsDisplay').innerHTML = '';
+        document.getElementById('toLocationsHidden').value = '[]';
+        tagsHandler = initTagsInput();
     };
     const hideModal = () => { addModal.style.display = "none"; };
 
@@ -815,6 +1056,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         <div>${data.vehicle.owner_name}</div>
                         <div style="font-size:12px;color:#6b7280;">${data.vehicle_data.owner_phone}</div>
                     </td>
+                    <td>${data.vehicle.type}</td>
                     <td><span class="status-badge status-active">Active</span></td>
                     <td class="action-col">
                         <div class="action-buttons">

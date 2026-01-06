@@ -26,7 +26,7 @@ import hmac
 from django.core.mail import send_mail
 from datetime import timedelta
 from .notifications import send_trip_assigned_notification, send_trip_rejected_notification
-
+from django.views.decorators.http import require_POST 
 
 def admin_login_view(request):
     if request.user.is_authenticated:
@@ -1444,67 +1444,85 @@ def vehicle_list(request):
 
     # Vendors: ALL active vendors (role='vendor')
     vendors = CustomUser.objects.filter(role='vendor', is_active=True).order_by('full_name')
+    
+    # Vehicle types from VehicleType model
+    vehicle_types = VehicleType.objects.all().order_by('name')
 
     return render(request, 'vehicle_list.html', {
         'vehicles': vehicles,
-        'vendors': vendors
+        'vendors': vendors,
+        'vehicle_types': vehicle_types  # Add this
     })
 
 @login_required
-@require_http_methods(["POST"])
+@require_POST
 def add_vehicle(request):
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Unauthorized'})
+    
     try:
-        reg_no = request.POST.get('reg_no', '').strip().upper()
+        reg_no = request.POST.get('reg_no')
         owner_id = request.POST.get('owner')
-        insurance_doc = request.FILES.get('insurance_doc')
-        rc_doc = request.FILES.get('rc_doc')
-
-        if not reg_no or not owner_id:
-            return JsonResponse({'success': False, 'error': 'Reg No and Owner are required.'}, status=400)
-
-        if Vehicle.objects.filter(reg_no=reg_no).exists():
-            return JsonResponse({'success': False, 'error': 'Vehicle with this Reg No already exists.'}, status=400)
-
-        # SECURITY: Owner must be a real vendor (any vendor)
-        try:
-            owner = CustomUser.objects.get(id=owner_id, role='vendor', is_active=True)
-        except CustomUser.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Invalid or inactive owner selected.'}, status=400)
-
-        with transaction.atomic():
-            vehicle = Vehicle(
-                reg_no=reg_no,
-                owner=owner,
-                status='active'
-            )
-            if insurance_doc: vehicle.insurance_doc = insurance_doc
-            if rc_doc: vehicle.rc_doc = rc_doc
-            vehicle.save()
-
+        vehicle_type = request.POST.get('type')
+        load_capacity = request.POST.get('load_capacity')
+        location = request.POST.get('location')
+        to_locations_json = request.POST.get('to_locations')
+        
+        # Parse to_locations if provided
+        to_locations = []
+        if to_locations_json:
+            try:
+                to_locations = json.loads(to_locations_json)
+            except json.JSONDecodeError:
+                pass
+        
+        # Create vehicle
+        vehicle = Vehicle(
+            reg_no=reg_no,
+            owner_id=owner_id,
+            type=vehicle_type,
+            load_capacity=load_capacity if load_capacity else None,
+            location=location if location else None,
+            to_location=to_locations
+        )
+        
+        # Handle file uploads
+        if 'insurance_doc' in request.FILES:
+            vehicle.insurance_doc = request.FILES['insurance_doc']
+        if 'rc_doc' in request.FILES:
+            vehicle.rc_doc = request.FILES['rc_doc']
+        
+        vehicle.save()
+        
         return JsonResponse({
             'success': True,
-            'message': f'Vehicle {reg_no} added successfully!',
+            'message': 'Vehicle added successfully',
             'vehicle': {
                 'id': vehicle.id,
                 'reg_no': vehicle.reg_no,
-                'owner_name': owner.full_name,
+                'owner_name': vehicle.owner.full_name,
+                'type': vehicle.type,
             },
             'vehicle_data': {
                 'id': vehicle.id,
                 'reg_no': vehicle.reg_no,
-                'owner_name': owner.full_name,
-                'owner_phone': owner.phone_number,
-                'insurance_doc': vehicle.insurance_doc.url if vehicle.insurance_doc else '',
-                'rc_doc': vehicle.rc_doc.url if vehicle.rc_doc else '',
+                'owner_name': vehicle.owner.full_name,
+                'owner_phone': vehicle.owner.phone_number,
+                'type': vehicle.type,
+                'load_capacity': str(vehicle.load_capacity) if vehicle.load_capacity else '',
+                'location': vehicle.location or '',
+                'to_locations': vehicle.to_location,
                 'hasInsurance': bool(vehicle.insurance_doc),
                 'hasRC': bool(vehicle.rc_doc),
-                'status': 'active',
-                'status_label': 'Active'
+                'status': vehicle.status,
+                'status_label': vehicle.get_status_display()
             }
         })
-
+        
+    except IntegrityError:
+        return JsonResponse({'success': False, 'error': 'Vehicle with this registration number already exists'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 @require_http_methods(["POST"])
@@ -2762,7 +2780,7 @@ def mark_final_payment_paid_api(request, trip_id):
         print(f"Error marking final payment: {e}")
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
 
-        
+
 @login_required
 @require_http_methods(["POST"])
 def mark_first_half_payment_paid_api(request, trip_id):

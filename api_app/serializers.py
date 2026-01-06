@@ -532,10 +532,28 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
 
     old_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
     new_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
+    alternate_no = serializers.CharField(
+    required=False,
+    allow_blank=True,
+    allow_null=True
+    )
 
     def validate(self, data):
         user = self.context["request"].user
 
+        # ✅ alternate_no uniqueness check
+        alternate_no = data.get("alternate_no")
+        if alternate_no:
+            exists = CustomUser.objects.filter(
+                alternate_no=alternate_no
+            ).exclude(id=user.id).exists()
+
+            if exists:
+                raise serializers.ValidationError({
+                    "alternate_no": "This alternate number is already in use."
+                })
+
+        # Password validation (existing)
         if data.get("new_password"):
             if not data.get("old_password"):
                 raise serializers.ValidationError({
@@ -557,6 +575,8 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
 
         if self.validated_data.get("full_name"):
             user.full_name = self.validated_data["full_name"]
+        if "alternate_no" in self.validated_data:
+            user.alternate_no = self.validated_data.get("alternate_no")
 
         if self.validated_data.get("profile_image"):
             user.profile_image = self.validated_data["profile_image"]

@@ -83,7 +83,8 @@ class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=15, unique=True)
     pan_number = models.CharField(max_length=10, unique=True, blank=True, null=True)
     fcm_token = models.TextField(blank=True, null=True, verbose_name='FCM Token')
-    
+    alternate_no = models.CharField(max_length=15, blank=True, null=True, unique=True)
+
     # TDS Declaration
     tds_declaration = models.FileField(
         upload_to='tds_documents/',
