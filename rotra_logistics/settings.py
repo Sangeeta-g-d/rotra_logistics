@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'logistics_app',
+    'django.contrib.postgres'
 ]
 
 AUTH_USER_MODEL = 'logistics_app.CustomUser'
