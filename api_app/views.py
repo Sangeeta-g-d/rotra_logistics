@@ -830,6 +830,10 @@ class VendorProfileUpdateView(APIView):
                     "email": user.email,
                     "phone_number": user.phone_number,
                     "profile_image": request.build_absolute_uri(user.profile_image.url) if user.profile_image else None,
+                    "tds_declaration": (
+                        request.build_absolute_uri(user.tds_declaration.url)
+                        if user.tds_declaration else None
+                        ),
                 }
             }, status=status.HTTP_200_OK)
 

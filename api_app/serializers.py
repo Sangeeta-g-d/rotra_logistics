@@ -519,6 +519,7 @@ class PODUploadSerializer(serializers.ModelSerializer):
 class VendorProfileUpdateSerializer(serializers.Serializer):
     full_name = serializers.CharField(required=False, allow_blank=False)
     profile_image = serializers.ImageField(required=False)
+    tds_declaration = serializers.FileField(required=False)
 
     old_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
     new_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
@@ -526,35 +527,40 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
     def validate(self, data):
         user = self.context["request"].user
 
-        # If password is being changed
         if data.get("new_password"):
             if not data.get("old_password"):
-                raise serializers.ValidationError({"old_password": "Old password is required to change password."})
+                raise serializers.ValidationError({
+                    "old_password": "Old password is required to change password."
+                })
             if not user.check_password(data["old_password"]):
-                raise serializers.ValidationError({"old_password": "Incorrect old password."})
-            # Validate new password strength
+                raise serializers.ValidationError({
+                    "old_password": "Incorrect old password."
+                })
             if len(data.get("new_password", "")) < 6:
-                raise serializers.ValidationError({"new_password": "New password must be at least 6 characters long."})
+                raise serializers.ValidationError({
+                    "new_password": "New password must be at least 6 characters long."
+                })
 
         return data
 
     def save(self):
         user = self.context["request"].user
 
-        # Update name
         if self.validated_data.get("full_name"):
             user.full_name = self.validated_data["full_name"]
 
-        # Update profile image
         if self.validated_data.get("profile_image"):
             user.profile_image = self.validated_data["profile_image"]
 
-        # Update password
+        if self.validated_data.get("tds_declaration"):
+            user.tds_declaration = self.validated_data["tds_declaration"]
+
         if self.validated_data.get("new_password"):
             user.set_password(self.validated_data["new_password"])
 
         user.save()
         return user
+
 
 class LoadFilterOptionsSerializer(serializers.Serializer):
     locations = serializers.ListField(child=serializers.CharField())
