@@ -8,7 +8,7 @@ import uuid
 from logistics_app.models import VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment, HoldingCharge
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import password_validation
-
+from decimal import Decimal
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -214,7 +214,10 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
     created_by_phone = serializers.CharField(source="created_by.phone_number", read_only=True)
     vehicle_type_name = serializers.CharField(source="vehicle_type.name", read_only=True)
-
+    apply_tds = serializers.BooleanField()
+    tds_percentage = serializers.SerializerMethodField()
+    tds_amount = serializers.SerializerMethodField()
+    net_amount_after_tds = serializers.SerializerMethodField()
     commission = serializers.DecimalField(max_digits=12, decimal_places=2, source="price_per_unit", read_only=True)
 
     # 👇 Add this
@@ -226,6 +229,8 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "id",
             "load_id",
             "created_by_name",
+            'apply_tds', 'tds_percentage', 'tds_amount', 
+            'net_amount_after_tds',
             "created_by_phone",
             "vehicle_type_name",
             "pickup_location",
@@ -241,6 +246,39 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "request_status",   # 👈 added here
             "created_at",
         ]
+
+    def get_tds_percentage(self, obj):
+        """Get TDS percentage for this load"""
+        # Get default TDS percentage from context or use 2%
+        default_tds_percentage = self.context.get('default_tds_percentage', Decimal('2.00'))
+        
+        # Return default percentage if apply_tds is True, otherwise 0
+        return float(default_tds_percentage) if obj.apply_tds else 0.0
+    
+    def get_tds_amount(self, obj):
+        """Calculate TDS amount for this load"""
+        if not obj.apply_tds:
+            return 0.00
+        
+        # Get TDS percentage
+        tds_percentage = self.get_tds_percentage(obj)
+        
+        # Calculate TDS amount from final_payment
+        final_payment = obj.final_payment or Decimal('0.00')
+        tds_amount = (final_payment * Decimal(tds_percentage) / Decimal('100')).quantize(Decimal('0.01'))
+        
+        return float(tds_amount)
+    
+    def get_net_amount_after_tds(self, obj):
+        """Calculate net amount after deducting TDS"""
+        if not obj.apply_tds:
+            return float(obj.final_payment or Decimal('0.00'))
+        
+        final_payment = obj.final_payment or Decimal('0.00')
+        tds_amount = Decimal(str(self.get_tds_amount(obj)))
+        net_amount = (final_payment - tds_amount).quantize(Decimal('0.01'))
+        
+        return float(net_amount)
 
     # 👇 This method fetches vendor's request status
     def get_request_status(self, obj):

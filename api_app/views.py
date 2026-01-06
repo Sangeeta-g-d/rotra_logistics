@@ -19,6 +19,8 @@ from django.db.models import Q
 from logistics_app.models import PhoneOTP
 from .utils import generate_otp,send_otp_fast2sms
 from django.db import transaction
+from logistics_app.models import TDSRate
+from decimal import Decimal
 
 # send OTP
 class SendOTPAPIView(APIView):
@@ -242,10 +244,15 @@ class AddDriverView(APIView):
 def get_all_loads(request):
     # Exclude loads that already have any accepted LoadRequest
     loads = Load.objects.exclude(requests__status='accepted').order_by('-created_at')   # fetch all
+    try:
+        tds_rate = TDSRate.objects.first()
+        default_tds_percentage = tds_rate.rate if tds_rate else Decimal('2.00')
+    except:
+        default_tds_percentage = Decimal('2.00')
     serializer = LoadDetailsSerializer(
         loads, 
         many=True,
-        context={"vendor": request.user}  # Pass vendor context
+        context={"vendor": request.user,"default_tds_percentage": default_tds_percentage }  # Pass vendor context
     )
 
     return Response({
