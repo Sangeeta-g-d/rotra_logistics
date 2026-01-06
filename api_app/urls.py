@@ -53,7 +53,7 @@ urlpatterns = [
     path("verify-otp/", VerifyOTPAPIView.as_view()),
 
     path(
-        'api/trips/<int:trip_id>/location/',
+        'trips/<int:trip_id>/location/',
         UpdateTripCurrentLocationAPIView.as_view(),
         name='update_trip_current_location'
     ),
