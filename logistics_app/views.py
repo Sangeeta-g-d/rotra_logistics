@@ -2057,6 +2057,7 @@ def get_trip_details_api(request, trip_id):
             'unloading_at': load.unloading_at.isoformat() if load.unloading_at else None,
             'pod_uploaded_at': load.pod_uploaded_at.isoformat() if load.pod_uploaded_at else None,
             'payment_completed_at': load.payment_completed_at.isoformat() if load.payment_completed_at else None,
+            'pod_received_at': load.pod_received_at.isoformat() if load.pod_received_at else None,
             'hold_at': load.hold_at.isoformat() if load.hold_at else None,
             'hold_reason': load.hold_reason or '',
         }
@@ -4168,3 +4169,64 @@ def assign_vendor_to_load(request, load_id):
             'success': False, 
             'error': str(e)
         })
+
+
+@require_http_methods(["POST"])
+def update_pod_received_date(request, trip_id):
+    """
+    API endpoint to update POD received date and time
+    """
+    try:
+        load = Load.objects.get(id=trip_id)
+        
+        # Parse request body
+        data = json.loads(request.body)
+        pod_received_datetime_str = data.get('pod_received_at')
+        
+        if not pod_received_datetime_str:
+            return JsonResponse({
+                'success': False,
+                'error': 'POD received date and time is required'
+            }, status=400)
+        
+        # Parse the datetime string (format: YYYY-MM-DDTHH:MM)
+        try:
+            # Convert from local datetime string to datetime object
+            pod_received_datetime = datetime.strptime(pod_received_datetime_str, '%Y-%m-%dT%H:%M')
+            # Make it timezone aware
+            pod_received_datetime = timezone.make_aware(pod_received_datetime)
+        except ValueError as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Invalid date format: {str(e)}'
+            }, status=400)
+        
+        # Update the field
+        load.pod_received_at = pod_received_datetime
+        load.save()
+        
+        # Format for display
+        formatted_date = pod_received_datetime.strftime('%b %d, %Y %I:%M %p')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'POD received date updated successfully',
+            'pod_received_at': formatted_date,
+            'pod_received_at_raw': pod_received_datetime.isoformat()
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Trip not found'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

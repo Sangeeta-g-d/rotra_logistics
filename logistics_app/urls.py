@@ -51,6 +51,9 @@ urlpatterns = [
     path('loads/add-driver/', views.add_load_driver, name='quick_add_driver'),
     path('loads/add-vehicle/', views.add_load_vehicle, name='quick_add_vehicle'),
     path('api/trip/<int:trip_id>/update-location/', views.update_trip_location, name='update_trip_location'),
+    path('api/trip/<int:trip_id>/update-pod-received-date/', 
+         views.update_pod_received_date, 
+         name='update_pod_received_date'),
 
     path('trips/', views.trip_management, name='trip_management'),
     path('api/trip/<int:trip_id>/details/', views.get_trip_details_api, name='get_trip_details_api'),

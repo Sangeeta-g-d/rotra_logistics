@@ -21,7 +21,64 @@
   <link rel="stylesheet" href="/static/css/trip.css">
 </head>
 <body>
+<style>
+  /* Add these styles to your CSS */
+.btn-pod-received {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
 
+.btn-pod-received:hover {
+  background: #7c3aed !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.btn-pod-received:active {
+  transform: translateY(0);
+}
+
+/* Animation for modal */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pod-received-modal .modal-content {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Add modal styles */
+.pod-received-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.pod-received-modal .modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 450px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+</style>
 <div class="dashboard">
   <div class="top-bar">
     <h2>Trip Management</h2>
@@ -135,34 +192,39 @@
         <div class="info-item"><div class="info-label">Distance</div><div class="info-value" id="distance">-</div></div>
         <div class="info-item"><div class="info-label">Start Date</div><div class="info-value" id="startDate">-</div></div>
         <div class="info-item"><div class="info-label">ETA</div><div class="info-value" id="eta">-</div></div>
+
+        <div class="info-item">
+          <div class="info-label">POD Received</div>
+          <div class="info-value" id="podReceivedDate">-</div>
+        </div>
         <div class="current-location" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
-  <i class="fas fa-map-marker-alt"></i>
+          <i class="fas fa-map-marker-alt"></i>
 
-  <!-- Display mode -->
-  <span id="currentLocationText">-</span>
+          <!-- Display mode -->
+          <span id="currentLocationText">-</span>
 
-  <!-- Edit mode -->
-  <input
-    type="text"
-    id="currentLocationInput"
-    placeholder="Enter current location"
-    style="display:none; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;"
-  />
+          <!-- Edit mode -->
+          <input
+            type="text"
+            id="currentLocationInput"
+            placeholder="Enter current location"
+            style="display:none; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;"
+          />
 
-  <button
-    id="btnEditLocation"
-    style="padding:4px 8px; background:#2563eb; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
-  >
-    Update
-  </button>
+          <button
+            id="btnEditLocation"
+            style="padding:4px 8px; background:#2563eb; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
+          >
+            Update
+          </button>
 
-  <button
-    id="btnSaveLocation"
-    style="display:none; padding:4px 8px; background:#16a34a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
-  >
-    Save
-  </button>
-</div>
+          <button
+            id="btnSaveLocation"
+            style="display:none; padding:4px 8px; background:#16a34a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
+          >
+            Save
+          </button>
+        </div>
 
       </div>
 
@@ -208,36 +270,36 @@
         </div>
       </div>
       <!-- Add this after the payment-box div -->
-<div id="paymentAdjustmentBox" style="display: none; margin-top: 16px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-    <h3 class="section-title" style="font-size: 14px; margin-top: 0; margin-bottom: 12px; color: #475569;">Payment Adjustment Details</h3>
-    
-    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-        <span style="color: #64748b; font-size: 13px;">Expected Amount:</span>
-        <span id="expectedAmount" style="font-weight: 600; color: #334155;">₹0</span>
-    </div>
-    
-    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-        <span style="color: #64748b; font-size: 13px;">Actual Paid:</span>
-        <span id="actualPaidAmount" style="font-weight: 600; color: #16a34a;">₹0</span>
-    </div>
-    
-    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-        <span style="color: #64748b; font-size: 13px;">Adjustment:</span>
-        <span id="adjustmentAmount" style="font-weight: 600; color: #dc2626;">₹0</span>
-    </div>
-    
-    <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-        <span style="color: #64748b; font-size: 13px;">Adjustment %:</span>
-        <span id="adjustmentPercentage" style="font-weight: 600; color: #dc2626;">0%</span>
-    </div>
-    
-    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
-        <div style="color: #64748b; font-size: 13px; margin-bottom: 4px;">Adjustment Reason:</div>
-        <div id="adjustmentReason" style="color: #334155; font-size: 13px; line-height: 1.4; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e2e8f0;">
-            No adjustment reason provided
+      <div id="paymentAdjustmentBox" style="display: none; margin-top: 16px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h3 class="section-title" style="font-size: 14px; margin-top: 0; margin-bottom: 12px; color: #475569;">Payment Adjustment Details</h3>
+        
+        <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: #64748b; font-size: 13px;">Expected Amount:</span>
+            <span id="expectedAmount" style="font-weight: 600; color: #334155;">₹0</span>
         </div>
-    </div>
-</div>
+        
+        <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: #64748b; font-size: 13px;">Actual Paid:</span>
+            <span id="actualPaidAmount" style="font-weight: 600; color: #16a34a;">₹0</span>
+        </div>
+        
+        <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: #64748b; font-size: 13px;">Adjustment:</span>
+            <span id="adjustmentAmount" style="font-weight: 600; color: #dc2626;">₹0</span>
+        </div>
+        
+        <div class="adjustment-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: #64748b; font-size: 13px;">Adjustment %:</span>
+            <span id="adjustmentPercentage" style="font-weight: 600; color: #dc2626;">0%</span>
+        </div>
+        
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+            <div style="color: #64748b; font-size: 13px; margin-bottom: 4px;">Adjustment Reason:</div>
+            <div id="adjustmentReason" style="color: #334155; font-size: 13px; line-height: 1.4; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e2e8f0;">
+                No adjustment reason provided
+            </div>
+        </div>
+      </div>
 
       <h3 class="section-title" style="margin-top:28px;">Customer Details</h3>
       <div class="detail-row"><span class="detail-label">Customer Name</span><span class="detail-value" id="customerName">-</span></div>
@@ -299,6 +361,9 @@
         </div>
         <button class="btn-upload-lr" id="btnUploadLR" style="display: none;">Upload LR</button>
         <button class="btn-upload-pod" id="btnUploadPOD" style="display: none;">Upload POD</button>
+        <button class="btn-pod-received" id="btnAddPODReceivedDate" style="display:block; padding: 10px 14px; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; margin-top: 8px;">
+          <i class="fas fa-calendar-check"></i> Add POD Received Date
+        </button>
         <button class="btn-add-comment" id="btnAddComment">Add Comment</button>
       </div>
       <button class="btn-close-trip" id="btnCloseTrip">Close Trip</button>
@@ -306,6 +371,48 @@
   </aside>
 
   <div id="sidebarOverlay"></div>
+</div>
+
+<!-- pod received modal -->
+<div class="pod-received-modal" id="podReceivedModal">
+  <div class="modal-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="margin: 0; color: #1f2937; font-size: 18px; font-weight: 600;">
+        <i class="fas fa-calendar-check" style="color: #8b5cf6; margin-right: 8px;"></i>
+        POD Received Date & Time
+      </h3>
+      <button class="close-pod-received-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; transition: color 0.2s;">&times;</button>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151; font-size: 14px;">
+        Select Date and Time
+      </label>
+      <input 
+        type="datetime-local" 
+        id="podReceivedDateTimeInput" 
+        style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; transition: border-color 0.2s;" 
+      >
+      <p style="font-size: 12px; color: #6b7280; margin-top: 6px; margin-bottom: 0;">
+        <i class="fas fa-info-circle"></i> Select when the POD was physically received
+      </p>
+    </div>
+    
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button 
+        class="close-pod-received-modal" 
+        style="padding: 10px 20px; background: #f3f4f6; color: #374151; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 14px; transition: background-color 0.2s;" 
+      >
+        Cancel
+      </button>
+      <button 
+        id="btnSubmitPODReceivedDate" 
+        style="padding: 10px 20px; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 14px; transition: background-color 0.2s;" 
+      >
+        <i class="fas fa-check"></i> Save
+      </button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
@@ -355,75 +462,74 @@ function attachSidebarEventListeners() {
   overlay.addEventListener('click', closeSidebar);
 
   // First half payment checkbox listener
-// First half payment checkbox listener
-document.getElementById('firstHalfPaymentCheckbox').addEventListener('change', function() {
-  if (!currentTripId) {
-    showToast('No trip selected', 'error');
-    this.checked = !this.checked; // Revert checkbox
-    return;
-  }
-  
-  const tripId = currentTripId;
-  const isPaid = this.checked;
-  console.log('Sending request for trip ID:', tripId, 'is_paid:', isPaid);
-  // Call API to update first half payment status
-  fetch(`/api/payment/${tripId}/mark-first-half-paid/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrftoken
-    },
-    body: JSON.stringify({ is_paid: isPaid })
-  })
-  .then(response => response.json())
-  .then(result => {
-    if (result.success) {
-      // Update UI with backend data
-      const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
-      const remainingAmountStatus = document.getElementById('remainingAmountStatus');
-      const totalAmountStatus = document.getElementById('totalAmountStatus');
-      
-      // Update first half payment status
-      if (isPaid) {
-        firstHalfPaymentStatus.className = 'paid';
-        // Add tooltip with payment info
-        let tooltipText = 'First half payment paid';
-        if (result.paid_at) {
-          tooltipText += `\nOn: ${result.paid_at}`;
+  document.getElementById('firstHalfPaymentCheckbox').addEventListener('change', function() {
+    if (!currentTripId) {
+      showToast('No trip selected', 'error');
+      this.checked = !this.checked; // Revert checkbox
+      return;
+    }
+    
+    const tripId = currentTripId;
+    const isPaid = this.checked;
+    console.log('Sending request for trip ID:', tripId, 'is_paid:', isPaid);
+    // Call API to update first half payment status
+    fetch(`/api/payment/${tripId}/mark-first-half-paid/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify({ is_paid: isPaid })
+    })
+    .then(response => response.json())
+    .then(result => {
+      if (result.success) {
+        // Update UI with backend data
+        const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
+        const remainingAmountStatus = document.getElementById('remainingAmountStatus');
+        const totalAmountStatus = document.getElementById('totalAmountStatus');
+        
+        // Update first half payment status
+        if (isPaid) {
+          firstHalfPaymentStatus.className = 'paid';
+          // Add tooltip with payment info
+          let tooltipText = 'First half payment paid';
+          if (result.paid_at) {
+            tooltipText += `\nOn: ${result.paid_at}`;
+          }
+          if (result.paid_by) {
+            tooltipText += `\nBy: ${result.paid_by}`;
+          }
+          firstHalfPaymentStatus.title = tooltipText;
+        } else {
+          firstHalfPaymentStatus.className = 'pending';
+          firstHalfPaymentStatus.title = '';
         }
-        if (result.paid_by) {
-          tooltipText += `\nBy: ${result.paid_by}`;
+        
+        // Update remaining amount
+        remainingAmountStatus.textContent = `₹${parseFloat(result.remaining_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+        
+        // Update remaining amount color based on payment status
+        if (result.is_paid) {
+          remainingAmountStatus.className = 'paid';
+        } else {
+          remainingAmountStatus.className = 'pending';
         }
-        firstHalfPaymentStatus.title = tooltipText;
+        
+        showToast(result.message || 'First half payment status updated', 'success');
       } else {
-        firstHalfPaymentStatus.className = 'pending';
-        firstHalfPaymentStatus.title = '';
+        // Revert checkbox on error
+        this.checked = !isPaid;
+        showToast('Error: ' + (result.error || 'Failed to update payment status'), 'error');
       }
-      
-      // Update remaining amount
-      remainingAmountStatus.textContent = `₹${parseFloat(result.remaining_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-      
-      // Update remaining amount color based on payment status
-      if (result.is_paid) {
-        remainingAmountStatus.className = 'paid';
-      } else {
-        remainingAmountStatus.className = 'pending';
-      }
-      
-      showToast(result.message || 'First half payment status updated', 'success');
-    } else {
+    })
+    .catch(error => {
+      console.error('Error:', error);
       // Revert checkbox on error
       this.checked = !isPaid;
-      showToast('Error: ' + (result.error || 'Failed to update payment status'), 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    // Revert checkbox on error
-    this.checked = !isPaid;
-    showToast('Failed to update payment status', 'error');
+      showToast('Failed to update payment status', 'error');
+    });
   });
-});
 
   document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
   document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
@@ -432,6 +538,12 @@ document.getElementById('firstHalfPaymentCheckbox').addEventListener('change', f
   document.getElementById('sendComment').addEventListener('click', addComment);
   document.getElementById('btnCloseTrip').addEventListener('click', closeTrip);
   document.getElementById('btnAddHoldingCharges').addEventListener('click', addHoldingCharges);
+  
+  // Initialize POD received modal button - ALWAYS VISIBLE
+  const btnAddPODReceived = document.getElementById('btnAddPODReceivedDate');
+  if (btnAddPODReceived) {
+    btnAddPODReceived.addEventListener('click', showPODReceivedModal);
+  }
   
   const commentInput = document.getElementById('commentInput');
   commentInput.addEventListener('keypress', function(e) {
@@ -528,6 +640,7 @@ document.addEventListener('DOMContentLoaded', function () {
   attachSidebarEventListeners();
   initializeLRModal();
   initializePODModal();
+  initializePODReceivedModal();
   applyFilters();
 });
 
@@ -671,6 +784,117 @@ function initializePODModal() {
     if (files.length > 0) {
       handlePODFileSelection(files[0]);
     }
+  });
+}
+
+function initializePODReceivedModal() {
+  const modal = document.getElementById('podReceivedModal');
+  const btnSubmit = document.getElementById('btnSubmitPODReceivedDate');
+  const closeButtons = document.querySelectorAll('.close-pod-received-modal');
+  
+  // Note: Button event listener is already attached in attachSidebarEventListeners()
+  // to ensure it's always available
+  
+  if (btnSubmit) {
+    btnSubmit.addEventListener('click', submitPODReceivedDate);
+  }
+  
+  closeButtons.forEach(btn => {
+    btn.addEventListener('click', closePODReceivedModal);
+  });
+  
+  // Close on outside click
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closePODReceivedModal();
+      }
+    });
+  }
+}
+
+function showPODReceivedModal() {
+  const modal = document.getElementById('podReceivedModal');
+  const dateTimeInput = document.getElementById('podReceivedDateTimeInput');
+  
+  // Set current date and time as default
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  
+  dateTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+  
+  modal.style.display = 'flex';
+}
+
+function closePODReceivedModal() {
+  const modal = document.getElementById('podReceivedModal');
+  modal.style.display = 'none';
+  document.getElementById('podReceivedDateTimeInput').value = '';
+}
+
+function submitPODReceivedDate() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+  
+  const dateTimeInput = document.getElementById('podReceivedDateTimeInput');
+  const dateTimeValue = dateTimeInput.value;
+  
+  if (!dateTimeValue) {
+    showToast('Please select a date and time', 'error');
+    return;
+  }
+  
+  const btnSubmit = document.getElementById('btnSubmitPODReceivedDate');
+  btnSubmit.disabled = true;
+  btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  
+  fetch(`/api/trip/${currentTripId}/update-pod-received-date/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify({
+      pod_received_at: dateTimeValue
+    })
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast(result.message || 'POD received date updated successfully', 'success');
+      closePODReceivedModal();
+      
+      // Update the display
+      document.getElementById('podReceivedDate').textContent = result.pod_received_at;
+      
+      // Update button text to "Update POD Received Date" if date is already set
+      const btnAddPODReceived = document.getElementById('btnAddPODReceivedDate');
+      if (btnAddPODReceived && result.pod_received_at) {
+        btnAddPODReceived.innerHTML = '<i class="fas fa-calendar-edit"></i> Update POD Received Date';
+      }
+      
+      // Reload trip details to refresh all data
+      setTimeout(() => {
+        loadTripDetails(currentTripId);
+      }, 300);
+    } else {
+      showToast('Error: ' + (result.error || 'Failed to update POD received date'), 'error');
+    }
+    
+    btnSubmit.disabled = false;
+    btnSubmit.innerHTML = '<i class="fas fa-check"></i> Save';
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to update POD received date', 'error');
+    btnSubmit.disabled = false;
+    btnSubmit.innerHTML = '<i class="fas fa-check"></i> Save';
   });
 }
 
@@ -928,13 +1152,18 @@ function loadTripDetails(tripId) {
 }
 
 function populateSidebar(data) {
-
-currentTripId = data.id; 
-      // Update payment adjustment display
+  currentTripId = data.id; 
+  
+  // Update payment adjustment display
   const paymentAdjustmentBox = document.getElementById('paymentAdjustmentBox');
   const adjustmentAmount = parseFloat(data.adjustment_amount || 0);
   const adjustmentType = data.adjustment_type || 'none';
-
+  const podReceivedDate = document.getElementById('podReceivedDate');
+  if (data.pod_received_at) {
+    podReceivedDate.textContent = data.pod_received_at;
+  } else {
+    podReceivedDate.textContent = '-';
+  }
 
   document.getElementById('sidebarTripId').textContent = data.load_id;
   const statusBadge = document.getElementById('sidebarStatusBadge');
@@ -958,37 +1187,48 @@ currentTripId = data.id;
   document.getElementById('eta').textContent = data.drop_date;
   document.getElementById('currentLocation').textContent = data.current_location;
   
-  const finalPaymentStatus = document.getElementById('finalPaymentStatus');
-      if (adjustmentAmount !== 0 && data.confirmed_amount && data.before_amount) {
-        paymentAdjustmentBox.style.display = 'block';
-        
-        // Set colors based on adjustment type
-        const adjustmentColor = adjustmentType === 'increase' ? '#16a34a' : 
-                              adjustmentType === 'decrease' ? '#dc2626' : '#64748b';
-        
-        const adjustmentSign = adjustmentAmount > 0 ? '+' : '';
-        
-        document.getElementById('expectedAmount').textContent = 
-            `₹${parseFloat(data.before_amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-        
-        document.getElementById('actualPaidAmount').textContent = 
-            `₹${parseFloat(data.confirmed_amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-        
-        document.getElementById('adjustmentAmount').textContent = 
-            `${adjustmentSign}₹${Math.abs(adjustmentAmount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-        document.getElementById('adjustmentAmount').style.color = adjustmentColor;
-        
-        document.getElementById('adjustmentPercentage').textContent = 
-            `${adjustmentSign}${parseFloat(data.adjustment_percentage || 0).toFixed(2)}%`;
-        document.getElementById('adjustmentPercentage').style.color = adjustmentColor;
-        
-        // Show adjustment reason if available
-        document.getElementById('adjustmentReason').textContent = 
-            data.payment_adjustment_reason || 'No adjustment reason provided';
-        
+  // Update button text based on whether POD received date is already set
+  const btnAddPODReceived = document.getElementById('btnAddPODReceivedDate');
+  if (btnAddPODReceived) {
+    if (data.pod_received_at) {
+      btnAddPODReceived.innerHTML = '<i class="fas fa-calendar-edit"></i> Update POD Received Date';
     } else {
-        paymentAdjustmentBox.style.display = 'none';
+      btnAddPODReceived.innerHTML = '<i class="fas fa-calendar-check"></i> Add POD Received Date';
     }
+  }
+  
+  const finalPaymentStatus = document.getElementById('finalPaymentStatus');
+  if (adjustmentAmount !== 0 && data.confirmed_amount && data.before_amount) {
+    paymentAdjustmentBox.style.display = 'block';
+    
+    // Set colors based on adjustment type
+    const adjustmentColor = adjustmentType === 'increase' ? '#16a34a' : 
+                          adjustmentType === 'decrease' ? '#dc2626' : '#64748b';
+    
+    const adjustmentSign = adjustmentAmount > 0 ? '+' : '';
+    
+    document.getElementById('expectedAmount').textContent = 
+        `₹${parseFloat(data.before_amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    
+    document.getElementById('actualPaidAmount').textContent = 
+        `₹${parseFloat(data.confirmed_amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    
+    document.getElementById('adjustmentAmount').textContent = 
+        `${adjustmentSign}₹${Math.abs(adjustmentAmount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    document.getElementById('adjustmentAmount').style.color = adjustmentColor;
+    
+    document.getElementById('adjustmentPercentage').textContent = 
+        `${adjustmentSign}${parseFloat(data.adjustment_percentage || 0).toFixed(2)}%`;
+    document.getElementById('adjustmentPercentage').style.color = adjustmentColor;
+    
+    // Show adjustment reason if available
+    document.getElementById('adjustmentReason').textContent = 
+        data.payment_adjustment_reason || 'No adjustment reason provided';
+    
+  } else {
+      paymentAdjustmentBox.style.display = 'none';
+  }
+  
   if (data.final_payment_paid) {
     finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
     finalPaymentStatus.className = 'paid';
@@ -1019,38 +1259,42 @@ currentTripId = data.id;
   secondHalfPaymentStatus.textContent = `₹${secondHalfPayment.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   holdingChargesStatus.textContent = `₹${holdingCharges.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   totalAmountStatus.textContent = `₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-      // Set checkbox state based on backend data
+  
+  // Set checkbox state based on backend data
   firstHalfPaymentCheckbox.checked = data.first_half_payment_paid || false;
   firstHalfPaymentCheckbox.dataset.tripId = data.id;
+  
   // Calculate remaining amount: Total - First Half Payment
-      if (data.first_half_payment_paid) {
-        firstHalfPaymentStatus.className = 'paid';
-        // Add tooltip with payment info
-        let tooltipText = 'First half payment paid';
-        if (data.first_half_payment_paid_at) {
-            tooltipText += `\nOn: ${data.first_half_payment_paid_at}`;
-        }
+  if (data.first_half_payment_paid) {
+    firstHalfPaymentStatus.className = 'paid';
+    // Add tooltip with payment info
+    let tooltipText = 'First half payment paid';
+    if (data.first_half_payment_paid_at) {
+        tooltipText += `\nOn: ${data.first_half_payment_paid_at}`;
+    }
 
-        firstHalfPaymentStatus.title = tooltipText;
-    } else {
-        firstHalfPaymentStatus.className = 'pending';
-        firstHalfPaymentStatus.title = '';
-    }
-    // Calculate remaining amount based on payment status
-    let remainingAmount = totalAmount;
-    if (data.first_half_payment_paid) {
-        remainingAmount = totalAmount - firstHalfPayment;
-    }
-    
-    remainingAmountStatus.textContent = `₹${remainingAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    firstHalfPaymentStatus.title = tooltipText;
+  } else {
+    firstHalfPaymentStatus.className = 'pending';
+    firstHalfPaymentStatus.title = '';
+  }
+  
+  // Calculate remaining amount based on payment status
+  let remainingAmount = totalAmount;
+  if (data.first_half_payment_paid) {
+    remainingAmount = totalAmount - firstHalfPayment;
+  }
+  
+  remainingAmountStatus.textContent = `₹${remainingAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  
   // Update remaining amount color based on payment status
-    if (data.final_payment_paid) {
-        remainingAmountStatus.className = 'paid';
-    } else if (data.first_half_payment_paid) {
-        remainingAmountStatus.className = 'paid';
-    } else {
-        remainingAmountStatus.className = 'pending';
-    }
+  if (data.final_payment_paid) {
+    remainingAmountStatus.className = 'paid';
+  } else if (data.first_half_payment_paid) {
+    remainingAmountStatus.className = 'paid';
+  } else {
+    remainingAmountStatus.className = 'pending';
+  }
   
   // Reset checkbox state
   // firstHalfPaymentCheckbox.checked = false;
@@ -2116,8 +2360,8 @@ function updateTableRow(tripId, newStatus, newStatusDisplay) {
     }
   }
 }
-</script>
-<script>
+
+// Current location update functionality
 document.addEventListener('DOMContentLoaded', function () {
   // Get the trip ID from the sidebar data (currentTripId should be set when loading trip details)
   let tripId = currentTripId;

@@ -426,6 +426,13 @@ class Load(models.Model):
         CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_pods'
     )
 
+    pod_received_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="POD Received At",
+        help_text="Date and time when POD was physically received"
+    )
+
     # Timeline
     pending_at = models.DateTimeField(null=True, blank=True)
     loaded_at = models.DateTimeField(null=True, blank=True)
