@@ -1153,14 +1153,28 @@ function loadTripDetails(tripId) {
 
 function populateSidebar(data) {
   currentTripId = data.id; 
-  
+  function formatDateTime(isoString) {
+  if (!isoString) return '-';
+
+  const date = new Date(isoString);
+
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
   // Update payment adjustment display
   const paymentAdjustmentBox = document.getElementById('paymentAdjustmentBox');
   const adjustmentAmount = parseFloat(data.adjustment_amount || 0);
   const adjustmentType = data.adjustment_type || 'none';
   const podReceivedDate = document.getElementById('podReceivedDate');
   if (data.pod_received_at) {
-    podReceivedDate.textContent = data.pod_received_at;
+    podReceivedDate.textContent = formatDateTime(data.pod_received_at);
   } else {
     podReceivedDate.textContent = '-';
   }

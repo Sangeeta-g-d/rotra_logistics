@@ -9,6 +9,8 @@ from logistics_app.models import VehicleType, Vehicle, Driver, Load, LoadRequest
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import password_validation
 from decimal import Decimal
+import pytz
+from django.utils import timezone
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -421,6 +423,7 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     # ✅ NEW FIELDS
     apply_tds = serializers.BooleanField(read_only=True)
     tds_percentage = serializers.SerializerMethodField()
+    pod_received_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Load
@@ -449,6 +452,7 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "current_location",
             "trip_status",
             "status",
+            "pod_received_at",
 
             # creator
             "created_by_name",
@@ -497,6 +501,20 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
         tds = TDSRate.objects.first()
         return float(tds.rate) if tds else DEFAULT_TDS
     
+    def get_pod_received_at(self, obj):
+        if not obj.pod_received_at:
+            return None
+
+        ist = pytz.timezone("Asia/Kolkata")
+
+        # Ensure datetime is timezone-aware
+        dt = obj.pod_received_at
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.utc)
+
+        dt_ist = dt.astimezone(ist)
+
+        return dt_ist.strftime("%d %b %Y, %I:%M %p")
     
     def get_vehicle_number(self, obj):
         return obj.vehicle.reg_no if obj.vehicle else None
