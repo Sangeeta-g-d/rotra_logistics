@@ -1,6 +1,6 @@
 # serializers.py
 from rest_framework import serializers
-from logistics_app.models import CustomUser
+from logistics_app.models import CustomUser, TDSRate
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
@@ -406,25 +406,21 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
 
     documents = serializers.SerializerMethodField()
     timeline = serializers.SerializerMethodField()
-    
-    # Add this field to get last 2 comments
     recent_comments = serializers.SerializerMethodField()
-    
-    # Add holding charges field
     holding_charges = serializers.SerializerMethodField()
-    
-    # Payment breakdown fields
+
     first_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     second_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     total_holding_charges = serializers.SerializerMethodField()
     total_trip_amount = serializers.SerializerMethodField()
-    
-    # Hold reason field
+
     hold_reason = serializers.SerializerMethodField()
-    
-    # Payment adjustment fields
     before_payment_amount = serializers.SerializerMethodField()
     confirmed_paid_amount = serializers.SerializerMethodField()
+
+    # ✅ NEW FIELDS
+    apply_tds = serializers.BooleanField(read_only=True)
+    tds_percentage = serializers.SerializerMethodField()
 
     class Meta:
         model = Load
@@ -438,12 +434,18 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "time",
             "weight",
             "price_per_unit",
-            
-            # Payment breakdown
+
+            # payments
             "first_half_payment",
             "second_half_payment",
             "total_holding_charges",
             "total_trip_amount",
+
+            # ✅ TDS
+            "apply_tds",
+            "tds_percentage",
+
+            # tracking
             "current_location",
             "trip_status",
             "status",
@@ -466,22 +468,36 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             # timeline
             "timeline",
 
-            # recent comments (last 2)
+            # comments
             "recent_comments",
-            
+
             # holding charges
             "holding_charges",
-            
-            # hold reason
+
+            # hold
             "hold_reason",
-            
-            # payment adjustment tracking
+
+            # payment adjustment
             "before_payment_amount",
             "confirmed_paid_amount",
 
             "created_at",
         ]
 
+    def get_tds_percentage(self, obj):
+        """
+        If apply_tds is true → fetch value from TDSRate table
+        If false → return default 2%
+        """
+        DEFAULT_TDS = 2.00
+    
+        if not obj.apply_tds:
+            return DEFAULT_TDS
+    
+        tds = TDSRate.objects.first()
+        return float(tds.rate) if tds else DEFAULT_TDS
+    
+    
     def get_vehicle_number(self, obj):
         return obj.vehicle.reg_no if obj.vehicle else None
 
