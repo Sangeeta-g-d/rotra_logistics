@@ -5,8 +5,6 @@ from logistics_app import views
 from .views import RegisterView, LoginView, VehicleTypeListView, AddVehicleView, AddDriverView, get_all_loads, SendVendorRequestView, get_all_vehicles, update_vehicle, delete_vehicle
 from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
-from django.views.decorators.csrf import csrf_exempt
-
 from .import views
 
 urlpatterns = [
@@ -52,8 +50,7 @@ urlpatterns = [
 
 
     path("send-otp/", SendOTPAPIView.as_view()),
-    path('api/verify-otp/', csrf_exempt(VerifyOTPAPIView.as_view()), name='verify-otp'),
-
+    path("verify-otp/", VerifyOTPAPIView.as_view()),
 
     path(
         'trips/<int:trip_id>/location/',
