@@ -1318,7 +1318,7 @@ def vendor_list(request):
 
 @login_required
 @require_http_methods(["POST"])
-def toggle_vendor_status(request, vendor_id):
+def toggle_vendor_block(request, vendor_id):
     try:
         if not request.user.is_staff:
             return JsonResponse(
@@ -1537,27 +1537,27 @@ def get_vendor(request, vendor_id):
 def toggle_vendor_status(request, vendor_id):
     """Toggle vendor active/inactive status"""
     try:
+        if not request.user.is_staff:
+            return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+
         vendor = get_object_or_404(
             CustomUser,
             id=vendor_id,
-            role='vendor',
-            created_by=request.user
+            role='vendor'
         )
 
         vendor.is_active = not vendor.is_active
-        vendor.save()
+        vendor.save(update_fields=['is_active'])
 
         return JsonResponse({
             'success': True,
             'message': f'Vendor "{vendor.full_name}" has been {"activated" if vendor.is_active else "deactivated"} successfully.',
             'is_active': vendor.is_active
         })
-
-    except Exception:
-        return JsonResponse({
-            'success': False,
-            'error': 'Failed to update vendor status.'
-        }, status=500)
+    except Http404:
+        return JsonResponse({'success': False, 'error': 'Vendor not found.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Failed to update vendor status: {str(e)}'}, status=500)
 
 
 @login_required
