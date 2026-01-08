@@ -64,11 +64,10 @@ class SendOTPAPIView(APIView):
         }, status=200)
 
 
-
-
+@method_decorator(csrf_exempt, name='dispatch')
 class VerifyOTPAPIView(APIView):
-    authentication_classes = []   # 🔴 disable SessionAuthentication
     permission_classes = [AllowAny]
+    authentication_classes = []   # optional
 
     def post(self, request):
         phone_number = request.data.get("phone_number")
