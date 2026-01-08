@@ -67,11 +67,14 @@ class SendOTPAPIView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class VerifyOTPAPIView(APIView):
     permission_classes = [AllowAny]
-    authentication_classes = []   # optional
-
+    authentication_classes = []
+    
     def post(self, request):
         phone_number = request.data.get("phone_number")
         otp = request.data.get("otp")
+
+        if not phone_number or not otp:
+            return Response({"error": "Phone number and OTP are required"}, status=400)
 
         try:
             otp_obj = PhoneOTP.objects.filter(
@@ -85,7 +88,10 @@ class VerifyOTPAPIView(APIView):
         if otp_obj.is_expired():
             return Response({"error": "OTP expired"}, status=400)
 
-        user = CustomUser.objects.get(phone_number=phone_number)
+        try:
+            user = CustomUser.objects.get(phone_number=phone_number)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
 
         otp_obj.is_verified = True
         otp_obj.save()
