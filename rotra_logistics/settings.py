@@ -141,10 +141,12 @@ REST_FRAMEWORK = {
     )
 }
 from decouple import config
-QUICK_SMS_API_KEY = config("QUICK_SMS_API_KEY")
-QUICK_SMS_SENDER = config("QUICK_SMS_SENDER")
-QUICK_SMS_DLT_PE_ID = config("DLT_PE_ID")
-FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
+# QUICK_SMS_API_KEY = config("QUICK_SMS_API_KEY")
+# QUICK_SMS_SENDER = config("QUICK_SMS_SENDER")
+# QUICK_SMS_DLT_PE_ID = config("DLT_PE_ID")
+FAST2SMS_API_KEY = config("FAST2SMS_API_KEY")
+FAST2SMS_ENTITY_ID = config("entity_id")
+FAST2SMS_TEMPLATE_ID = config("template_id")
 
 
 SIMPLE_JWT = {
