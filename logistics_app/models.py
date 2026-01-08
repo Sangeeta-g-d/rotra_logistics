@@ -112,6 +112,10 @@ class CustomUser(AbstractUser):
     )
     acc_no = models.CharField(max_length=30, blank=True, null=True)
     ifsc_code = models.CharField(max_length=11, blank=True, null=True)
+    is_blocked = models.BooleanField(
+    default=False,
+    help_text="If true, user cannot access API routes"
+    )
     
     # Use custom manager
     objects = CustomUserManager()
@@ -142,6 +146,7 @@ class PhoneOTP(models.Model):
     PURPOSE_CHOICES = [
         # ('registration', 'Registration'),
         ('login', 'Login'),
+        
         ('forgot_password', 'Forgot Password'),
     ]
     phone_number = models.CharField(max_length=15)

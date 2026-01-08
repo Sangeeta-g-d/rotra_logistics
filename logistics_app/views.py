@@ -1318,6 +1318,36 @@ def vendor_list(request):
 
 @login_required
 @require_http_methods(["POST"])
+def toggle_vendor_status(request, vendor_id):
+    try:
+        if not request.user.is_staff:
+            return JsonResponse(
+                {'success': False, 'error': 'Unauthorized'},
+                status=403
+            )
+
+        vendor = CustomUser.objects.get(id=vendor_id, role='vendor')
+
+        vendor.is_blocked = not vendor.is_blocked
+        vendor.save(update_fields=["is_blocked"])
+
+        action = "blocked" if vendor.is_blocked else "unblocked"
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Vendor {vendor.full_name} has been {action} successfully.',
+            'is_blocked': vendor.is_blocked,
+            'status': 'Blocked' if vendor.is_blocked else 'Active'
+        })
+
+    except CustomUser.DoesNotExist:
+        return JsonResponse(
+            {'success': False, 'error': 'Vendor not found'},
+            status=404
+        )
+
+@login_required
+@require_http_methods(["POST"])
 def add_vendor(request):
     """Add new vendor - handles both AJAX and regular POST"""
     try:

@@ -75,6 +75,7 @@ urlpatterns = [
     path('customers/<int:customer_id>/update/', views.update_customer, name='update_customer'),
     path('vendor/<int:vendor_id>/edit/', views.edit_vendor, name='edit_vendor'),
     path('vendor/<int:vendor_id>/update/', views.update_vendor, name='update_vendor'),
+    path('vendor/<int:vendor_id>/toggle-block/', views.toggle_vendor_status, name='toggle_vendor_status'),
     
 
 

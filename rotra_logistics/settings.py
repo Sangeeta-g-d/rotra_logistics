@@ -67,7 +67,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'api_app.middleware.DisableCSRFOnAPIMiddleware'
+    'api_app.middleware.DisableCSRFOnAPIMiddleware',
+    'api_app.middleware.BlockedUserMiddleware'
 ]
 
 ROOT_URLCONF = 'rotra_logistics.urls'
@@ -139,6 +140,7 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.AllowAny",
+        'api_app.permissions.IsNotBlocked',
     )
 }
 from decouple import config

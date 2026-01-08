@@ -39,6 +39,7 @@
           <th>Email</th>
           <th>Phone</th>
           <th>PAN Number</th>
+          <th>Status</th>
           <th>Address</th>
           <th>Join Date</th>
           <th>Actions</th>
@@ -57,7 +58,8 @@
               "address": "{{ vendor.address|default:"-"|escapejs }}",
               "joinDate": "{{ vendor.date_joined|date:"M d, Y" }}",
               "tdsFile": "{% if vendor.tds_declaration %}{{ vendor.tds_declaration.url }}{% endif %}",
-              "status": "{% if vendor.is_active %}Active{% else %}Inactive{% endif %}"
+              "status": "{% if vendor.is_active %}Active{% else %}Inactive{% endif %}",
+              "is_blocked": "{{ vendor.is_blocked|yesno:"true,false" }}"
             }'>
             <td>
               {{ vendor.full_name }}
@@ -65,6 +67,15 @@
             <td>{{ vendor.email }}</td>
             <td>{{ vendor.phone_number }}</td>
             <td>{{ vendor.pan_number|default:'-' }}</td>
+            <td>
+              {% if vendor.is_blocked %}
+                <span class="status-badge status-blocked">Blocked</span>
+              {% elif vendor.is_active %}
+                <span class="status-badge status-active">Active</span>
+              {% else %}
+                <span class="status-badge status-inactive">Inactive</span>
+              {% endif %}
+            </td>
             <td>{{ vendor.address|default:'-'|truncatewords:5 }}</td>
             <td>{{ vendor.date_joined|date:"M d, Y" }}</td>
             
@@ -72,14 +83,25 @@
               <div class="action-buttons">
                 <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
                 <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
-                <button class="action-delete" data-vendor-id="{{ vendor.id }}" title="Delete"><i class="fas fa-trash"></i></button>
+                {% if vendor.is_blocked %}
+                  <button class="action-unblock" data-vendor-id="{{ vendor.id }}" title="Unblock">
+                    <i class="fas fa-unlock"></i>
+                  </button>
+                {% else %}
+                  <button class="action-block" data-vendor-id="{{ vendor.id }}" title="Block">
+                    <i class="fas fa-ban"></i>
+                  </button>
+                {% endif %}
+                <button class="action-delete" data-vendor-id="{{ vendor.id }}" title="Delete">
+                  <i class="fas fa-trash"></i>
+                </button>
               </div>
             </td>
           </tr>
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="7" style="text-align: center; padding: 40px; color: #6b7280;">
+            <td colspan="8" style="text-align: center; padding: 40px; color: #6b7280;">
               No vendors found. Click "Add Vendor" to get started.
             </td>
           </tr>
@@ -125,24 +147,23 @@
     <form id="addVendorForm" class="modal-form" enctype="multipart/form-data">
       {% csrf_token %}
       
-      <!-- Profile Image Field - ADD THIS -->
-      <!-- Profile Image Field - UPDATED -->
-<div class="form-row">
-  <div class="form-group">
-    <label>Profile Image</label>
-    <div class="file-upload-wrapper">
-      <input type="file" name="profile_image" id="profile_image" 
-             accept=".jpg,.jpeg,.png,.gif" class="file-upload-input">
-      <div class="file-upload-preview" id="profilePreview" onclick="document.getElementById('profile_image').click()">
-        <div class="preview-placeholder">
-          <i class="fas fa-user-circle"></i>
-          <span>Click to upload</span>
+      <!-- Profile Image Field -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Profile Image</label>
+          <div class="file-upload-wrapper">
+            <input type="file" name="profile_image" id="profile_image" 
+                   accept=".jpg,.jpeg,.png,.gif" class="file-upload-input">
+            <div class="file-upload-preview" id="profilePreview" onclick="document.getElementById('profile_image').click()">
+              <div class="preview-placeholder">
+                <i class="fas fa-user-circle"></i>
+                <span>Click to upload</span>
+              </div>
+            </div>
+            <small class="file-hint">Recommended: Square image, max 2MB (JPG, PNG, GIF)</small>
+          </div>
         </div>
       </div>
-      <small class="file-hint">Recommended: Square image, max 2MB (JPG, PNG, GIF)</small>
-    </div>
-  </div>
-</div>
 
       <div class="form-row">
         <div class="form-group">
@@ -210,7 +231,7 @@
 
     <div class="profile-section">
       <h4>Details</h4>
-      <p>Status: <span id="profileStatus" class="status-badge status-active">Active</span></p>
+      <p>Status: <span id="profileStatus" class="status-badge status-active"></span></p>
       <p>Joining Date: <span id="profileJoinDate"></span></p>
       <p>Address: <span id="profileAddress"></span></p>
     </div>
@@ -226,7 +247,8 @@
 
     <div class="profile-buttons">
       <button class="btn-edit">Edit Profile</button>
-      <button class="btn-deactivate" id="toggleStatusBtn">Deactivate Account</button>
+      <button class="btn-block" id="toggleBlockBtn">Block Account</button>
+      <button class="btn-deactivate" id="toggleStatusBtn" style="display: none;">Deactivate Account</button>
     </div>
   </div>
 
@@ -303,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const prevBtn = document.getElementById('prevPage');
   const nextBtn = document.getElementById('nextPage');
   const currentPageInfo = document.getElementById('currentPageInfo');
+  const toggleBlockBtn = document.getElementById('toggleBlockBtn');
 
   let currentVendorId = null;
   let currentPage = 1;
@@ -329,7 +352,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // === SIDEBAR OPEN / CLOSE ===
   function openSidebar(row) {
-    // Safety check: ensure row exists and is in the DOM
     if (!row || !document.body.contains(row)) {
       console.warn('⚠️ Row element is invalid or not in DOM');
       return;
@@ -358,9 +380,29 @@ document.addEventListener('DOMContentLoaded', function () {
       if (profileJoinDate) profileJoinDate.textContent = data.joinDate;
       if (profileAddress) profileAddress.textContent = data.address;
 
+      // Update status display
       if (statusEl) {
-        statusEl.textContent = data.status;
-        statusEl.className = 'status-badge ' + (data.status === 'Active' ? 'status-active' : 'status-inactive');
+        if (data.is_blocked === "true") {
+          statusEl.textContent = "Blocked";
+          statusEl.className = 'status-badge status-blocked';
+        } else if (data.status === 'Active') {
+          statusEl.textContent = "Active";
+          statusEl.className = 'status-badge status-active';
+        } else {
+          statusEl.textContent = "Inactive";
+          statusEl.className = 'status-badge status-inactive';
+        }
+      }
+
+      // Update block button
+      if (toggleBlockBtn) {
+        if (data.is_blocked === "true") {
+          toggleBlockBtn.textContent = "Unblock Account";
+          toggleBlockBtn.className = "btn-unblock";
+        } else {
+          toggleBlockBtn.textContent = "Block Account";
+          toggleBlockBtn.className = "btn-block";
+        }
       }
 
       if (tdsLink) {
@@ -371,10 +413,6 @@ document.addEventListener('DOMContentLoaded', function () {
           tdsLink.style.display = 'none';
           if (profileTds) profileTds.textContent = 'No file uploaded';
         }
-      }
-
-      if (toggleStatusBtn) {
-        toggleStatusBtn.textContent = data.status === 'Active' ? 'Deactivate Account' : 'Activate Account';
       }
 
       if (sidebar) {
@@ -401,7 +439,6 @@ document.addEventListener('DOMContentLoaded', function () {
   function closeSidebar() {
     sidebar.style.transform = 'translateX(100%)';
     overlay.classList.remove('show');
-    // Clear background colors from all visible rows
     document.querySelectorAll('.clickable-row').forEach(r => {
       if (document.body.contains(r)) {
         r.style.backgroundColor = '';
@@ -429,14 +466,18 @@ document.addEventListener('DOMContentLoaded', function () {
     overlay.addEventListener('click', closeSidebar);
   }
 
-  // === TOGGLE STATUS ===
-  const toggleStatusBtn = document.getElementById('toggleStatusBtn');
-  if (toggleStatusBtn) {
-    toggleStatusBtn.addEventListener('click', function () {
+  // === TOGGLE BLOCK STATUS ===
+  if (toggleBlockBtn) {
+    toggleBlockBtn.addEventListener('click', function () {
       if (!currentVendorId) return;
-      if (!confirm('Are you sure you want to change the status of this vendor?')) return;
+      
+      const isCurrentlyBlocked = toggleBlockBtn.textContent === "Unblock Account";
+      const action = isCurrentlyBlocked ? "unblock" : "block";
+      const confirmMessage = `Are you sure you want to ${action} this vendor?`;
+      
+      if (!confirm(confirmMessage)) return;
 
-      fetch(`/vendor/${currentVendorId}/toggle-status/`, {
+      fetch(`/vendor/${currentVendorId}/toggle-block/`, {
         method: 'POST',
         headers: { 
           'X-CSRFToken': csrftoken, 
@@ -447,31 +488,170 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(data => {
         if (data.success) {
           showToast(data.message, 'success');
-          setTimeout(() => location.reload(), 800);
+          
+          // Update the row's status in the table
+          const row = document.querySelector(`tr[data-vendor-id="${currentVendorId}"]`);
+          if (row) {
+            const vendorData = JSON.parse(row.dataset.vendor);
+            vendorData.is_blocked = data.is_blocked ? "true" : "false";
+            vendorData.status = data.status;
+            row.dataset.vendor = JSON.stringify(vendorData);
+            
+            // Update status cell
+            const statusCell = row.querySelector('td:nth-child(5)');
+            if (statusCell) {
+              let statusHtml = '';
+              if (data.is_blocked) {
+                statusHtml = '<span class="status-badge status-blocked">Blocked</span>';
+              } else if (data.status === 'Active') {
+                statusHtml = '<span class="status-badge status-active">Active</span>';
+              } else {
+                statusHtml = '<span class="status-badge status-inactive">Inactive</span>';
+              }
+              statusCell.innerHTML = statusHtml;
+            }
+            
+            // Update action buttons in the table
+            const actionButtons = row.querySelector('.action-buttons');
+            const blockBtn = row.querySelector('.action-block, .action-unblock');
+            if (blockBtn) {
+              if (data.is_blocked) {
+                blockBtn.className = 'action-unblock';
+                blockBtn.title = 'Unblock';
+                blockBtn.innerHTML = '<i class="fas fa-unlock"></i>';
+              } else {
+                blockBtn.className = 'action-block';
+                blockBtn.title = 'Block';
+                blockBtn.innerHTML = '<i class="fas fa-ban"></i>';
+              }
+            }
+          }
+          
+          // Update sidebar status
+          const statusEl = document.getElementById('profileStatus');
+          if (statusEl) {
+            if (data.is_blocked) {
+              statusEl.textContent = "Blocked";
+              statusEl.className = 'status-badge status-blocked';
+              toggleBlockBtn.textContent = "Unblock Account";
+              toggleBlockBtn.className = "btn-unblock";
+            } else {
+              statusEl.textContent = "Active";
+              statusEl.className = 'status-badge status-active';
+              toggleBlockBtn.textContent = "Block Account";
+              toggleBlockBtn.className = "btn-block";
+            }
+          }
         } else {
           showToast(data.error || 'Failed to update status', 'error');
         }
       })
       .catch(err => {
-        console.error('Toggle status error:', err);
+        console.error('Toggle block error:', err);
         showToast('Network error', 'error');
       });
     });
   }
 
-  // === ACTION BUTTONS (View, Edit, Delete) ===
+  // === ACTION BUTTONS (View, Edit, Block/Unblock, Delete) ===
   function attachActionListeners(row) {
+    // View button
     row.querySelector('.action-view')?.addEventListener('click', e => {
       e.stopPropagation();
       openSidebar(row);
     });
 
-   row.querySelector('.action-edit')?.addEventListener('click', e => {
-    e.stopPropagation();
-    const vendorId = row.dataset.vendorId;
-    window.location.href = `/vendor/${vendorId}/edit/`;
-});
+    // Edit button
+    row.querySelector('.action-edit')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const vendorId = row.dataset.vendorId;
+      window.location.href = `/vendor/${vendorId}/edit/`;
+    });
 
+    // Block/Unblock button
+    const blockBtn = row.querySelector('.action-block, .action-unblock');
+    if (blockBtn) {
+      blockBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const vendorId = row.dataset.vendorId;
+        const vendorData = JSON.parse(row.dataset.vendor);
+        const isBlocked = vendorData.is_blocked === "true";
+        const action = isBlocked ? "unblock" : "block";
+        const name = row.querySelector('td:nth-child(1)').textContent.trim();
+        
+        if (!confirm(`Are you sure you want to ${action} ${name}?`)) return;
+
+        fetch(`{% url 'toggle_vendor_status' 0 %}`.replace('0', vendorId), {
+          method: 'POST',
+          headers: { 
+            'X-CSRFToken': csrftoken, 
+            'Content-Type': 'application/json' 
+          }
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast(data.message, 'success');
+            
+            // Update row data
+            vendorData.is_blocked = data.is_blocked ? "true" : "false";
+            vendorData.status = data.status;
+            row.dataset.vendor = JSON.stringify(vendorData);
+            
+            // Update status cell
+            const statusCell = row.querySelector('td:nth-child(5)');
+            if (statusCell) {
+              let statusHtml = '';
+              if (data.is_blocked) {
+                statusHtml = '<span class="status-badge status-blocked">Blocked</span>';
+              } else if (data.status === 'Active') {
+                statusHtml = '<span class="status-badge status-active">Active</span>';
+              } else {
+                statusHtml = '<span class="status-badge status-inactive">Inactive</span>';
+              }
+              statusCell.innerHTML = statusHtml;
+            }
+            
+            // Update block button
+            if (data.is_blocked) {
+              blockBtn.className = 'action-unblock';
+              blockBtn.title = 'Unblock';
+              blockBtn.innerHTML = '<i class="fas fa-unlock"></i>';
+            } else {
+              blockBtn.className = 'action-block';
+              blockBtn.title = 'Block';
+              blockBtn.innerHTML = '<i class="fas fa-ban"></i>';
+            }
+            
+            // If sidebar is open for this vendor, update it too
+            if (currentVendorId == vendorId) {
+              const statusEl = document.getElementById('profileStatus');
+              if (statusEl) {
+                if (data.is_blocked) {
+                  statusEl.textContent = "Blocked";
+                  statusEl.className = 'status-badge status-blocked';
+                } else {
+                  statusEl.textContent = "Active";
+                  statusEl.className = 'status-badge status-active';
+                }
+              }
+              if (toggleBlockBtn) {
+                toggleBlockBtn.textContent = data.is_blocked ? "Unblock Account" : "Block Account";
+                toggleBlockBtn.className = data.is_blocked ? "btn-unblock" : "btn-block";
+              }
+            }
+          } else {
+            showToast(data.error || 'Failed to update status', 'error');
+          }
+        })
+        .catch(err => {
+          console.error('Block/Unblock error:', err);
+          showToast('Network error', 'error');
+        });
+      });
+    }
+
+    // Delete button
     row.querySelector('.action-delete')?.addEventListener('click', e => {
       e.stopPropagation();
       const vendorId = row.dataset.vendorId;
@@ -514,6 +694,16 @@ document.addEventListener('DOMContentLoaded', function () {
   const showModal = () => {
     if (addModal) addModal.style.display = 'flex';
     if (addForm) addForm.reset();
+    // Reset profile preview
+    const profilePreview = document.getElementById('profilePreview');
+    if (profilePreview) {
+      profilePreview.innerHTML = `
+        <div class="preview-placeholder">
+          <i class="fas fa-user-circle"></i>
+          <span>Click to upload</span>
+        </div>
+      `;
+    }
   };
   
   const hideModal = () => {
@@ -552,99 +742,104 @@ document.addEventListener('DOMContentLoaded', function () {
         saveVendorBtn.textContent = 'Saving...';
       }
     
-    // Send request
-    fetch('{% url "add_vendor" %}', {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken,
-      },
-      body: formData
-    })
-    .then(response => {
-      console.log('📥 Response status:', response.status);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log('📥 Response data:', data);
-      
-      if (data.success) {
-        showToast(data.message, 'success');
-        
-        // Remove "no data" row if exists
-        const noDataRow = tbody.querySelector('tr td[colspan]');
-        if (noDataRow) {
-          noDataRow.closest('tr').remove();
+      // Send request
+      fetch('{% url "add_vendor" %}', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+        },
+        body: formData
+      })
+      .then(response => {
+        console.log('📥 Response status:', response.status);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+        return response.json();
+      })
+      .then(data => {
+        console.log('📥 Response data:', data);
         
-        // Create new row
-        const tr = document.createElement('tr');
-        tr.className = 'clickable-row';
-        tr.dataset.vendorId = data.vendor.id;
-        tr.dataset.vendor = JSON.stringify({
-          id: data.vendor.id,
-          name: data.vendor.full_name,
-          email: data.vendor.email,
-          phone: data.vendor.phone_number,
-          panNumber: data.vendor.pan_number || '-',
-          address: data.vendor.address || '-',
-          joinDate: data.vendor.date_joined || new Date().toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
-          }),
-          tdsFile: data.vendor.tds_declaration || '',
-          status: 'Active'
-        });
-        
-        tr.innerHTML = `
-          <td>${data.vendor.full_name}</td>
-          <td>${data.vendor.email}</td>
-          <td>${data.vendor.phone_number}</td>
-          <td>${data.vendor.pan_number || '-'}</td>
-          <td>${data.vendor.address || '-'}</td>
-          <td>${data.vendor.date_joined || new Date().toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
-          })}</td>
-          <td class="action-col">
-            <div class="action-buttons">
-              <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
-              <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
-              <button class="action-delete" data-vendor-id="${data.vendor.id}" title="Delete">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
-          </td>
-        `;
-        
-        tbody.prepend(tr);
-        allRows.unshift(tr);
-        filteredRows.unshift(tr);
-        attachActionListeners(tr);
-        currentPage = 1;
-        renderPage();
-        hideModal();
-        
-        console.log('✅ Vendor added successfully to UI');
-      } else {
-        showToast(data.error || 'Failed to add vendor', 'error');
-        console.error('❌ Server returned error:', data.error);
-      }
-    })
-    .catch(error => {
-      console.error('❌ Fetch error:', error);
-      showToast('Network error: ' + error.message, 'error');
-    })
-    .finally(() => {
-      if (saveVendorBtn) {
-        saveVendorBtn.disabled = false;
-        saveVendorBtn.textContent = 'Save Vendor';
-      }
-    });
+        if (data.success) {
+          showToast(data.message, 'success');
+          
+          // Remove "no data" row if exists
+          const noDataRow = tbody.querySelector('tr td[colspan]');
+          if (noDataRow) {
+            noDataRow.closest('tr').remove();
+          }
+          
+          // Create new row
+          const tr = document.createElement('tr');
+          tr.className = 'clickable-row';
+          tr.dataset.vendorId = data.vendor.id;
+          tr.dataset.vendor = JSON.stringify({
+            id: data.vendor.id,
+            name: data.vendor.full_name,
+            email: data.vendor.email,
+            phone: data.vendor.phone_number,
+            panNumber: data.vendor.pan_number || '-',
+            address: data.vendor.address || '-',
+            joinDate: data.vendor.date_joined || new Date().toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            }),
+            tdsFile: data.vendor.tds_declaration || '',
+            status: 'Active',
+            is_blocked: "false"
+          });
+          
+          tr.innerHTML = `
+            <td>${data.vendor.full_name}</td>
+            <td>${data.vendor.email}</td>
+            <td>${data.vendor.phone_number}</td>
+            <td>${data.vendor.pan_number || '-'}</td>
+            <td><span class="status-badge status-active">Active</span></td>
+            <td>${data.vendor.address || '-'}</td>
+            <td>${data.vendor.date_joined || new Date().toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            })}</td>
+            <td class="action-col">
+              <div class="action-buttons">
+                <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
+                <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
+                <button class="action-block" data-vendor-id="${data.vendor.id}" title="Block">
+                  <i class="fas fa-ban"></i>
+                </button>
+                <button class="action-delete" data-vendor-id="${data.vendor.id}" title="Delete">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          `;
+          
+          tbody.prepend(tr);
+          allRows.unshift(tr);
+          filteredRows.unshift(tr);
+          attachActionListeners(tr);
+          currentPage = 1;
+          renderPage();
+          hideModal();
+          
+          console.log('✅ Vendor added successfully to UI');
+        } else {
+          showToast(data.error || 'Failed to add vendor', 'error');
+          console.error('❌ Server returned error:', data.error);
+        }
+      })
+      .catch(error => {
+        console.error('❌ Fetch error:', error);
+        showToast('Network error: ' + error.message, 'error');
+      })
+      .finally(() => {
+        if (saveVendorBtn) {
+          saveVendorBtn.disabled = false;
+          saveVendorBtn.textContent = 'Save Vendor';
+        }
+      });
     });
   }
 
@@ -652,7 +847,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function showNoDataRow() {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" style="text-align:center;padding:40px;color:#6b7280;">
+        <td colspan="8" style="text-align:center;padding:40px;color:#6b7280;">
           No vendors found. Click "Add Vendor" to get started.
         </td>
       </tr>`;
@@ -710,6 +905,8 @@ document.addEventListener('DOMContentLoaded', function () {
   console.log('✅ Initialization complete');
 });
 </script>
+
+<!-- Profile Image Preview Script -->
 <script>
   const profileImageInput = document.getElementById('profile_image');
   const profilePreview = document.getElementById('profilePreview');
@@ -723,158 +920,329 @@ document.addEventListener('DOMContentLoaded', function () {
       if (file.size > 2 * 1024 * 1024) {
         showToast('File size must be less than 2MB', 'error');
         this.value = '';
-    return;
-  }
+        return;
+      }
 
-  // Validate file type
-  const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-  if (!validTypes.includes(file.type)) {
-    showToast('File must be JPG, PNG, or GIF', 'error');
-    this.value = '';
-    return;
-  }
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        showToast('File must be JPG, PNG, or GIF', 'error');
+        this.value = '';
+        return;
+      }
 
-  // Create preview
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    profilePreview.innerHTML = `
-      <div class="preview-image">
-        <img src="${e.target.result}" alt="Profile Preview">
-        <button type="button" class="remove-preview" title="Remove image">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    `;
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        profilePreview.innerHTML = `
+          <div class="preview-image">
+            <img src="${e.target.result}" alt="Profile Preview">
+            <button type="button" class="remove-preview" title="Remove image">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        `;
 
-    // Add remove functionality
-    profilePreview.querySelector('.remove-preview').addEventListener('click', function() {
-      profileImageInput.value = '';
-      profilePreview.innerHTML = `
-        <div class="preview-placeholder">
-          <i class="fas fa-user-circle"></i>
-          <span>No image selected</span>
-        </div>
-      `;
-    });
-  };
-  reader.readAsDataURL(file);
+        // Add remove functionality
+        profilePreview.querySelector('.remove-preview').addEventListener('click', function(e) {
+          e.stopPropagation();
+          profileImageInput.value = '';
+          profilePreview.innerHTML = `
+            <div class="preview-placeholder">
+              <i class="fas fa-user-circle"></i>
+              <span>Click to upload</span>
+            </div>
+          `;
+        });
+      };
+      reader.readAsDataURL(file);
     });
   }
 </script>
 
 <style>
+  /* Status Badges */
+  .status-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
+  }
+  
+  .status-active {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+  
+  .status-inactive {
+    background-color: #f3f4f6;
+    color: #6b7280;
+  }
+  
+  .status-blocked {
+    background-color: #fee2e2;
+    color: #991b1b;
+  }
+
+  /* Action Buttons */
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .action-buttons button {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  
+  .action-buttons button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .action-view {
+    color: #3b82f6;
+  }
+  
+  .action-view:hover {
+    background-color: #dbeafe;
+    border-color: #3b82f6;
+  }
+  
+  .action-edit {
+    color: #16a34a;
+  }
+  
+  .action-edit:hover {
+    background-color: #dcfce7;
+    border-color: #16a34a;
+  }
+  
+  .action-block {
+    color: #dc2626;
+  }
+  
+  .action-block:hover {
+    background-color: #fee2e2;
+    border-color: #dc2626;
+  }
+  
+  .action-unblock {
+    color: #16a34a;
+  }
+  
+  .action-unblock:hover {
+    background-color: #dcfce7;
+    border-color: #16a34a;
+  }
+  
+  .action-delete {
+    color: #6b7280;
+  }
+  
+  .action-delete:hover {
+    background-color: #f3f4f6;
+    border-color: #6b7280;
+  }
+
+  /* Profile Sidebar Buttons */
+  .profile-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  
+  .btn-edit {
+    padding: 10px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+  
+  .btn-edit:hover {
+    background-color: #2563eb;
+  }
+  
+  .btn-block {
+    padding: 10px;
+    background-color: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+  
+  .btn-block:hover {
+    background-color: #b91c1c;
+  }
+  
+  .btn-unblock {
+    padding: 10px;
+    background-color: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+  
+  .btn-unblock:hover {
+    background-color: #15803d;
+  }
+
+  /* File Upload */
   .file-upload-wrapper {
-  margin-top: 8px;
-}
+    margin-top: 8px;
+  }
 
-.file-upload-input {
-  display: none;
-}
+  .file-upload-input {
+    display: none;
+  }
 
-.file-upload-preview {
-  width: 120px;
-  height: 120px;
-  border-radius: 10px;
-  background: #f8f9fa;
-  border: 2px dashed #d1d5db;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  overflow: hidden;
-  position: relative;
-}
+  .file-upload-preview {
+    width: 120px;
+    height: 120px;
+    border-radius: 10px;
+    background: #f8f9fa;
+    border: 2px dashed #d1d5db;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+  }
 
-.file-upload-preview:hover {
-  border-color: #3b82f6;
-}
+  .file-upload-preview:hover {
+    border-color: #3b82f6;
+  }
 
-.preview-placeholder {
-  text-align: center;
-  color: #6b7280;
-}
+  .preview-placeholder {
+    text-align: center;
+    color: #6b7280;
+  }
 
-.preview-placeholder i {
-  font-size: 40px;
-  display: block;
-  margin-bottom: 8px;
-  color: #9ca3af;
-}
+  .preview-placeholder i {
+    font-size: 40px;
+    display: block;
+    margin-bottom: 8px;
+    color: #9ca3af;
+  }
 
-.preview-placeholder span {
-  font-size: 12px;
-  display: block;
-}
+  .preview-placeholder span {
+    font-size: 12px;
+    display: block;
+  }
 
-.preview-image {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
+  .preview-image {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
 
-.preview-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-}
+  .preview-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+  }
 
-.remove-preview {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-}
+  .remove-preview {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
 
-.remove-preview:hover {
-  background: rgba(0, 0, 0, 0.8);
-}
+  .remove-preview:hover {
+    background: rgba(0, 0, 0, 0.8);
+  }
 
-/* Modal styling */
-.modal-overlay {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.4);
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
+  /* Modal Styling */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.4);
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
 
-.modal-content {
-  background: #fff;
-  width: 650px;
-  max-height: 90vh;
-  overflow-y: auto;
-  border-radius: 10px;
-  padding: 20px;
-}
+  .modal-content {
+    background: #fff;
+    width: 650px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 10px;
+    padding: 20px;
+  }
 
-/* Hide scrollbar but keep scrolling */
-.modal-content::-webkit-scrollbar {
-  width: 0 !important;
-}
+  /* Hide scrollbar but keep scrolling */
+  .modal-content::-webkit-scrollbar {
+    width: 0 !important;
+  }
 
-.modal-content {
-  -ms-overflow-style: none;      /* IE & Edge */
-  scrollbar-width: none;         /* Firefox */
-}
+  .modal-content {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Required field indicator */
+  .required {
+    color: #dc2626;
+    font-weight: bold;
+  }
+
+  /* File hint */
+  .file-hint {
+    display: block;
+    margin-top: 4px;
+    color: #6b7280;
+    font-size: 12px;
+  }
+
+  /* Table row highlighting */
+  .clickable-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .clickable-row:hover {
+    background-color: #f9fafb;
+  }
 </style>
 
 </body>
 </html>
-
 {% endblock %}
