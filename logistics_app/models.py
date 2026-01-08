@@ -139,17 +139,28 @@ class CustomUser(AbstractUser):
 
 
 class PhoneOTP(models.Model):
+    PURPOSE_CHOICES = [
+        # ('registration', 'Registration'),
+        ('login', 'Login'),
+        ('forgot_password', 'Forgot Password'),
+    ]
     phone_number = models.CharField(max_length=15)
     otp = models.CharField(max_length=6)
     is_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+    purpose = models.CharField(
+        max_length=20, 
+        choices=PURPOSE_CHOICES, 
+        default='login'
+    )
 
     def is_expired(self):
         return timezone.now() > self.created_at + timedelta(minutes=5)
 
     def __str__(self):
-        return f"{self.phone_number} - {self.otp}"
+        return f"{self.phone_number} - {self.otp} - {self.purpose}"
+    class Meta:
+        ordering = ['-created_at']
 
 
 class Customer(models.Model):

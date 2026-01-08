@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .serializers import RegisterSerializer, VehicleTypeSerializer, VehicleSerializer, DriverSerializer, LoadDetailsSerializer, LoadRequestSerializer, PhoneNumberTokenObtainPairSerializer, TripCommentSerializer
+from .serializers import RegisterSerializer, ResetPasswordSerializer, VehicleTypeSerializer, VehicleSerializer, DriverSerializer, LoadDetailsSerializer, LoadRequestSerializer, PhoneNumberTokenObtainPairSerializer, TripCommentSerializer,VerifyOTPForgotPasswordSerializer,ForgotPasswordRequestSerializer
 from .serializers import VendorAcceptedLoadDetailsSerializer, VendorTripDetailsSerializer, LRUploadSerializer, PODUploadSerializer, VendorProfileUpdateSerializer, LoadFilterOptionsSerializer
 from rest_framework.generics import RetrieveAPIView
 from rest_framework import generics
@@ -1740,3 +1740,167 @@ class UpdateTripCurrentLocationAPIView(APIView):
             },
             status=status.HTTP_200_OK
         )
+    
+
+# forgot password view
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_request(request):
+    """
+    Step 1: Request OTP for forgot password
+    Request body: {"phone_number": "1234567890"}
+    """
+    serializer = ForgotPasswordRequestSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        phone_number = serializer.validated_data['phone_number']
+        
+        # Generate OTP
+        otp = generate_otp()
+        
+        # Save OTP to database
+        PhoneOTP.objects.create(
+            phone_number=phone_number,
+            otp=otp,
+            purpose='forgot_password'
+        )
+        
+        # Send OTP via SMS
+        sms_result = send_otp_fast2sms(phone_number, otp)
+        
+        if sms_result['success']:
+            return Response({
+                'success': True,
+                'message': 'OTP sent successfully to your phone number.',
+                'phone_number': phone_number
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'success': False,
+                'message': 'Failed to send OTP. Please try again.',
+                'error': sms_result.get('error')
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_otp_forgot_password(request):
+    """
+    Step 2: Verify OTP (optional - can be combined with reset)
+    Request body: {"phone_number": "1234567890", "otp": "123456"}
+    """
+    serializer = VerifyOTPForgotPasswordSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        phone_number = serializer.validated_data['phone_number']
+        otp = serializer.validated_data['otp']
+        
+        # Mark OTP as verified
+        otp_record = PhoneOTP.objects.filter(
+            phone_number=phone_number,
+            otp=otp,
+            purpose='forgot_password'
+        ).latest('created_at')
+        
+        otp_record.is_verified = True
+        otp_record.save()
+        
+        return Response({
+            'success': True,
+            'message': 'OTP verified successfully. You can now reset your password.',
+            'phone_number': phone_number
+        }, status=status.HTTP_200_OK)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """
+    Step 3: Reset password with OTP verification
+    Request body: {
+        "phone_number": "1234567890",
+        "otp": "123456",
+        "new_password": "newpassword123",
+        "confirm_password": "newpassword123"
+    }
+    """
+    serializer = ResetPasswordSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        user = serializer.validated_data['user']
+        otp_record = serializer.validated_data['otp_record']
+        new_password = serializer.validated_data['new_password']
+        
+        # Update user password
+        user.set_password(new_password)
+        user.save()
+        
+        # Mark OTP as verified
+        otp_record.is_verified = True
+        otp_record.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Password reset successfully. You can now login with your new password.',
+            'user': {
+                'email': user.email,
+                'full_name': user.full_name,
+                'phone_number': user.phone_number
+            }
+        }, status=status.HTTP_200_OK)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_otp_forgot_password(request):
+    """
+    Resend OTP for forgot password
+    """
+    serializer = ForgotPasswordRequestSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        phone_number = serializer.validated_data['phone_number']
+        
+        # Invalidate previous OTPs
+        PhoneOTP.objects.filter(
+            phone_number=phone_number,
+            purpose='forgot_password',
+            is_verified=False
+        ).update(is_verified=True)
+        
+        # Generate new OTP
+        otp = generate_otp()
+        
+        PhoneOTP.objects.create(
+            phone_number=phone_number,
+            otp=otp,
+            purpose='forgot_password'
+        )
+        
+        sms_result = send_otp_fast2sms(phone_number, otp)
+        
+        if sms_result['success']:
+            return Response({
+                'success': True,
+                'message': 'New OTP sent successfully.'
+            }, status=status.HTTP_200_OK)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)

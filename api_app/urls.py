@@ -5,7 +5,7 @@ from logistics_app import views
 from .views import RegisterView, LoginView, VehicleTypeListView, AddVehicleView, AddDriverView, get_all_loads, SendVendorRequestView, get_all_vehicles, update_vehicle, delete_vehicle
 from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
-
+from .import views
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -57,6 +57,11 @@ urlpatterns = [
         UpdateTripCurrentLocationAPIView.as_view(),
         name='update_trip_current_location'
     ),
+
+    path('forgot-password/request/', views.forgot_password_request, name='forgot-password-request'),
+    path('forgot-password/verify-otp/', views.verify_otp_forgot_password, name='verify-otp-forgot-password'),
+    path('forgot-password/reset/', views.reset_password, name='reset-password'),
+    path('forgot-password/resend-otp/', views.resend_otp_forgot_password, name='resend-otp-forgot-password'),
 
     
 ]

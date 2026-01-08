@@ -1,6 +1,6 @@
 # serializers.py
 from rest_framework import serializers
-from logistics_app.models import CustomUser, TDSRate
+from logistics_app.models import CustomUser, PhoneOTP, TDSRate
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
@@ -668,3 +668,79 @@ class LoadFilterOptionsSerializer(serializers.Serializer):
     destinations = serializers.ListField(child=serializers.CharField())
     vehicle_types = serializers.ListField(child=serializers.CharField())
     load_capacities = serializers.ListField(child=serializers.CharField())
+
+
+# forgot password serializer
+class ForgotPasswordRequestSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+
+    def validate_phone_number(self, value):
+        # Check if user exists with this phone number
+        if not CustomUser.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("No account found with this phone number.")
+        return value
+
+
+class VerifyOTPForgotPasswordSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, data):
+        phone_number = data.get('phone_number')
+        otp = data.get('otp')
+
+        # Check if OTP exists and is valid
+        try:
+            otp_record = PhoneOTP.objects.filter(
+                phone_number=phone_number,
+                otp=otp,
+                purpose='forgot_password',
+                is_verified=False
+            ).latest('created_at')
+        except PhoneOTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP.")
+
+        # Check if OTP is expired
+        if otp_record.is_expired():
+            raise serializers.ValidationError("OTP has expired. Please request a new one.")
+
+        return data
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+    otp = serializers.CharField(max_length=6)
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, data):
+        # Check if passwords match
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+        
+        # Verify OTP
+        phone_number = data.get('phone_number')
+        otp = data.get('otp')
+
+        try:
+            otp_record = PhoneOTP.objects.filter(
+                phone_number=phone_number,
+                otp=otp,
+                purpose='forgot_password',
+                is_verified=False
+            ).latest('created_at')
+        except PhoneOTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP.")
+
+        if otp_record.is_expired():
+            raise serializers.ValidationError("OTP has expired. Please request a new one.")
+
+        # Check if user exists
+        try:
+            user = CustomUser.objects.get(phone_number=phone_number)
+            data['user'] = user
+            data['otp_record'] = otp_record
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("User not found.")
+
+        return data
