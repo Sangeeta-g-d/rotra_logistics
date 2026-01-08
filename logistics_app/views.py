@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification, HoldingCharge, TDSRate
+from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification, HoldingCharge, TDSRate,CustomerContactPerson
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from datetime import datetime, date
@@ -17,6 +17,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.utils import timezone
 import traceback
+from django.views.decorators.http import require_GET
 from django.http import HttpResponse
 import os
 from django.conf import settings
@@ -294,7 +295,12 @@ def customer_list(request):
     if not request.user.is_staff:
         return redirect('admin_login')
 
-    customers = Customer.objects.all().order_by('-created_at')
+    customers = (
+        Customer.objects
+        .prefetch_related('contacts')
+        .order_by('-created_at')
+    )
+
     return render(request, 'customer_list.html', {'customers': customers})
 
 
@@ -305,47 +311,59 @@ def add_customer(request):
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
 
     try:
-        # Form fields
         customer_name = request.POST.get('customerName')
         phone_number = request.POST.get('phoneNumber')
-        contact_person_name = request.POST.get('contactPersonName')
-        contact_person_phone = request.POST.get('contactPersonPhone')
         location = request.POST.get('location')
-        profile_photo = request.FILES.get('profilePhoto')
+        
+        # Get contact persons arrays
+        contact_names = request.POST.getlist('contact_names[]')
+        contact_phones = request.POST.getlist('contact_phones[]')
 
-        # Validation
-        if not all([customer_name, phone_number]):
-            return JsonResponse({'success': False, 'error': 'Customer name & phone are required'}, status=400)
+        if not customer_name or not phone_number:
+            return JsonResponse({'success': False, 'error': 'Customer name & phone required'}, status=400)
 
         if Customer.objects.filter(phone_number=phone_number).exists():
-            return JsonResponse({'success': False, 'error': 'Phone number already exists'}, status=400)
+            return JsonResponse({'success': False, 'error': 'Phone already exists'}, status=400)
 
-        # Create
-        customer = Customer.objects.create(
-            customer_name=customer_name,
-            phone_number=phone_number,
-            contact_person_name=contact_person_name,
-            contact_person_phone=contact_person_phone,
-            location=location,
-            is_active=True,
-        )
+        # Start atomic transaction
+        with transaction.atomic():
+            customer = Customer.objects.create(
+                customer_name=customer_name,
+                phone_number=phone_number,
+                location=location,
+                is_active=True
+            )
 
-        if profile_photo:
-            customer.profile_image = profile_photo
-            customer.save()
+            contacts_payload = []
+            
+            # Create contact persons if provided
+            for i in range(len(contact_names)):
+                name = contact_names[i].strip()
+                phone = contact_phones[i].strip()
+                
+                if name and phone:  # Only create if both are provided
+                    contact = CustomerContactPerson.objects.create(
+                        customer=customer,
+                        name=name,
+                        phone_number=phone
+                    )
+                    contacts_payload.append({
+                        'name': contact.name,
+                        'phone': contact.phone_number
+                    })
 
-        # JSON payload for JS
-        payload = {
-            'id': customer.id,
-            'name': customer.customer_name,
-            'phone': customer.phone_number,
-            'contactPerson': customer.contact_person_name or '-',
-            'contactPhone': customer.contact_person_phone or '-',
-            'location': customer.location or '-',
-            'img': customer.profile_image.url if customer.profile_image else '/static/images/default_avatar.png',
-            'joinDate': customer.created_at.strftime('%b %d, %Y'),
-            'status': 'Active' if customer.is_active else 'Inactive',
-        }
+            payload = {
+                'id': customer.id,
+                'name': customer.customer_name,
+                'phone': customer.phone_number,
+                'location': customer.location or '',
+                'contacts': contacts_payload,
+                'joinDate': customer.created_at.strftime('%b %d, %Y'),
+                'status': 'Active',
+                'trips_booked': 0,
+                'trips_completed': 0,
+                'trips_pending': 0
+            }
 
         return JsonResponse({
             'success': True,
@@ -355,7 +373,6 @@ def add_customer(request):
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
 
 @login_required
 @require_http_methods(["POST"])
@@ -653,7 +670,9 @@ def load_list(request):
     ).order_by('-created_at')
 
     tds_rate = TDSRate.objects.first()
-    customers = Customer.objects.filter(is_active=True).order_by('customer_name')
+    
+    # Get customers with their contact persons
+    customers = Customer.objects.filter(is_active=True).prefetch_related('contacts').order_by('customer_name')
     vehicle_types = VehicleType.objects.all().order_by('name')
 
     context = {
@@ -663,7 +682,6 @@ def load_list(request):
         'tds_rate': tds_rate.rate if tds_rate else 2,
     }
     return render(request, 'load_list.html', context)
-
 
 @login_required
 @require_http_methods(["GET"])
@@ -1193,6 +1211,31 @@ def add_load(request):
             {'success': False, 'error': 'Failed to create load. Please try again.'},
             status=500
         )
+
+@login_required
+@require_GET
+def get_customer_contact_persons(request):
+    """API endpoint to get all customers with their contact persons"""
+    try:
+        customers = Customer.objects.filter(is_active=True).prefetch_related('contacts')
+        
+        contact_persons_dict = {}
+        for customer in customers:
+            contact_persons = list(customer.contacts.values('id', 'name', 'phone_number'))
+            # Add customer's own phone as primary contact
+            contact_persons_dict[customer.id] = contact_persons
+        
+        return JsonResponse({
+            'success': True,
+            'contact_persons': contact_persons_dict
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
 @login_required
 @require_http_methods(["GET"])
 def get_customer_details(request, customer_id):
@@ -3805,15 +3848,19 @@ def update_vehicle(request, vehicle_id):
 
 @login_required
 def edit_customer(request, customer_id):
-    """Edit existing customer"""
+    """Edit existing customer with contact persons"""
     if not request.user.is_staff:
         return redirect('admin_login')
     
     try:
-        customer = Customer.objects.get(id=customer_id)
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        # Get all contact persons for this customer
+        contact_persons = CustomerContactPerson.objects.filter(customer=customer)
         
         context = {
             'customer': customer,
+            'contact_persons': contact_persons,
         }
         return render(request, 'edit_customer.html', context)
         
@@ -3824,9 +3871,9 @@ def edit_customer(request, customer_id):
 @login_required
 @require_http_methods(["POST"])
 def update_customer(request, customer_id):
-    """API endpoint to update customer"""
+    """API endpoint to update customer with contact persons"""
     try:
-        customer = Customer.objects.get(id=customer_id)
+        customer = get_object_or_404(Customer, id=customer_id)
         
         # Validate required fields
         customer_name = request.POST.get('customerName', '').strip()
@@ -3851,33 +3898,53 @@ def update_customer(request, customer_id):
                 'error': 'Another customer with this phone number already exists'
             }, status=400)
         
-        # Update basic fields
-        customer.customer_name = customer_name
-        customer.phone_number = phone_number
-        customer.contact_person_name = request.POST.get('contactPersonName', '').strip() or None
-        customer.contact_person_phone = request.POST.get('contactPersonPhone', '').strip() or None
-        customer.location = request.POST.get('location', '').strip() or None
-        
-        # Handle profile photo upload
-        profile_photo = request.FILES.get('profilePhoto')
-        if profile_photo:
-            # Delete old profile photo if exists
-            if customer.profile_image:
-                customer.profile_image.delete(save=False)
-            customer.profile_image = profile_photo
-        
-        customer.save()
+        # Start atomic transaction
+        with transaction.atomic():
+            # Update basic customer fields
+            customer.customer_name = customer_name
+            customer.phone_number = phone_number
+            customer.location = request.POST.get('location', '').strip() or None
+            customer.save()
+            
+            # Delete existing contact persons
+            CustomerContactPerson.objects.filter(customer=customer).delete()
+            
+            # Get new contact persons data
+            contact_names = request.POST.getlist('contact_names[]')
+            contact_phones = request.POST.getlist('contact_phones[]')
+            
+            contact_persons = []
+            
+            # Create new contact persons if provided
+            for i in range(len(contact_names)):
+                name = contact_names[i].strip()
+                phone = contact_phones[i].strip()
+                
+                if name and phone:  # Only create if both are provided
+                    contact = CustomerContactPerson.objects.create(
+                        customer=customer,
+                        name=name,
+                        phone_number=phone
+                    )
+                    contact_persons.append({
+                        'name': contact.name,
+                        'phone': contact.phone_number
+                    })
         
         return JsonResponse({
             'success': True,
-            
+            'message': f'{customer_name} updated successfully!',
             'customer': {
                 'id': customer.id,
                 'name': customer.customer_name,
                 'phone': customer.phone_number,
-                'contactPerson': customer.contact_person_name or '',
-                'contactPhone': customer.contact_person_phone or '',
                 'location': customer.location or '',
+                'contacts': contact_persons,
+                'joinDate': customer.created_at.strftime('%b %d, %Y'),
+                'status': 'Active' if customer.is_active else 'Inactive',
+                'trips_booked': 0,  # You can update these with actual values
+                'trips_completed': 0,
+                'trips_pending': 0
             }
         })
         
@@ -3889,8 +3956,9 @@ def update_customer(request, customer_id):
         traceback.print_exc()
         return JsonResponse({
             'success': False,
-            'error': str(e)  # Return actual error for debugging
+            'error': str(e)
         }, status=500)
+
 
 @login_required
 def edit_vendor(request, vendor_id):

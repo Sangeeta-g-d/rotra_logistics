@@ -258,40 +258,42 @@
       </div>
 
       <div class="form-row">
-        <div class="form-group">
-          <label>Customer <span class="required">*</span></label>
-          <select name="customer" id="customerSelect" required>
-            <option value="">Select Customer</option>
-            {% for customer in customers %}
-            <option value="{{ customer.id }}"
-                    data-contact-person="{{ customer.contact_person_name|default:'' }}"
-                    data-contact-phone="{{ customer.contact_person_phone|default:'' }}">
-              {{ customer.customer_name }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Contact Person</label>
-          <input type="text" name="contactPersonName" id="contactPersonName" readonly>
-        </div>
-      </div>
+  <div class="form-group">
+    <label>Customer <span class="required">*</span></label>
+    <select name="customer" id="customerSelect" required>
+      <option value="">Select Customer</option>
+      {% for customer in customers %}
+      <option value="{{ customer.id }}"
+              data-phone="{{ customer.phone_number|default:'' }}"
+              data-location="{{ customer.location|default:'' }}">
+        {{ customer.customer_name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Contact Person <span class="required">*</span></label>
+    <select name="contactPerson" id="contactPersonSelect" required>
+      <option value="">Select Contact Person</option>
+    </select>
+  </div>
+</div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label>Contact Phone</label>
-          <input type="tel" name="contactPersonPhone" id="contactPersonPhone" readonly>
-        </div>
-        <div class="form-group">
-          <label>Vehicle Type <span class="required">*</span></label>
-          <select name="vehicleType" required>
-            <option value="">Select Vehicle Type</option>
-            {% for vehicle_type in vehicle_types %}
-            <option value="{{ vehicle_type.id }}">{{ vehicle_type.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
+<div class="form-row">
+  <div class="form-group">
+    <label>Contact Phone</label>
+    <input type="tel" name="contactPersonPhone" id="contactPersonPhone" placeholder="Phone number will auto-fill" readonly>
+  </div>
+  <div class="form-group">
+    <label>Vehicle Type <span class="required">*</span></label>
+    <select name="vehicleType" required>
+      <option value="">Select Vehicle Type</option>
+      {% for vehicle_type in vehicle_types %}
+      <option value="{{ vehicle_type.id }}">{{ vehicle_type.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
 
       <!-- Route & Schedule Section -->
       <div class="section-header">
@@ -630,6 +632,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
 // Global variables
 let currentLoadId = null;
@@ -638,6 +641,9 @@ let currentVendorId = null;
 let csrftoken = null;
 let selectedVendorId = null;
 let selectedVendorName = null;
+
+// Store contact persons data globally
+let contactPersonsData = {};
 
 document.addEventListener('DOMContentLoaded', function () {
   csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -660,10 +666,122 @@ document.addEventListener('DOMContentLoaded', function () {
   const openAddDriverModalBtn = document.getElementById('openAddDriverModalBtn');
   const openAddVehicleModalBtn = document.getElementById('openAddVehicleModal');
 
+  // Contact person elements
+  const customerSelect = document.getElementById('customerSelect');
+  const contactPersonSelect = document.getElementById('contactPersonSelect');
+  const contactPhoneInput = document.getElementById('contactPersonPhone');
+
   function showToast(text, type = 'info') {
     const colors = { success: '#16a34a', error: '#dc2626', info: '#2563eb' };
-    Toastify({ text, duration: 3000, gravity: "top", position: "right", backgroundColor: colors[type] }).showToast();
+    Toastify({ 
+      text, 
+      duration: 3000, 
+      gravity: "top", 
+      position: "right", 
+      backgroundColor: colors[type],
+      close: true 
+    }).showToast();
   }
+
+  // ====================== FETCH CONTACT PERSONS DATA ======================
+  function fetchContactPersons() {
+    fetch('/api/loads/customers/contact-persons/')
+      .then(r => {
+        if (!r.ok) {
+          throw new Error(`HTTP error! status: ${r.status}`);
+        }
+        return r.json();
+      })
+      .then(data => {
+        if (data.success && data.contact_persons) {
+          contactPersonsData = data.contact_persons;
+          console.log('Contact persons loaded successfully');
+        } else {
+          console.error('Failed to load contact persons:', data.error);
+          showToast('Failed to load contact persons', 'error');
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching contact persons:', error);
+        showToast('Error loading contact persons data', 'error');
+      });
+  }
+
+  // Initialize contact persons data on page load
+  fetchContactPersons();
+
+  // ====================== CUSTOMER & CONTACT PERSON AUTO-FILL ======================
+  customerSelect?.addEventListener('change', function() {
+    const customerId = this.value;
+    const selectedOption = this.options[this.selectedIndex];
+    const customerPhone = selectedOption.dataset.phone || '';
+    const customerLocation = selectedOption.dataset.location || '';
+    
+    // Clear contact person dropdown and phone
+    contactPersonSelect.innerHTML = '<option value="">Select Contact Person</option>';
+    contactPhoneInput.value = '';
+    contactPhoneInput.placeholder = 'Phone number will auto-fill';
+    
+    if (!customerId) {
+      return;
+    }
+    
+    // Show loading in dropdown
+    contactPersonSelect.innerHTML = '<option value="">Loading contact persons...</option>';
+    
+    // Small delay to show loading state
+    setTimeout(() => {
+      // Add customer as first contact option
+      contactPersonSelect.innerHTML = '<option value="">Select Contact Person</option>';
+      
+      const customerOption = document.createElement('option');
+      customerOption.value = 'customer_primary';
+      customerOption.textContent = selectedOption.textContent + ' (Primary)';
+      customerOption.dataset.phone = customerPhone;
+      contactPersonSelect.appendChild(customerOption);
+      
+      // Add contact persons for this customer from cached data
+      if (contactPersonsData[customerId] && contactPersonsData[customerId].length > 0) {
+        contactPersonsData[customerId].forEach(contact => {
+          const option = document.createElement('option');
+          option.value = contact.id;
+          option.textContent = contact.name;
+          option.dataset.phone = contact.phone_number || '';
+          contactPersonSelect.appendChild(option);
+        });
+      }
+      
+      // If only customer primary, auto-select it and show phone
+      if (contactPersonSelect.options.length === 2) { // 1 for placeholder + 1 for primary
+        contactPersonSelect.selectedIndex = 1;
+        contactPhoneInput.value = customerPhone;
+      }
+      
+      // If no contact persons found, show message
+      if (contactPersonSelect.options.length === 1) {
+        const noContactsOption = document.createElement('option');
+        noContactsOption.value = '';
+        noContactsOption.textContent = 'No contact persons found';
+        noContactsOption.disabled = true;
+        contactPersonSelect.appendChild(noContactsOption);
+      }
+    }, 100);
+  });
+
+  // When contact person changes, update phone number
+  contactPersonSelect?.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const phone = selectedOption.dataset.phone || '';
+    contactPhoneInput.value = phone;
+    
+    // If "Select Contact Person" or disabled option is selected, clear phone
+    if (!selectedOption.value || selectedOption.disabled) {
+      contactPhoneInput.value = '';
+      if (selectedOption.disabled) {
+        contactPhoneInput.placeholder = 'No contact persons available';
+      }
+    }
+  });
 
   // ====================== 90-10 PAYMENT SPLIT CALCULATION ======================
   function calculatePaymentSplit() {
@@ -708,6 +826,15 @@ document.addEventListener('DOMContentLoaded', function () {
   // Initialize payment calculation when modal opens
   openAddModalBtn?.addEventListener('click', function () {
     addLoadModal.style.display = 'flex';
+    
+    // Reset contact person fields
+    if (customerSelect) customerSelect.selectedIndex = 0;
+    if (contactPersonSelect) contactPersonSelect.innerHTML = '<option value="">Select Contact Person</option>';
+    if (contactPhoneInput) {
+      contactPhoneInput.value = '';
+      contactPhoneInput.placeholder = 'Phone number will auto-fill';
+    }
+    
     setTimeout(() => {
       const totalInput = document.getElementById('totalAmountInput');
       const firstHalfInput = document.getElementById('firstHalfPaymentInput');
@@ -750,13 +877,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       }
     }, 100);
-  });
-
-  // ====================== CUSTOMER AUTO-FILL ======================
-  document.getElementById('customerSelect')?.addEventListener('change', function () {
-    const selected = this.options[this.selectedIndex];
-    document.getElementById('contactPersonName').value = selected.dataset.contactPerson || '';
-    document.getElementById('contactPersonPhone').value = selected.dataset.contactPhone || '';
   });
 
   // ====================== TIME INPUT FORMAT ======================
@@ -1022,11 +1142,25 @@ document.addEventListener('DOMContentLoaded', function () {
   closeLoadModal?.addEventListener('click', () => {
     addLoadModal.style.display = 'none';
     document.getElementById('addLoadForm').reset();
+    
+    // Reset contact person fields
+    if (contactPersonSelect) contactPersonSelect.innerHTML = '<option value="">Select Contact Person</option>';
+    if (contactPhoneInput) {
+      contactPhoneInput.value = '';
+      contactPhoneInput.placeholder = 'Phone number will auto-fill';
+    }
   });
   
   cancelLoadModal?.addEventListener('click', () => {
     addLoadModal.style.display = 'none';
     document.getElementById('addLoadForm').reset();
+    
+    // Reset contact person fields
+    if (contactPersonSelect) contactPersonSelect.innerHTML = '<option value="">Select Contact Person</option>';
+    if (contactPhoneInput) {
+      contactPhoneInput.value = '';
+      contactPhoneInput.placeholder = 'Phone number will auto-fill';
+    }
   });
   
   document.getElementById('closeDriverModal')?.addEventListener('click', () => {
@@ -1058,9 +1192,17 @@ document.addEventListener('DOMContentLoaded', function () {
     addVehicleModal.style.display = 'flex';
   });
 
-  // Add Load Form Submit
+  // Add Load Form Submit - UPDATED FOR CONTACT PERSON
   document.getElementById('addLoadForm')?.addEventListener('submit', function (e) {
     e.preventDefault();
+    
+    // Validate contact person selection
+    const selectedContactPerson = contactPersonSelect?.value;
+    if (!selectedContactPerson) {
+      showToast('Please select a contact person', 'error');
+      return;
+    }
+    
     const formData = new FormData(this);
     console.log('Form data:', Object.fromEntries(formData));
     const btn = this.querySelector('.save-btn');
@@ -1079,6 +1221,14 @@ document.addEventListener('DOMContentLoaded', function () {
           showToast('Load created successfully!', 'success');
           addLoadModal.style.display = 'none';
           this.reset();
+          
+          // Reset contact person fields
+          if (contactPersonSelect) contactPersonSelect.innerHTML = '<option value="">Select Contact Person</option>';
+          if (contactPhoneInput) {
+            contactPhoneInput.value = '';
+            contactPhoneInput.placeholder = 'Phone number will auto-fill';
+          }
+          
           setTimeout(() => location.reload(), 1500);
         } else {
           showToast(d.error || 'Failed to create load', 'error');

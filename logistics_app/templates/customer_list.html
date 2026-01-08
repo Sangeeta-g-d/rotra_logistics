@@ -20,7 +20,46 @@
   <!-- Google Fonts: Inter -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
-<link rel="stylesheet" href="{% static 'css/customer_management.css' %}">
+  <link rel="stylesheet" href="{% static 'css/customer_management.css' %}">
+  
+  <style>
+    /* Additional styles for contact person rows */
+    .contact-row {
+      position: relative;
+      margin-bottom: 10px;
+    }
+    
+    .remove-contact-btn {
+      position: absolute;
+      right: -30px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #fee2e2;
+      color: #dc2626;
+      border: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .remove-contact-btn:hover {
+      background: #fecaca;
+    }
+    
+    .contact-row:first-child .remove-contact-btn {
+      display: none;
+    }
+    
+    .contact-fields-container {
+      position: relative;
+      width: 100%;
+    }
+  </style>
 </head>
 <body>
 
@@ -55,8 +94,14 @@
                 "id": {{ cust.id }},
                 "name": "{{ cust.customer_name|escapejs }}",
                 "phone": "{{ cust.phone_number|default:'' }}",
-                "contactPerson": "{{ cust.contact_person_name|default:'' }}",
-                "contactPhone": "{{ cust.contact_person_phone|default:'' }}",
+                "contacts": [
+                  {% for c in cust.contacts.all %}
+                    {
+                      "name": "{{ c.name|escapejs }}",
+                      "phone": "{{ c.phone_number|escapejs }}"
+                    }{% if not forloop.last %},{% endif %}
+                  {% endfor %}
+                ],
                 "location": "{{ cust.location|default:'' }}",
                 "joinDate": "{{ cust.created_at|date:'d M Y' }}",
                 "status": "{% if cust.is_active %}Active{% else %}Inactive{% endif %}",
@@ -74,7 +119,15 @@
               </div>
             </td>
             <td data-label="Phone">{{ cust.phone_number|default:'-' }}</td>
-            <td data-label="Contact Person">{{ cust.contact_person_name|default:'-' }}</td>
+            <td data-label="Contact Person">
+              {% if cust.contacts.all %}
+                {% for c in cust.contacts.all %}
+                    {{ c.name }}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
             <td data-label="Location">{{ cust.location|default:'-' }}</td>
             <td class="action-col" style="position:relative;">
               <div class="action-dots">
@@ -95,7 +148,7 @@
       </tbody>
     </table>
 
-     <!-- Pagination -->
+    <!-- Pagination -->
     <div class="pagination-container">
       <div class="entries-per-page">
         <span>Show</span>
@@ -123,37 +176,59 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3>Add Customer</h3>
-        <button class="modal-close" id="closeAddModal">x</button>
+        <button class="modal-close" id="closeAddModal">×</button>
       </div>
+
       <p class="modal-subtitle">Fill the details below to add a new customer.</p>
+
       <form id="addCustomerForm" class="modal-form">
         {% csrf_token %}
+
         <div class="form-row">
-          <div class="form-group">
+          <div class="form-group half">
             <label>Customer Name <span class="required">*</span></label>
-            <input type="text" name="customerName" placeholder="Enter customer name" required>
+            <input type="text" name="customerName" required>
           </div>
           <div class="form-group half">
             <label>Phone Number <span class="required">*</span></label>
-            <input type="tel" name="phoneNumber" placeholder="Enter phone" required>
+            <input type="tel" name="phoneNumber" required>
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group half">
-            <label>Contact Person Name</label>
-            <input type="text" name="contactPersonName" placeholder="Enter contact person name">
-          </div>
-          <div class="form-group half">
-            <label>Contact Person Phone</label>
-            <input type="tel" name="contactPersonPhone" placeholder="Enter contact person phone">
+
+        <!-- CONTACT PERSONS -->
+        <div id="contactPersonsWrapper">
+          <div class="contact-row">
+            <div class="contact-fields-container">
+              <div class="form-row">
+                <div class="form-group half">
+                  <label>Contact Person Name</label>
+                  <input type="text" name="contact_names[]" placeholder="Name">
+                </div>
+                <div class="form-group half">
+                  <label>Contact Person Phone</label>
+                  <input type="tel" name="contact_phones[]" placeholder="Phone">
+                </div>
+              </div>
+            </div>
+            <button type="button" class="remove-contact-btn" style="display: none;">×</button>
           </div>
         </div>
+
+        <!-- ADD MORE -->
+        <button type="button"
+                id="addContactBtn"
+                style="margin:10px 0;padding:6px 12px;border-radius:6px;
+                       background:#eef2ff;color:#4338ca;border:none;font-weight:600;">
+          + Add Contact Person
+        </button>
+
         <div class="form-row">
           <div class="form-group">
             <label>Location</label>
-            <input type="text" name="location" placeholder="City, State">
+            <input type="text" name="location" placeholder="Location">
           </div>
         </div>
+
         <div class="modal-actions">
           <button type="submit" class="save-btn">Save Customer</button>
           <button type="button" class="cancel-btn" id="cancelAddModal">Cancel</button>
@@ -253,7 +328,7 @@ function openPanel(data){
   const statusColor = isActive ? '#16a34a' : '#dc2626';
 
   panel.innerHTML = `
-    <div class="panel-header"><h3>Partner Details</h3><button class="close-panel" id="closePanel">x</button></div>
+    <div class="panel-header"><h3>Partner Details</h3><button class="close-panel" id="closePanel">×</button></div>
     <div class="panel-content">
       <div style="display:flex;gap:16px;padding-bottom:18px;border-bottom:1px solid #e5e7eb;margin-bottom:18px;">
         <div class="panel-avatar">${initials}</div>
@@ -282,8 +357,16 @@ function openPanel(data){
           <h4 class="section-title">Contact Details</h4><i class="fas fa-chevron-down"></i>
         </div>
         <div class="section-content" id="contact-details-content">
-          <div class="info-row"><span class="info-label">Contact Person</span><span class="info-value">${data.contactPerson||'-'}</span></div>
-          <div class="info-row"><span class="info-label">Mobile Number</span><span class="info-value">${data.contactPhone||'-'}</span></div>
+          ${
+            data.contacts && data.contacts.length
+              ? data.contacts.map(c => `
+                  <div class="info-row">
+                    <span class="info-label">${c.name}</span>
+                    <span class="info-value">${c.phone}</span>
+                  </div>
+                `).join('')
+              : `<div class="info-row"><span class="info-value">-</span></div>`
+          }
         </div>
       </div>
 
@@ -319,12 +402,10 @@ function openPanel(data){
   `;
 
   document.body.classList.add('panel-open');
-  overlay.classList.add('show');  // SHOW OVERLAY
+  overlay.classList.add('show');
 
   document.getElementById('closePanel').onclick = closePanel;
   overlay.onclick = closePanel;
-
-
 
   panel.querySelectorAll('.section-header').forEach(h => {
     h.addEventListener('click', function(){
@@ -344,7 +425,7 @@ function openPanel(data){
 
 function closePanel(){
   document.body.classList.remove('panel-open');
-  overlay.classList.remove('show');  // HIDE OVERLAY
+  overlay.classList.remove('show');
   document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('selected'));
 }
 
@@ -370,8 +451,8 @@ tbody.addEventListener('click', e => {
     const data   = JSON.parse(row.dataset.customer);
 
     if (action === 'action-edit-btn') {
-    window.location.href = `/customers/${data.id}/edit/`;
-} else if (action === 'action-delete-btn') {
+      window.location.href = `/customers/${data.id}/edit/`;
+    } else if (action === 'action-delete-btn') {
       if (confirm('Delete this customer?')) {
         fetch(`{% url 'delete_customer' 999 %}`.replace('999', data.id), {
           method: 'POST',
@@ -445,6 +526,25 @@ openAddBtn.onclick = () => addModal.style.display = 'flex';
   b.onclick = () => {
     addModal.style.display = 'none';
     addForm.reset();
+    // Reset to single contact row
+    const wrapper = document.getElementById('contactPersonsWrapper');
+    wrapper.innerHTML = `
+      <div class="contact-row">
+        <div class="contact-fields-container">
+          <div class="form-row">
+            <div class="form-group half">
+              <label>Contact Person Name</label>
+              <input type="text" name="contact_names[]" placeholder="Name">
+            </div>
+            <div class="form-group half">
+              <label>Contact Person Phone</label>
+              <input type="tel" name="contact_phones[]" placeholder="Phone">
+            </div>
+          </div>
+        </div>
+        <button type="button" class="remove-contact-btn" style="display: none;">×</button>
+      </div>
+    `;
   };
 });
 
@@ -452,8 +552,67 @@ addModal.onclick = e => {
   if (e.target === addModal) {
     addModal.style.display = 'none';
     addForm.reset();
+    // Reset to single contact row
+    const wrapper = document.getElementById('contactPersonsWrapper');
+    wrapper.innerHTML = `
+      <div class="contact-row">
+        <div class="contact-fields-container">
+          <div class="form-row">
+            <div class="form-group half">
+              <label>Contact Person Name</label>
+              <input type="text" name="contact_names[]" placeholder="Name">
+            </div>
+            <div class="form-group half">
+              <label>Contact Person Phone</label>
+              <input type="tel" name="contact_phones[]" placeholder="Phone">
+            </div>
+          </div>
+        </div>
+        <button type="button" class="remove-contact-btn" style="display: none;">×</button>
+      </div>
+    `;
   }
 };
+
+/* -------------------------------------------------
+   ADD MULTIPLE CONTACT PERSONS
+------------------------------------------------- */
+document.getElementById('addContactBtn').onclick = () => {
+  const wrapper = document.getElementById('contactPersonsWrapper');
+
+  const row = document.createElement('div');
+  row.className = 'contact-row';
+
+  row.innerHTML = `
+    <div class="contact-fields-container">
+      <div class="form-row">
+        <div class="form-group half">
+          <input type="text" name="contact_names[]" placeholder="Contact name">
+        </div>
+        <div class="form-group half">
+          <input type="tel" name="contact_phones[]" placeholder="Phone number">
+        </div>
+      </div>
+    </div>
+    <button type="button" class="remove-contact-btn">×</button>
+  `;
+
+  wrapper.appendChild(row);
+  
+  // Add event listener to remove button
+  row.querySelector('.remove-contact-btn').addEventListener('click', function() {
+    this.closest('.contact-row').remove();
+  });
+};
+
+// Add event listeners to existing remove buttons (if any)
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('contactPersonsWrapper').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-contact-btn')) {
+      e.target.closest('.contact-row').remove();
+    }
+  });
+});
 
 /* ---- SUBMIT FORM ---- */
 addForm.addEventListener('submit', async function(e){
@@ -484,14 +643,13 @@ addForm.addEventListener('submit', async function(e){
         id: cust.id,
         name: cust.name,
         phone: cust.phone,
-        contactPerson: cust.contactPerson,
-        contactPhone: cust.contactPhone,
+        contacts: cust.contacts || [],
         location: cust.location,
         joinDate: cust.joinDate,
         status: cust.status,
-        trips_booked: 0,
-        trips_completed: 0,
-        trips_pending: 0
+        trips_booked: cust.trips_booked || 0,
+        trips_completed: cust.trips_completed || 0,
+        trips_pending: cust.trips_pending || 0
       });
 
       newRow.innerHTML = `
@@ -505,7 +663,13 @@ addForm.addEventListener('submit', async function(e){
           </div>
         </td>
         <td data-label="Phone">${cust.phone || '-'}</td>
-        <td data-label="Contact Person">${cust.contactPerson || '-'}</td>
+        <td data-label="Contact Person">
+          ${
+            cust.contacts && cust.contacts.length
+              ? cust.contacts.map(c => c.name).join(', ')
+              : '-'
+          }
+        </td>
         <td data-label="Location">${cust.location || '-'}</td>
         <td class="action-col" style="position:relative;">
           <div class="action-dots">
@@ -526,6 +690,26 @@ addForm.addEventListener('submit', async function(e){
 
       addModal.style.display = 'none';
       addForm.reset();
+      
+      // Reset to single contact row
+      const wrapper = document.getElementById('contactPersonsWrapper');
+      wrapper.innerHTML = `
+        <div class="contact-row">
+          <div class="contact-fields-container">
+            <div class="form-row">
+              <div class="form-group half">
+                <label>Contact Person Name</label>
+                <input type="text" name="contact_names[]" placeholder="Name">
+              </div>
+              <div class="form-group half">
+                <label>Contact Person Phone</label>
+                <input type="tel" name="contact_phones[]" placeholder="Phone">
+              </div>
+            </div>
+          </div>
+          <button type="button" class="remove-contact-btn" style="display: none;">×</button>
+        </div>
+      `;
     } else {
       showToast(json.error || 'Something went wrong', 'error');
     }
@@ -542,6 +726,16 @@ addForm.addEventListener('submit', async function(e){
    Initialise
 ------------------------------------------------- */
 initRows();
+
+// Make sure DOM is loaded before adding contact remove listeners
+document.addEventListener('DOMContentLoaded', function() {
+  // Initial event listener for remove buttons
+  document.getElementById('contactPersonsWrapper').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-contact-btn')) {
+      e.target.closest('.contact-row').remove();
+    }
+  });
+});
 </script>
 
 </body>

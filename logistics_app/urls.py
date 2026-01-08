@@ -90,6 +90,10 @@ path('reset-password/<int:user_id>/', views.reset_password_view, name='reset_pas
 
  path('api/payment/<int:trip_id>/mark-first-half-paid/', views.mark_first_half_payment_paid_api, name='mark_first_half_payment_paid'),
 
+path('api/loads/customers/contact-persons/', 
+         views.get_customer_contact_persons, 
+         name='get_customer_contact_persons'),
+
 
     
     

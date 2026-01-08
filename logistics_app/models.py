@@ -164,19 +164,27 @@ class PhoneOTP(models.Model):
 
 
 class Customer(models.Model):
-    """Customer table – exactly the fields you requested"""
     customer_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15)
-    contact_person_name = models.CharField(max_length=255, blank=True, null=True)
-    contact_person_phone = models.CharField(max_length=15, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)          # for deactivate/activate
+    is_active = models.BooleanField(default=True)
     profile_image = models.ImageField(upload_to='customers/', blank=True, null=True)
 
     def __str__(self):
         return self.customer_name
-    
+
+class CustomerContactPerson(models.Model):
+    customer = models.ForeignKey(
+        Customer,
+        related_name="contacts",
+        on_delete=models.CASCADE
+    )
+    name = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=15)
+
+    def __str__(self):
+        return f"{self.name} - {self.customer.customer_name}"
 
 class Driver(models.Model):
     """Driver Management Model"""

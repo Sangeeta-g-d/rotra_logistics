@@ -104,94 +104,6 @@
             font-size: 14px;
         }
 
-        /* Profile Section */
-        .profile-section {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 32px;
-        }
-
-        .profile-avatar {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 32px;
-            font-weight: 600;
-            text-transform: uppercase;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .profile-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .profile-upload {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .profile-upload label {
-            font-weight: 500;
-            color: #374151;
-            font-size: 14px;
-        }
-
-        .file-upload-area {
-            border: 2px dashed #d1d5db;
-            border-radius: 8px;
-            padding: 16px;
-            text-align: center;
-            background-color: #f9fafb;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        
-        .file-upload-area:hover,
-        .file-upload-area.dragover {
-            border-color: #dc2626;
-            background-color: #fef2f2;
-        }
-        
-        .file-upload-area i {
-            font-size: 20px;
-            color: #dc2626;
-            margin-bottom: 8px;
-        }
-        
-        .file-upload-area p {
-            margin: 0;
-            color: #6b7280;
-            font-size: 14px;
-        }
-        
-        .browse-link {
-            color: #dc2626;
-            cursor: pointer;
-            text-decoration: underline;
-        }
-        
-        .file-name {
-            display: block;
-            margin-top: 8px;
-            font-size: 12px;
-            color: #6b7280;
-        }
-
-        .file-name.uploaded {
-            color: #16a34a;
-            font-weight: 500;
-        }
-
         /* Form Grid */
         .form-grid {
             display: grid;
@@ -244,9 +156,67 @@
             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
         }
 
-        .form-group input[readonly] {
-            background-color: #f3f4f6;
-            color: #6b7280;
+        /* Contact Persons Section */
+        .contact-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .contact-section h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+
+        .contact-row {
+            position: relative;
+            margin-bottom: 15px;
+            padding-right: 40px;
+        }
+
+        .remove-contact-btn {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .remove-contact-btn:hover {
+            background: #fecaca;
+        }
+
+        .add-contact-btn {
+            padding: 8px 16px;
+            background: #eef2ff;
+            color: #4338ca;
+            border: 1px solid #c7d2fe;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .add-contact-btn:hover {
+            background: #e0e7ff;
         }
 
         /* Form Actions */
@@ -339,31 +309,17 @@
             display: block;
             margin-top: 4px;
         }
-
-        /* Status Badge */
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .status-active {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status-inactive {
-            background: #fee2e2;
-            color: #991b1b;
-        }
     </style>
 </head>
 <body>
 <div class="dashboard">
     <!-- TOP BAR -->
-    
+    <div class="top-bar">
+        <h2><i class="fas fa-user-edit"></i> Edit Customer</h2>
+        <a href="{% url 'customer_list' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i> Back to List
+        </a>
+    </div>
 
     <!-- Alert Messages -->
     <div id="successAlert" class="alert alert-success" style="display: none;"></div>
@@ -398,20 +354,46 @@
                 </div>
             </div>
 
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Contact Person Name</label>
-                    <input type="text" name="contactPersonName" 
-                           value="{{ customer.contact_person_name|default:'' }}" 
-                           placeholder="Enter contact person name">
+            <!-- Contact Persons Section -->
+            <div class="contact-section">
+                <h4>Contact Persons</h4>
+                <div id="contactPersonsWrapper">
+                    {% for contact in contact_persons %}
+                    <div class="contact-row">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <input type="text" name="contact_names[]" 
+                                       value="{{ contact.name }}" 
+                                       placeholder="Contact name">
+                            </div>
+                            <div class="form-group">
+                                <input type="tel" name="contact_phones[]" 
+                                       value="{{ contact.phone_number }}" 
+                                       placeholder="Phone number">
+                            </div>
+                        </div>
+                        <button type="button" class="remove-contact-btn" {% if forloop.first %}style="display: none;"{% endif %}>×</button>
+                    </div>
+                    {% empty %}
+                    <div class="contact-row">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <input type="text" name="contact_names[]" 
+                                       placeholder="Contact name">
+                            </div>
+                            <div class="form-group">
+                                <input type="tel" name="contact_phones[]" 
+                                       placeholder="Phone number">
+                            </div>
+                        </div>
+                        <button type="button" class="remove-contact-btn" style="display: none;">×</button>
+                    </div>
+                    {% endfor %}
                 </div>
-
-                <div class="form-group">
-                    <label>Contact Person Phone</label>
-                    <input type="tel" name="contactPersonPhone" 
-                           value="{{ customer.contact_person_phone|default:'' }}" 
-                           placeholder="Enter contact person phone">
-                </div>
+                
+                <button type="button" id="addContactBtn" class="add-contact-btn">
+                    <i class="fas fa-plus"></i> Add Contact Person
+                </button>
             </div>
 
             <div class="form-grid">
@@ -420,6 +402,17 @@
                     <input type="text" name="location" 
                            value="{{ customer.location|default:'' }}" 
                            placeholder="City, State">
+                </div>
+            </div>
+
+            <!-- Status Field -->
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Status</label>
+                    <select name="status">
+                        <option value="active" {% if customer.is_active %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if not customer.is_active %}selected{% endif %}>Inactive</option>
+                    </select>
                 </div>
             </div>
 
@@ -445,6 +438,46 @@ document.addEventListener('DOMContentLoaded', function () {
     const successAlert = document.getElementById('successAlert');
     const errorAlert = document.getElementById('errorAlert');
     const saveBtn = editCustomerForm.querySelector('.save-btn');
+    const addContactBtn = document.getElementById('addContactBtn');
+    const contactPersonsWrapper = document.getElementById('contactPersonsWrapper');
+
+    // ====================== ADD/REMOVE CONTACT PERSONS ======================
+    addContactBtn.addEventListener('click', function() {
+        const contactRow = document.createElement('div');
+        contactRow.className = 'contact-row';
+        contactRow.innerHTML = `
+            <div class="form-grid">
+                <div class="form-group">
+                    <input type="text" name="contact_names[]" placeholder="Contact name">
+                </div>
+                <div class="form-group">
+                    <input type="tel" name="contact_phones[]" placeholder="Phone number">
+                </div>
+            </div>
+            <button type="button" class="remove-contact-btn">×</button>
+        `;
+        
+        contactPersonsWrapper.appendChild(contactRow);
+        
+        // Add event listener to remove button
+        const removeBtn = contactRow.querySelector('.remove-contact-btn');
+        removeBtn.addEventListener('click', function() {
+            this.closest('.contact-row').remove();
+        });
+        
+        // Add input validation for phone
+        const phoneInput = contactRow.querySelector('input[name="contact_phones[]"]');
+        phoneInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').slice(0, 10);
+        });
+    });
+
+    // Add event listeners to existing remove buttons
+    contactPersonsWrapper.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-contact-btn')) {
+            e.target.closest('.contact-row').remove();
+        }
+    });
 
     // ====================== FORM VALIDATION ======================
     function validateForm() {
@@ -498,17 +531,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrftoken,
-                    'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: new URLSearchParams(formData)
+                body: formData
             });
 
             const data = await response.json();
             console.log('Response:', data);
 
             if (data.success) {
-               
                 showToast('Customer updated successfully!', 'success');
+                showAlert(data.message || 'Customer updated successfully!', 'success');
                 
                 // Optional: Redirect after success
                 setTimeout(() => {
@@ -561,14 +593,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Phone number formatting
     const phoneInput = editCustomerForm.querySelector('input[name="phoneNumber"]');
-    const contactPhoneInput = editCustomerForm.querySelector('input[name="contactPersonPhone"]');
     
-    [phoneInput, contactPhoneInput].forEach(input => {
-        if (input) {
-            input.addEventListener('input', function(e) {
-                this.value = this.value.replace(/\D/g, '').slice(0, 10);
-            });
-        }
+    // Format main phone
+    if (phoneInput) {
+        phoneInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').slice(0, 10);
+        });
+    }
+    
+    // Format existing contact phones
+    document.querySelectorAll('input[name="contact_phones[]"]').forEach(input => {
+        input.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').slice(0, 10);
+        });
     });
 
     // Prevent form submission on Enter key

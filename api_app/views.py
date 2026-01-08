@@ -67,7 +67,8 @@ class SendOTPAPIView(APIView):
 
 
 class VerifyOTPAPIView(APIView):
-    permission_classes = []
+    authentication_classes = []   # 🔴 disable SessionAuthentication
+    permission_classes = [AllowAny]
 
     def post(self, request):
         phone_number = request.data.get("phone_number")
