@@ -383,27 +383,19 @@
             <option value="">Select Customer</option>
             {% for customer in customers %}
             <option value="{{ customer.id }}"
-                    data-contact-person="{{ customer.contact_person_name|default:'' }}"
-                    data-contact-phone="{{ customer.contact_person_phone|default:'' }}"
+                    data-phone="{{ customer.phone_number|default:'' }}"
+                    data-location="{{ customer.location|default:'' }}"
                     {% if load.customer.id == customer.id %}selected{% endif %}>
               {{ customer.customer_name }}
             </option>
             {% endfor %}
           </select>
         </div>
-        <div class="form-group">
-          <label>Contact Person</label>
-          <input type="text" name="contactPersonName" id="contactPersonName" 
-                 value="{{ load.contact_person_name|default:'' }}" readonly>
-        </div>
+       
       </div>
 
       <div class="form-grid">
-        <div class="form-group">
-          <label>Contact Phone</label>
-          <input type="tel" name="contactPersonPhone" id="contactPersonPhone" 
-                 value="{{ load.contact_person_phone|default:'' }}" readonly>
-        </div>
+       
         <div class="form-group">
           <label>Vehicle Type <span class="required">*</span></label>
           <select name="vehicleType" required>
@@ -611,13 +603,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const successAlert = document.getElementById('successAlert');
   const errorAlert = document.getElementById('errorAlert');
   const saveBtn = editLoadForm.querySelector('.save-btn');
-
-  // ====================== CUSTOMER AUTO-FILL ======================
-  document.getElementById('customerSelect').addEventListener('change', function () {
-    const selected = this.options[this.selectedIndex];
-    document.getElementById('contactPersonName').value = selected.dataset.contactPerson || '';
-    document.getElementById('contactPersonPhone').value = selected.dataset.contactPhone || '';
-  });
+  const customerSelect = document.getElementById('customerSelect');
+  const contactPhoneInput = document.getElementById('contactPersonPhone');
 
   // ====================== PAYMENT CALCULATION LOGIC (Same as Add Load) ======================
   function calculatePaymentSplit() {
@@ -868,13 +855,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }).showToast();
   }
 
-  // Initialize customer fields if already selected
-  const customerSelect = document.getElementById('customerSelect');
-  if (customerSelect && customerSelect.value) {
-    const selected = customerSelect.options[customerSelect.selectedIndex];
-    document.getElementById('contactPersonName').value = selected.dataset.contactPerson || '';
-    document.getElementById('contactPersonPhone').value = selected.dataset.contactPhone || '';
-  }
+  // (vendor contact display removed) Initialize contact phone only via contact person select
 });
 </script>
 </body>

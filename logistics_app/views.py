@@ -948,8 +948,8 @@ def vendor_vehicles_api(request, vendor_id):
         # Verify vendor exists and user has permission
         vendor = CustomUser.objects.get(id=vendor_id, role='vendor')
         
-        # Get vehicles owned by this vendor
-        vehicles = Vehicle.objects.filter(owner=vendor, status='active')
+        # Get vehicles owned by this vendor (include all statuses)
+        vehicles = Vehicle.objects.filter(owner=vendor).order_by('-created_at')
         
         vehicles_data = []
         for vehicle in vehicles:
@@ -957,15 +957,19 @@ def vendor_vehicles_api(request, vendor_id):
                 'id': vehicle.id,
                 'reg_no': vehicle.reg_no,
                 'type': vehicle.type,
-                'load_capacity': str(vehicle.load_capacity) if vehicle.load_capacity else None,
+                'load_capacity': str(vehicle.load_capacity) if vehicle.load_capacity else 'N/A',
+                'status': vehicle.status,
             })
         
-        return JsonResponse(vehicles_data, safe=False)
+        print(f"DEBUG: Fetched {len(vehicles_data)} vehicles for vendor {vendor_id}")
+        return JsonResponse({'vehicles': vehicles_data})
         
     except CustomUser.DoesNotExist:
-        return JsonResponse({'error': 'Vendor not found'}, status=404)
+        print(f"DEBUG: Vendor {vendor_id} not found")
+        return JsonResponse({'error': 'Vendor not found', 'vehicles': []}, status=404)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        print(f"DEBUG: Error fetching vehicles for vendor {vendor_id}: {str(e)}")
+        return JsonResponse({'error': str(e), 'vehicles': []}, status=500)
 
 @login_required
 @require_http_methods(["GET"])
@@ -976,7 +980,7 @@ def vendor_drivers_api(request, vendor_id):
         vendor = CustomUser.objects.get(id=vendor_id, role='vendor')
         
         # Get drivers owned by this vendor
-        drivers = Driver.objects.filter(owner=vendor, is_active=True)
+        drivers = Driver.objects.filter(owner=vendor, is_active=True).order_by('-created_at')
         
         drivers_data = []
         for driver in drivers:
@@ -987,12 +991,15 @@ def vendor_drivers_api(request, vendor_id):
                 'status': driver.status,
             })
         
-        return JsonResponse(drivers_data, safe=False)
+        print(f"DEBUG: Fetched {len(drivers_data)} drivers for vendor {vendor_id}")
+        return JsonResponse({'drivers': drivers_data})
         
     except CustomUser.DoesNotExist:
-        return JsonResponse({'error': 'Vendor not found'}, status=404)
+        print(f"DEBUG: Vendor {vendor_id} not found")
+        return JsonResponse({'error': 'Vendor not found', 'drivers': []}, status=404)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        print(f"DEBUG: Error fetching drivers for vendor {vendor_id}: {str(e)}")
+        return JsonResponse({'error': str(e), 'drivers': []}, status=500)
 
 # AJAX view to update request status
 @login_required
@@ -1241,11 +1248,17 @@ def get_customer_contact_persons(request):
 def get_customer_details(request, customer_id):
     """API endpoint to get customer contact details"""
     try:
-        customer = Customer.objects.get(id=customer_id)
+        customer = Customer.objects.prefetch_related('contacts').get(id=customer_id)
+        
+        # Get first contact person if available
+        contact_person = customer.contacts.first()
+        contact_person_name = contact_person.name if contact_person else ''
+        contact_person_phone = contact_person.phone_number if contact_person else ''
+        
         return JsonResponse({
             'success': True,
-            'contact_person_name': customer.contact_person_name or '',
-            'contact_person_phone': customer.contact_person_phone or '',
+            'contact_person_name': contact_person_name,
+            'contact_person_phone': contact_person_phone,
         })
     except Customer.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Customer not found'}, status=404)
@@ -1312,8 +1325,11 @@ def vendor_list(request):
     vendors = CustomUser.objects.filter(
         role='vendor',
     ).order_by('-date_joined')
+    
+    # Get vehicle types for the form dropdown
+    vehicle_types = VehicleType.objects.all().order_by('name')
 
-    return render(request, 'vendor_list.html', {'vendors': vendors})
+    return render(request, 'vendor_list.html', {'vendors': vendors, 'vehicle_types': vehicle_types})
 
 
 @login_required
@@ -1349,128 +1365,92 @@ def toggle_vendor_block(request, vendor_id):
 @login_required
 @require_http_methods(["POST"])
 def add_vendor(request):
-    """Add new vendor - handles both AJAX and regular POST"""
+    """Add new vendor - uses RegisterSerializer and handles all vendor fields"""
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Only admin can add vendors'}, status=403)
+    
     try:
-        # Extract fields
-        full_name = request.POST.get('full_name', '').strip()
-        phone = request.POST.get('phone', '').strip()
-        email = request.POST.get('email', '').strip()
-        password = request.POST.get('password', '').strip()
-
-        # Validation
-        if not full_name:
-            return JsonResponse({'success': False, 'error': 'Full name is required.'}, status=400)
-
-        if not phone:
-            return JsonResponse({'success': False, 'error': 'Phone number is required.'}, status=400)
-
-        if not email:
-            return JsonResponse({'success': False, 'error': 'Email is required.'}, status=400)
-
-        if not password:
-            return JsonResponse({'success': False, 'error': 'Password is required.'}, status=400)
-
-        if len(password) < 6:
-            return JsonResponse({'success': False, 'error': 'Password must be at least 6 characters long.'}, status=400)
-
-        # Validate phone number format (10 digits)
-        if not phone.isdigit() or len(phone) != 10:
-            return JsonResponse({'success': False, 'error': 'Phone number must be 10 digits.'}, status=400)
-
-        # Check duplicate phone
-        if CustomUser.objects.filter(phone_number=phone).exists():
+        # Use RegisterSerializer for validation and creation
+        from api_app.serializers import RegisterSerializer
+        
+        # Combine POST data and FILES for the serializer
+        data = request.POST.copy()
+        
+        # Fix field name mapping - phone -> phone_number
+        if 'phone' in data and 'phone_number' not in data:
+            data['phone_number'] = data.pop('phone')
+        
+        # Handle file fields
+        if 'profile_image' in request.FILES:
+            data['profile_image'] = request.FILES['profile_image']
+        if 'tds_declaration' in request.FILES:
+            data['tds_declaration'] = request.FILES['tds_declaration']
+        if 'insurance_doc' in request.FILES:
+            data['insurance_doc'] = request.FILES['insurance_doc']
+        if 'rc_doc' in request.FILES:
+            data['rc_doc'] = request.FILES['rc_doc']
+        
+        # Set role to 'vendor'
+        data['role'] = 'vendor'
+        
+        serializer = RegisterSerializer(data=data)
+        
+        if serializer.is_valid():
+            # Create the user via serializer
+            vendor = serializer.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Vendor "{vendor.full_name}" has been created successfully!',
+                'vendor': {
+                    'id': vendor.id,
+                    'full_name': vendor.full_name,
+                    'email': vendor.email,
+                    'phone_number': vendor.phone_number,
+                    'address': vendor.address or '-',
+                    'pan_number': vendor.pan_number or '-',
+                    'acc_no': vendor.acc_no or '-',
+                    'ifsc_code': vendor.ifsc_code or '-',
+                    'tds_declaration': vendor.tds_declaration.url if vendor.tds_declaration else '',
+                    'profile_image': vendor.profile_image.url if vendor.profile_image else '',
+                    'date_joined': vendor.date_joined.strftime('%b %d, %Y'),
+                }
+            })
+        else:
+            # Return validation errors
+            error_messages = []
+            for field, errors in serializer.errors.items():
+                if isinstance(errors, list):
+                    error_messages.extend(errors)
+                else:
+                    error_messages.append(str(errors))
+            
+            error_message = ' | '.join(error_messages) if error_messages else 'Validation failed'
+            
+            print(f"DEBUG: Serializer errors: {serializer.errors}")
+            print(f"DEBUG: Request data: {dict(request.POST)}")
+            
             return JsonResponse({
                 'success': False,
-                'error': f'A vendor with phone number {phone} already exists.'
+                'error': error_message,
+                'errors': serializer.errors
             }, status=400)
 
-        # Check duplicate email
-        if CustomUser.objects.filter(email=email).exists():
-            return JsonResponse({
-                'success': False,
-                'error': f'Email {email} is already registered.'
-            }, status=400)
-
-        # Optional fields
-        address = request.POST.get('address', '').strip() or None
-        pan_number = request.POST.get('pan_number', '').strip() or None
-        vehicle_number = request.POST.get('vehicle_number', '').strip() or None
-        tds_file = request.FILES.get('tds_declaration')
-        profile_image = request.FILES.get('profile_image')
-
-        # Validate PAN number if provided
-        if pan_number:
-            if len(pan_number) != 10:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'PAN number must be 10 characters long.'
-                }, status=400)
-            
-            # Check duplicate PAN
-            if CustomUser.objects.filter(pan_number=pan_number).exists():
-                return JsonResponse({
-                    'success': False,
-                    'error': f'PAN number {pan_number} is already registered.'
-                }, status=400)
-
-        # Validate vehicle number if provided
-        if vehicle_number:
-            # Check duplicate vehicle number
-            if CustomUser.objects.filter(vehicle_number=vehicle_number).exists():
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Vehicle number {vehicle_number} is already registered.'
-                }, status=400)
-
-        # Create vendor
-        with transaction.atomic():
-            vendor = CustomUser(
-                username=None,
-                full_name=full_name,
-                phone_number=phone,
-                email=email.lower(),
-                address=address,
-                pan_number=pan_number,
-                vehicle_number=vehicle_number,
-                role='vendor',
-                created_by=request.user,
-                is_active=True,
-                is_staff=False,
-                is_superuser=False,
-            )
-
-            vendor.set_password(password)
-
-            if tds_file:
-                vendor.tds_declaration = tds_file
-            
-            if profile_image:
-                vendor.profile_image = profile_image
-
-            vendor.save()
-
+    except Exception as e:
+        print(f"DEBUG: Exception in add_vendor: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
-            'success': True,
-            'message': f'Vendor "{vendor.full_name}" has been created successfully!',
-            'vendor': {
-                'id': vendor.id,
-                'full_name': vendor.full_name,
-                'email': vendor.email,
-                'phone_number': vendor.phone_number,
-                'address': vendor.address or '-',
-                'pan_number': vendor.pan_number or '-',
-                'vehicle_number': vendor.vehicle_number or '-',
-                'tds_declaration': vendor.tds_declaration.url if vendor.tds_declaration else '',
-                'profile_image': vendor.profile_image.url if vendor.profile_image else '',
-                'date_joined': vendor.date_joined.strftime('%b %d, %Y'),
-            }
-        })
+            'success': False,
+            'error': f'Failed to create vendor: {str(e)}'
+        }, status=500)
 
     except Exception as e:
         return JsonResponse({
             'success': False,
             'error': f'Failed to create vendor: {str(e)}'
         }, status=500)
+
 
 
 @login_required
@@ -2074,8 +2054,8 @@ def get_trip_details_api(request, trip_id):
             'customer_name': load.customer.customer_name,
             'customer_phone': load.customer.phone_number,
             'customer_location': load.customer.location or 'N/A',
-            'contact_person': load.contact_person_name or load.customer.contact_person_name or 'N/A',
-            'contact_person_phone': load.contact_person_phone or load.customer.contact_person_phone or 'N/A',
+            'contact_person': load.contact_person_name or (load.customer.contacts.first().name if load.customer.contacts.exists() else 'N/A'),
+            'contact_person_phone': load.contact_person_phone or (load.customer.contacts.first().phone_number if load.customer.contacts.exists() else 'N/A'),
 
             'vendor_name': load.driver.owner.full_name if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'Not Assigned',
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
@@ -3590,17 +3570,45 @@ def update_load(request, load_id):
                 second_half_payment = Decimal('0.00')
 
             # =========================
-            # 8. Optional Fields
+            # 8. Contact Person (Dynamic)
             # =========================
-            contact_person_name = request.POST.get('contactPersonName', '').strip() or None
-            contact_person_phone = request.POST.get('contactPersonPhone', '').strip() or None
+            contact_person_value = request.POST.get('contactPerson', '').strip()
+            contact_person_name = None
+            contact_person_phone = None
+            
+            if contact_person_value:
+                if contact_person_value == 'customer_primary':
+                    # Use customer's name and phone
+                    contact_person_name = customer.customer_name
+                    contact_person_phone = customer.phone_number
+                else:
+                    # Try to get from CustomerContactPerson model
+                    try:
+                        contact_person_obj = CustomerContactPerson.objects.get(
+                            id=contact_person_value,
+                            customer=customer
+                        )
+                        contact_person_name = contact_person_obj.name
+                        contact_person_phone = contact_person_obj.phone_number
+                    except CustomerContactPerson.DoesNotExist:
+                        # Fallback to customer primary if contact person not found
+                        contact_person_name = customer.customer_name
+                        contact_person_phone = customer.phone_number
+            else:
+                # Use customer primary as fallback
+                contact_person_name = customer.customer_name
+                contact_person_phone = customer.phone_number
+            
+            # =========================
+            # 9. Optional Fields
+            # =========================
             weight = request.POST.get('weight', '').strip() or None
             material = request.POST.get('material', '').strip() or None
             notes = request.POST.get('notes', '').strip() or None
             apply_tds = request.POST.get('apply_tds') == 'on' and total_amount > 0
 
             # =========================
-            # 9. Update Load
+            # 10. Update Load
             # =========================
             load.customer = customer
             load.contact_person_name = contact_person_name
@@ -4166,7 +4174,7 @@ def get_vendors_list(request):
 @csrf_exempt
 @login_required
 def assign_vendor_to_load(request, load_id):
-    """Assign a vendor to a load"""
+    """Assign a vendor, vehicle, and driver to a load"""
     if request.method != 'POST':
         return JsonResponse({
             'success': False, 
@@ -4176,6 +4184,8 @@ def assign_vendor_to_load(request, load_id):
     try:
         data = json.loads(request.body)
         vendor_id = data.get('vendor_id')
+        vehicle_id = data.get('vehicle_id')
+        driver_id = data.get('driver_id')
         
         if not vendor_id:
             return JsonResponse({
@@ -4201,6 +4211,28 @@ def assign_vendor_to_load(request, load_id):
                 'error': 'Vendor not found'
             })
         
+        # Get vehicle if provided
+        vehicle = None
+        if vehicle_id:
+            try:
+                vehicle = Vehicle.objects.get(id=vehicle_id, owner=vendor)
+            except Vehicle.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Vehicle not found for this vendor'
+                })
+        
+        # Get driver if provided
+        driver = None
+        if driver_id:
+            try:
+                driver = Driver.objects.get(id=driver_id, owner=vendor)
+            except Driver.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Driver not found for this vendor'
+                })
+        
         # Check if load is already assigned
         if load.status == 'assigned':
             return JsonResponse({
@@ -4224,11 +4256,19 @@ def assign_vendor_to_load(request, load_id):
             load_request.message = f'Manually assigned by admin {request.user.full_name}'
             load_request.save()
         
-        # Update load status to indicate vendor assigned but vehicle/driver not yet selected
-        load.status = 'confirmed'
+        # Assign vehicle and driver to load
+        load.vehicle = vehicle
+        load.driver = driver
+        load.assigned_at = timezone.now()
+        load.status = 'assigned'  # Set to assigned status since vehicle and driver are selected
+        # Also set trip_status to confirmed when vendor is assigned
+        try:
+            load.trip_status = 'confirmed'
+        except Exception:
+            pass
         load.save()
         
-        # Send notification to vendor
+        # Send notification to vendor with vehicle and driver details
         notification_message = ""
         try:
             from .notifications import send_trip_assigned_notification
@@ -4236,8 +4276,8 @@ def assign_vendor_to_load(request, load_id):
             notification, notification_success = send_trip_assigned_notification(
                 vendor=vendor,
                 load=load,
-                vehicle=None,
-                driver=None
+                vehicle=vehicle,
+                driver=driver
             )
             
             if notification_success:
@@ -4251,9 +4291,11 @@ def assign_vendor_to_load(request, load_id):
         
         return JsonResponse({
             'success': True,
-            'message': f'Vendor {vendor.full_name} assigned successfully{notification_message}',
+            'message': f'Load assigned to {vendor.full_name}{notification_message}',
             'load_id': load.load_id,
             'vendor_name': vendor.full_name,
+            'vehicle_no': vehicle.reg_no if vehicle else 'Not assigned',
+            'driver_name': driver.full_name if driver else 'Not assigned',
             'notification_sent': bool(notification_message and "sent" in notification_message)
         })
         
@@ -4263,6 +4305,7 @@ def assign_vendor_to_load(request, load_id):
             'error': 'Invalid JSON data'
         })
     except Exception as e:
+        print(f"Error assigning vendor to load: {str(e)}")
         return JsonResponse({
             'success': False, 
             'error': str(e)

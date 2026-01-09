@@ -16,6 +16,8 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     confirm_password = serializers.CharField(write_only=True, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
+    # Profile image
+    profile_image = serializers.ImageField(required=False, allow_null=True)
     # Vehicle fields for optional vehicle creation during registration
     reg_no = serializers.CharField(required=False, allow_blank=True)
     type = serializers.CharField(required=False, allow_blank=True)
@@ -27,7 +29,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = [
             'full_name', 'email', 'phone_number', 'password', 'confirm_password',
-            'pan_number', 'address', 'tds_declaration', 'role',
+            'pan_number', 'address', 'tds_declaration', 'profile_image', 'role',
             # vehicle fields
             'reg_no', 'type', 'load_capacity', 'insurance_doc', 'rc_doc','acc_no','ifsc_code'
         ]
@@ -37,6 +39,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'pan_number': {'required': False},
             'address': {'required': False},
             'tds_declaration': {'required': False},
+            'profile_image': {'required': False},
             'full_name': {'required': True},
         }
 
@@ -75,9 +78,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         
         # Check if PAN number already exists (if provided)
         if pan_number and pan_number.strip():
-            # Validate PAN number format (10 alphanumeric characters)
-            if len(pan_number) != 10:
-                raise serializers.ValidationError({"pan_number": "PAN number must be 10 characters long."})
+            # PAN number is optional, but if provided, it should be unique
+            # No strict length validation - allow any format
             if CustomUser.objects.filter(pan_number=pan_number).exists():
                 raise serializers.ValidationError({"pan_number": "PAN number already exists."})
 

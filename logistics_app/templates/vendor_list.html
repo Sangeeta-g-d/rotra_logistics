@@ -165,6 +165,7 @@
         </div>
       </div>
 
+      <!-- Full Name -->
       <div class="form-row">
         <div class="form-group">
           <label>Full Name <span class="required">*</span></label>
@@ -172,40 +173,111 @@
         </div>
       </div>
 
+      <!-- Email and Phone -->
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group half">
           <label>Email <span class="required">*</span></label>
           <input type="email" name="email" id="email" placeholder="Enter email address" required>
         </div>
-      </div>
-
-      <div class="form-row">
         <div class="form-group half">
           <label>Phone Number <span class="required">*</span></label>
-          <input type="tel" name="phone" id="phone" placeholder="Enter phone number" required>
-        </div>
-        <div class="form-group half">
-          <label>Password <span class="required">*</span></label>
-          <input type="password" name="password" id="password" placeholder="Enter password" required>
+          <input type="tel" name="phone_number" id="phone_number" placeholder="Enter phone number" required>
         </div>
       </div>
 
+      <!-- Password and Confirm Password -->
       <div class="form-row">
-        <div class="form-group">
-          <label>PAN Number</label>
-          <input type="text" name="pan_number" id="pan_number" placeholder="Enter PAN number (10 characters)">
+        <div class="form-group half">
+          <label>Password <span class="required">*</span></label>
+          <input type="password" name="password" id="password" placeholder="Enter password (min 6 chars)" required>
         </div>
-        <div class="form-group">
+        <div class="form-group half">
+          <label>Confirm Password <span class="required">*</span></label>
+          <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm password" required>
+        </div>
+      </div>
+
+      <!-- PAN Number and Address -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>PAN Number</label>
+          <input type="text" name="pan_number" id="pan_number" placeholder="Enter PAN number (optional)" maxlength="20">
+          <small class="file-hint">Optional: Enter PAN if available (any format)</small>
+        </div>
+        <div class="form-group half">
           <label>Address</label>
           <input type="text" name="address" id="address" placeholder="Enter vendor address">
         </div>
       </div>
 
+      <!-- Account and Bank Details -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Account Number</label>
+          <input type="text" name="acc_no" id="acc_no" placeholder="Enter account number">
+        </div>
+        <div class="form-group half">
+          <label>IFSC Code</label>
+          <input type="text" name="ifsc_code" id="ifsc_code" placeholder="Enter IFSC code">
+        </div>
+      </div>
+
+      <!-- TDS Declaration File -->
       <div class="form-row">
         <div class="form-group">
           <label>TDS Declaration File</label>
           <input type="file" name="tds_declaration" id="tds_declaration" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-          <small class="file-hint">Supported formats: PDF, DOC, JPG, PNG</small>
+          <small class="file-hint">Supported formats: PDF, DOC, DOCX, JPG, PNG</small>
+        </div>
+      </div>
+
+      <!-- Optional Vehicle Registration Section -->
+      <div style="border-top: 1px solid #e5e7eb; margin-top: 16px; padding-top: 16px;">
+        <h4 style="margin-bottom: 12px; color: #374151; font-size: 14px; font-weight: 600;">
+          <i class="fas fa-car" style="margin-right: 6px;"></i>Optional: Add Vehicle During Registration
+        </h4>
+        
+        <!-- Vehicle Registration Number -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>Vehicle Registration Number</label>
+            <input type="text" name="reg_no" id="reg_no" placeholder="Enter vehicle registration number">
+          </div>
+        </div>
+
+        <!-- Vehicle Type and Capacity -->
+        <div class="form-row">
+          <div class="form-group half">
+            <label>Vehicle Type</label>
+            <select name="type" id="type">
+              <option value="">-- Select Vehicle Type --</option>
+              {% for vehicle_type in vehicle_types %}
+                <option value="{{ vehicle_type.name }}">{{ vehicle_type.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group half">
+            <label>Load Capacity (Tons)</label>
+            <input type="number" name="load_capacity" id="load_capacity" placeholder="e.g., 5.5" step="0.01" min="0">
+          </div>
+        </div>
+
+        <!-- Insurance Document -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>Vehicle Insurance Document</label>
+            <input type="file" name="insurance_doc" id="insurance_doc" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <small class="file-hint">Supported formats: PDF, DOC, DOCX, JPG, PNG</small>
+          </div>
+        </div>
+
+        <!-- RC Document -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>Vehicle RC Document</label>
+            <input type="file" name="rc_doc" id="rc_doc" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <small class="file-hint">Supported formats: PDF, DOC, DOCX, JPG, PNG</small>
+          </div>
         </div>
       </div>
 
@@ -1241,6 +1313,36 @@ document.addEventListener('DOMContentLoaded', function () {
   .clickable-row:hover {
     background-color: #f9fafb;
   }
+
+  /* Select dropdown styling */
+  select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    background-color: white;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  select:hover {
+    border-color: #9ca3af;
+  }
+
+  select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  select option {
+    padding: 10px;
+    background-color: white;
+    color: #111827;
+  }
+
 </style>
 
 </body>

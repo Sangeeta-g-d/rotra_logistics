@@ -634,17 +634,23 @@
 
           <!-- Vehicles Section -->
           <div style="margin-bottom: 20px;">
-            <h4 style="margin-bottom: 10px; color: #374151; font-size: 14px; font-weight: 600;">Vehicles</h4>
-            <div id="vendorVehiclesList" style="display: flex; flex-direction: column; gap: 8px;">
-              <div style="text-align: center; color: #9ca3af; padding: 20px;">Select a vendor to view vehicles</div>
+            <h4 style="margin-bottom: 10px; color: #374151; font-size: 14px; font-weight: 600;">Select Vehicle *</h4>
+            <select id="assignVendorVehicleSelect" style="width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+              <option value="">-- Select a vehicle --</option>
+            </select>
+            <div id="vendorVehiclesList" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; font-size: 12px; color: #6b7280;">
+              <div style="text-align: center; color: #9ca3af; padding: 10px;">Select a vendor to view vehicles</div>
             </div>
           </div>
 
           <!-- Drivers Section -->
           <div>
-            <h4 style="margin-bottom: 10px; color: #374151; font-size: 14px; font-weight: 600;">Drivers</h4>
-            <div id="vendorDriversList" style="display: flex; flex-direction: column; gap: 8px;">
-              <div style="text-align: center; color: #9ca3af; padding: 20px;">Select a vendor to view drivers</div>
+            <h4 style="margin-bottom: 10px; color: #374151; font-size: 14px; font-weight: 600;">Select Driver *</h4>
+            <select id="assignVendorDriverSelect" style="width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+              <option value="">-- Select a driver --</option>
+            </select>
+            <div id="vendorDriversList" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; font-size: 12px; color: #6b7280;">
+              <div style="text-align: center; color: #9ca3af; padding: 10px;">Select a vendor to view drivers</div>
             </div>
           </div>
         </div>
@@ -1404,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', function () {
       
       if (confirm('Are you sure you want to delete this load?')) {
         fetch(`/loads/${loadId}/delete/`, {
-          method: 'DELETE',
+          method: 'POST',
           headers: { 'X-CSRFToken': csrftoken }
         })
         .then(r => r.json())
@@ -1770,82 +1776,135 @@ document.addEventListener('DOMContentLoaded', function () {
   // Load vehicles for selected vendor
   function loadVendorVehicles(vendorId) {
     const vehiclesList = document.getElementById('vendorVehiclesList');
-    vehiclesList.innerHTML = '<div style="text-align: center; padding: 15px; color: #9ca3af;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    const vehicleSelect = document.getElementById('assignVendorVehicleSelect');
     
+    vehicleSelect.innerHTML = '<option value="">-- Loading vehicles... --</option>';
+    vehiclesList.innerHTML = '<div style="text-align: center; padding: 15px; color: #9ca3af;"><i class="fas fa-spinner fa-spin"></i> Loading vehicles...</div>';
+    
+    console.log('🚗 Fetching vehicles for vendor ID:', vendorId);
     fetch(`/api/vendors/${vendorId}/vehicles/`)
-      .then(response => response.json())
+      .then(response => {
+        console.log('✓ Vehicle response status:', response.status);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
       .then(data => {
+        console.log('✓ Vehicle data received:', data);
         if (data.vehicles && data.vehicles.length > 0) {
           vehiclesList.innerHTML = '';
+          vehicleSelect.innerHTML = '<option value="">-- Select a vehicle --</option>';
+          
           data.vehicles.forEach(vehicle => {
+            // Add to dropdown
+            const option = document.createElement('option');
+            option.value = vehicle.id;
+            option.textContent = `${vehicle.reg_no} (${vehicle.type}) - ${vehicle.load_capacity} tons`;
+            vehicleSelect.appendChild(option);
+            
+            // Also show in list
             const vehicleEl = document.createElement('div');
-            vehicleEl.style.cssText = 'padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;';
+            vehicleEl.style.cssText = 'padding: 8px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px;';
             vehicleEl.innerHTML = `
-              <div style="font-weight: 500; color: #111827;">${vehicle.reg_no}</div>
-              <div style="color: #6b7280; margin-top: 4px;">Type: ${vehicle.type}</div>
-              <div style="color: #6b7280;">Capacity: ${vehicle.load_capacity || 'N/A'} tons</div>
-              <div style="color: #10b981; margin-top: 4px; font-size: 12px;">
-                <i class="fas fa-circle" style="margin-right: 4px;"></i>${vehicle.status}
-              </div>
+              <div style="font-weight: 600; color: #111827;">${vehicle.reg_no}</div>
+              <div style="color: #6b7280; font-size: 11px;">Type: ${vehicle.type} | Capacity: ${vehicle.load_capacity} tons</div>
             `;
             vehiclesList.appendChild(vehicleEl);
           });
         } else {
-          vehiclesList.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;"><i class="fas fa-car" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>No vehicles available</div>';
+          vehicleSelect.innerHTML = '<option value="">-- No vehicles available --</option>';
+          vehiclesList.innerHTML = '<div style="text-align: center; padding: 10px; color: #9ca3af; font-size: 12px;"><i class="fas fa-car"></i> No vehicles available</div>';
         }
       })
       .catch(error => {
-        console.error('Error loading vehicles:', error);
-        vehiclesList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc2626;"><i class="fas fa-exclamation-circle" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>Error loading vehicles</div>';
+        console.error('✗ Error loading vehicles:', error);
+        vehicleSelect.innerHTML = '<option value="">-- Error loading vehicles --</option>';
+        vehiclesList.innerHTML = '<div style="text-align: center; padding: 10px; color: #dc2626; font-size: 12px;"><i class="fas fa-exclamation-circle"></i> Error: ' + error.message + '</div>';
       });
   }
 
   // Load drivers for selected vendor
   function loadVendorDrivers(vendorId) {
     const driversList = document.getElementById('vendorDriversList');
-    driversList.innerHTML = '<div style="text-align: center; padding: 15px; color: #9ca3af;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    const driverSelect = document.getElementById('assignVendorDriverSelect');
     
+    driverSelect.innerHTML = '<option value="">-- Loading drivers... --</option>';
+    driversList.innerHTML = '<div style="text-align: center; padding: 15px; color: #9ca3af;"><i class="fas fa-spinner fa-spin"></i> Loading drivers...</div>';
+    
+    console.log('👤 Fetching drivers for vendor ID:', vendorId);
     fetch(`/api/vendors/${vendorId}/drivers/`)
-      .then(response => response.json())
+      .then(response => {
+        console.log('✓ Driver response status:', response.status);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
       .then(data => {
+        console.log('✓ Driver data received:', data);
         if (data.drivers && data.drivers.length > 0) {
           driversList.innerHTML = '';
+          driverSelect.innerHTML = '<option value="">-- Select a driver --</option>';
+          
           data.drivers.forEach(driver => {
+            // Add to dropdown
+            const option = document.createElement('option');
+            option.value = driver.id;
+            option.textContent = `${driver.full_name} (${driver.phone_number})`;
+            driverSelect.appendChild(option);
+            
+            // Also show in list
             const driverEl = document.createElement('div');
-            driverEl.style.cssText = 'padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;';
+            driverEl.style.cssText = 'padding: 8px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px;';
             driverEl.innerHTML = `
-              <div style="font-weight: 500; color: #111827;">${driver.full_name}</div>
-              <div style="color: #6b7280; margin-top: 4px;"><i class="fas fa-phone" style="margin-right: 4px; width: 12px;"></i>${driver.phone_number}</div>
-              <div style="color: #10b981; margin-top: 4px; font-size: 12px;">
-                <i class="fas fa-circle" style="margin-right: 4px;"></i>${driver.status}
-              </div>
+              <div style="font-weight: 600; color: #111827;">${driver.full_name}</div>
+              <div style="color: #6b7280; font-size: 11px;"><i class="fas fa-phone" style="margin-right: 4px;"></i>${driver.phone_number}</div>
             `;
             driversList.appendChild(driverEl);
           });
         } else {
-          driversList.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;"><i class="fas fa-user" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>No drivers available</div>';
+          driverSelect.innerHTML = '<option value="">-- No drivers available --</option>';
+          driversList.innerHTML = '<div style="text-align: center; padding: 10px; color: #9ca3af; font-size: 12px;"><i class="fas fa-user"></i> No drivers available</div>';
         }
       })
       .catch(error => {
-        console.error('Error loading drivers:', error);
-        driversList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc2626;"><i class="fas fa-exclamation-circle" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>Error loading drivers</div>';
+        console.error('✗ Error loading drivers:', error);
+        driverSelect.innerHTML = '<option value="">-- Error loading drivers --</option>';
+        driversList.innerHTML = '<div style="text-align: center; padding: 10px; color: #dc2626; font-size: 12px;"><i class="fas fa-exclamation-circle"></i> Error: ' + error.message + '</div>';
       });
   }
 
-  // Confirm vendor assignment - FIXED VERSION
-  // Confirm vendor assignment - UPDATES WITHOUT PAGE RELOAD
+  // Confirm vendor assignment - UPDATED TO INCLUDE VEHICLE AND DRIVER
   document.getElementById('confirmVendorAssignment')?.addEventListener('click', function() {
     if (!currentLoadId || !selectedVendorId) {
       showToast('Please select a vendor', 'error');
       return;
     }
     
+    const vehicleSelect = document.getElementById('assignVendorVehicleSelect');
+    const driverSelect = document.getElementById('assignVendorDriverSelect');
+    const selectedVehicleId = vehicleSelect.value;
+    const selectedDriverId = driverSelect.value;
+    
+    if (!selectedVehicleId) {
+      showToast('Please select a vehicle', 'error');
+      vehicleSelect.focus();
+      return;
+    }
+    
+    if (!selectedDriverId) {
+      showToast('Please select a driver', 'error');
+      driverSelect.focus();
+      return;
+    }
+    
     const btn = this;
     const originalText = btn.innerHTML;
-    btn.innerHTML = 'Assigning...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Assigning...';
     btn.disabled = true;
     
-    // Send assignment request
+    // Send assignment request with vehicle and driver
     fetch(`/loads/${currentLoadId}/assign-vendor/`, {
       method: 'POST',
       headers: {
@@ -1853,7 +1912,9 @@ document.addEventListener('DOMContentLoaded', function () {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        vendor_id: selectedVendorId
+        vendor_id: selectedVendorId,
+        vehicle_id: parseInt(selectedVehicleId),
+        driver_id: parseInt(selectedDriverId)
       })
     })
     .then(response => {
@@ -1865,7 +1926,7 @@ document.addEventListener('DOMContentLoaded', function () {
     })
     .then(({ ok, data }) => {
       if (data.success) {  // Check the success flag in the JSON response
-        showToast(`Vendor ${selectedVendorName} assigned successfully!`, 'success');
+        showToast(`✓ Vendor, Vehicle, and Driver assigned successfully!`, 'success');
         
         // Close modal
         closeAssignVendorModal();
@@ -1882,30 +1943,31 @@ document.addEventListener('DOMContentLoaded', function () {
           // Update load status in table WITHOUT removing the row
           const statusBadge = document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"] .status-badge`);
           if (statusBadge) {
-            statusBadge.textContent = 'Confirmed';
+            statusBadge.textContent = 'Assigned';
             statusBadge.className = 'status-badge status-assigned';
           }
           
           // Update load data attribute
           const loadData = JSON.parse(activeRow.dataset.load);
-          loadData.status = 'confirmed';
-          loadData.status_display = 'Confirmed';
+          loadData.status = 'assigned';
+          loadData.status_display = 'Assigned';
           activeRow.dataset.load = JSON.stringify(loadData);
         }
         
         // Reset current load selection
         currentLoadId = null;
+        selectedVendorId = null;
         
       } else {
         // Show error from data if available
-        showToast(data.error || data.message || 'Failed to assign vendor', 'error');
+        showToast(data.message || data.error || 'Failed to assign vendor', 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
       }
     })
     .catch(error => {
       console.error('Error assigning vendor:', error);
-      showToast('Error assigning vendor: ' + error.message, 'error');
-    })
-    .finally(() => {
+      showToast('Error: ' + error.message, 'error');
       btn.innerHTML = originalText;
       btn.disabled = false;
     });
