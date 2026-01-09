@@ -582,44 +582,77 @@
 <!-- vendor modal -->
 <!-- ====================== ASSIGN VENDOR MODAL ====================== -->
 <div id="assignVendorModal" class="modal-overlay" style="display:none;">
-  <div class="modal-content" style="max-width: 600px;">
+  <div class="modal-content" style="max-width: 900px;">
     <div class="modal-header">
       <h3>Assign Vendor to Load</h3>
       <button class="modal-close" id="closeAssignVendorModal">×</button>
     </div>
     <p class="modal-subtitle">Select a vendor to assign to Load ID: <span id="assignLoadId"></span></p>
 
-    <div class="modal-body">
-      <!-- Search Bar -->
-      <div class="form-row" style="margin: 0 32px 20px;">
-        <div class="form-group full-width">
-          <input type="text" id="vendorSearchInput" placeholder="Search vendors by name or phone..." 
-                 style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+    <div class="modal-body" style="display: flex; gap: 20px; padding: 0;">
+      <!-- Left Section: Vendors List -->
+      <div style="flex: 0 0 40%; border-right: 1px solid #e5e7eb; padding: 20px 32px;">
+        <!-- Search Bar -->
+        <div class="form-row" style="margin: 0 0 20px;">
+          <div class="form-group full-width">
+            <input type="text" id="vendorSearchInput" placeholder="Search vendors..." 
+                   style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+          </div>
+        </div>
+
+        <!-- Vendors List -->
+        <div class="vendors-list-container" style="max-height: 400px; overflow-y: auto;">
+          <div id="vendorsList">
+            <!-- Vendors will be loaded here -->
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="vendorsLoading" style="text-align: center; padding: 40px 0; color: #6b7280; display: none;">
+          <i class="fas fa-spinner fa-spin"></i> Loading vendors...
+        </div>
+
+        <!-- Empty State -->
+        <div id="vendorsEmpty" style="text-align: center; padding: 40px 0; color: #9ca3af; display: none;">
+          <i class="fas fa-users-slash" style="font-size: 36px; margin-bottom: 16px;"></i>
+          <p>No vendors available</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="vendorsError" style="text-align: center; padding: 40px 0; color: #dc2626; display: none;">
+          <i class="fas fa-exclamation-circle" style="font-size: 36px; margin-bottom: 16px;"></i>
+          <p>Error loading vendors</p>
         </div>
       </div>
 
-      <!-- Vendors List -->
-      <div class="vendors-list-container" style="max-height: 400px; overflow-y: auto; margin: 0 32px;">
-        <div id="vendorsList">
-          <!-- Vendors will be loaded here -->
+      <!-- Right Section: Vehicles and Drivers -->
+      <div style="flex: 1; padding: 20px 32px; overflow-y: auto; max-height: 400px;">
+        <div id="vendorDetailsPanel" style="display: none;">
+          <div id="selectedVendorInfo" style="margin-bottom: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+            <!-- Selected vendor info will be displayed here -->
+          </div>
+
+          <!-- Vehicles Section -->
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; color: #374151; font-size: 14px; font-weight: 600;">Vehicles</h4>
+            <div id="vendorVehiclesList" style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="text-align: center; color: #9ca3af; padding: 20px;">Select a vendor to view vehicles</div>
+            </div>
+          </div>
+
+          <!-- Drivers Section -->
+          <div>
+            <h4 style="margin-bottom: 10px; color: #374151; font-size: 14px; font-weight: 600;">Drivers</h4>
+            <div id="vendorDriversList" style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="text-align: center; color: #9ca3af; padding: 20px;">Select a vendor to view drivers</div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Loading State -->
-      <div id="vendorsLoading" style="text-align: center; padding: 40px; color: #6b7280; display: none;">
-        <i class="fas fa-spinner fa-spin"></i> Loading vendors...
-      </div>
-
-      <!-- Empty State -->
-      <div id="vendorsEmpty" style="text-align: center; padding: 40px; color: #9ca3af; display: none;">
-        <i class="fas fa-users-slash" style="font-size: 48px; margin-bottom: 16px;"></i>
-        <p>No vendors available to assign</p>
-      </div>
-
-      <!-- Error State -->
-      <div id="vendorsError" style="text-align: center; padding: 40px; color: #dc2626; display: none;">
-        <i class="fas fa-exclamation-circle" style="font-size: 48px; margin-bottom: 16px;"></i>
-        <p>Error loading vendors</p>
+        <div id="vendorDetailsEmpty" style="text-align: center; padding: 60px 20px; color: #9ca3af;">
+          <i class="fas fa-arrow-left" style="font-size: 36px; margin-bottom: 16px;"></i>
+          <p>Select a vendor to view vehicles and drivers</p>
+        </div>
       </div>
     </div>
 
@@ -1679,6 +1712,9 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedVendorId = div.dataset.vendorId;
         selectedVendorName = div.dataset.vendorName;
         
+        // Show vendor details and load vehicles/drivers
+        showVendorDetails(vendor);
+        
         // Enable confirm button
         document.getElementById('confirmVendorAssignment').disabled = false;
       });
@@ -1705,6 +1741,95 @@ document.addEventListener('DOMContentLoaded', function () {
       const emptyDiv = document.getElementById('vendorsEmpty');
       emptyDiv.style.display = visibleCount === 0 ? 'block' : 'none';
     });
+  }
+
+  // Show vendor details and load vehicles/drivers
+  function showVendorDetails(vendor) {
+    const detailsPanel = document.getElementById('vendorDetailsPanel');
+    const emptyPanel = document.getElementById('vendorDetailsEmpty');
+    const selectedVendorInfo = document.getElementById('selectedVendorInfo');
+    
+    // Hide empty panel and show details panel
+    emptyPanel.style.display = 'none';
+    detailsPanel.style.display = 'block';
+    
+    // Display vendor info
+    selectedVendorInfo.innerHTML = `
+      <div style="font-weight: 600; color: #111827; margin-bottom: 8px;">${vendor.full_name}</div>
+      <div style="font-size: 13px; color: #6b7280;">
+        <div><i class="fas fa-phone" style="margin-right: 6px; width: 14px;"></i>${vendor.phone_number}</div>
+        <div><i class="fas fa-envelope" style="margin-right: 6px; width: 14px;"></i>${vendor.email}</div>
+      </div>
+    `;
+    
+    // Load vehicles and drivers
+    loadVendorVehicles(vendor.id);
+    loadVendorDrivers(vendor.id);
+  }
+
+  // Load vehicles for selected vendor
+  function loadVendorVehicles(vendorId) {
+    const vehiclesList = document.getElementById('vendorVehiclesList');
+    vehiclesList.innerHTML = '<div style="text-align: center; padding: 15px; color: #9ca3af;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    fetch(`/api/vendors/${vendorId}/vehicles/`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.vehicles && data.vehicles.length > 0) {
+          vehiclesList.innerHTML = '';
+          data.vehicles.forEach(vehicle => {
+            const vehicleEl = document.createElement('div');
+            vehicleEl.style.cssText = 'padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;';
+            vehicleEl.innerHTML = `
+              <div style="font-weight: 500; color: #111827;">${vehicle.reg_no}</div>
+              <div style="color: #6b7280; margin-top: 4px;">Type: ${vehicle.type}</div>
+              <div style="color: #6b7280;">Capacity: ${vehicle.load_capacity || 'N/A'} tons</div>
+              <div style="color: #10b981; margin-top: 4px; font-size: 12px;">
+                <i class="fas fa-circle" style="margin-right: 4px;"></i>${vehicle.status}
+              </div>
+            `;
+            vehiclesList.appendChild(vehicleEl);
+          });
+        } else {
+          vehiclesList.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;"><i class="fas fa-car" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>No vehicles available</div>';
+        }
+      })
+      .catch(error => {
+        console.error('Error loading vehicles:', error);
+        vehiclesList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc2626;"><i class="fas fa-exclamation-circle" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>Error loading vehicles</div>';
+      });
+  }
+
+  // Load drivers for selected vendor
+  function loadVendorDrivers(vendorId) {
+    const driversList = document.getElementById('vendorDriversList');
+    driversList.innerHTML = '<div style="text-align: center; padding: 15px; color: #9ca3af;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    fetch(`/api/vendors/${vendorId}/drivers/`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.drivers && data.drivers.length > 0) {
+          driversList.innerHTML = '';
+          data.drivers.forEach(driver => {
+            const driverEl = document.createElement('div');
+            driverEl.style.cssText = 'padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;';
+            driverEl.innerHTML = `
+              <div style="font-weight: 500; color: #111827;">${driver.full_name}</div>
+              <div style="color: #6b7280; margin-top: 4px;"><i class="fas fa-phone" style="margin-right: 4px; width: 12px;"></i>${driver.phone_number}</div>
+              <div style="color: #10b981; margin-top: 4px; font-size: 12px;">
+                <i class="fas fa-circle" style="margin-right: 4px;"></i>${driver.status}
+              </div>
+            `;
+            driversList.appendChild(driverEl);
+          });
+        } else {
+          driversList.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;"><i class="fas fa-user" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>No drivers available</div>';
+        }
+      })
+      .catch(error => {
+        console.error('Error loading drivers:', error);
+        driversList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc2626;"><i class="fas fa-exclamation-circle" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>Error loading drivers</div>';
+      });
   }
 
   // Confirm vendor assignment - FIXED VERSION
