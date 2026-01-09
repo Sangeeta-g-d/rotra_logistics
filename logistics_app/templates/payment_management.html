@@ -680,11 +680,27 @@
 
 <div class="dashboard">
   <div class="top-bar">
-    <h2>Trip Management</h2>
+    <h2>Payment Management</h2>
     <div class="search-add-container">
       <input type="text" id="searchInput" placeholder="Search trips..." class="search-input">
       <button class="add-button" onclick="window.location.href='{% url 'load_list' %}'">View All Loads</button>
     </div>
+  </div>
+
+  <!-- Payment Status Filters -->
+  <div class="filter-container" style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+    <button class="filter-btn active" data-filter="all" onclick="filterByPaymentStatus('all')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
+      <i class="fas fa-list"></i> All Payments
+    </button>
+    <button class="filter-btn" data-filter="advance_paid" onclick="filterByPaymentStatus('advance_paid')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
+      <i class="fas fa-check-circle" style="color: #2563eb;"></i> Advance Paid
+    </button>
+    <button class="filter-btn" data-filter="pending" onclick="filterByPaymentStatus('pending')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
+      <i class="fas fa-hourglass-end" style="color: #d97706;"></i> Pending
+    </button>
+    <button class="filter-btn" data-filter="paid" onclick="filterByPaymentStatus('paid')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
+      <i class="fas fa-check-double" style="color: #16a34a;"></i> Paid
+    </button>
   </div>
 
  <div class="table-card">
@@ -693,7 +709,9 @@
       <tr>
         <th>Load ID</th>
         <th>Route</th>
-        <th>Final Payment</th>
+        <th>Payment Status</th>
+        <th>First Half (90%)</th>
+        <th>Second Half (10%)</th>
         <th>Total Amount</th>
         <th>Actions</th>
       </tr>
@@ -701,7 +719,7 @@
     <tbody>
       {% if trips %}
         {% for load in trips %}
-        <tr class="clickable-row" data-trip-id="{{ load.id }}">
+        <tr class="clickable-row" data-trip-id="{{ load.id }}" data-payment-status="{% if load.first_half_payment_paid and load.trip_status == 'payment_completed' %}paid{% elif load.first_half_payment_paid %}advance_paid{% else %}pending{% endif %}">
           <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
           <td>
             <div class="route-display">
@@ -711,31 +729,58 @@
             </div>
           </td>
           
-          <!-- Final Payment Column -->
+          <!-- Payment Status Column -->
           <td>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; max-width: 150px;">
-              <span style="font-weight: 600; color: #111827;">
-                ₹{{ load.final_payment|floatformat:2 }}
-              </span>
-              {% if load.trip_status == "payment_completed" %}
-                <i class="fas fa-check-circle" style="color: #16a34a; font-size: 16px;" title="Paid"></i>
+            <div class="payment-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+              {% if load.first_half_payment_paid and load.trip_status == "payment_completed" %}
+                <i class="fas fa-check-double" style="color: #16a34a;"></i>
+                <span style="color: #16a34a; background: #d1fae5; padding: 0 8px; border-radius: 4px;">Paid</span>
+              {% elif load.first_half_payment_paid %}
+                <i class="fas fa-check-circle" style="color: #2563eb;"></i>
+                <span style="color: #2563eb; background: #dbeafe; padding: 0 8px; border-radius: 4px;">Advance Paid</span>
               {% else %}
-                <i class="fas fa-clock" style="color: #d97706; font-size: 16px;" title="Pending"></i>
+                <i class="fas fa-hourglass-end" style="color: #d97706;"></i>
+                <span style="color: #d97706; background: #fef3c7; padding: 0 8px; border-radius: 4px;">Pending</span>
+              {% endif %}
+            </div>
+          </td>
+          
+          <!-- First Half Payment Column (90%) -->
+          <td>
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+              <span style="font-weight: 600; color: #111827;">₹{{ load.first_half_payment|floatformat:2 }}</span>
+              {% if load.first_half_payment_paid %}
+                <span style="font-size: 11px; color: #16a34a; background: #d1fae5; padding: 2px 6px; border-radius: 3px;">✓ Paid</span>
+              {% else %}
+                <span style="font-size: 11px; color: #d97706; background: #fef3c7; padding: 2px 6px; border-radius: 3px;">⏳ Pending</span>
+              {% endif %}
+            </div>
+          </td>
+          
+          <!-- Second Half Payment Column (10%) -->
+          <td>
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+              <span style="font-weight: 600; color: #111827;">₹{{ load.second_half_payment|floatformat:2 }}</span>
+              {% if load.trip_status == "payment_completed" %}
+                <span style="font-size: 11px; color: #16a34a; background: #d1fae5; padding: 2px 6px; border-radius: 3px;">✓ Paid</span>
+              {% else %}
+                <span style="font-size: 11px; color: #d97706; background: #fef3c7; padding: 2px 6px; border-radius: 3px;">⏳ Pending</span>
               {% endif %}
             </div>
           </td>
           
           <!-- Total Amount Column -->
           <td>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; max-width: 150px;">
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
               <span style="font-weight: 700; color: var(--primary);">
                 ₹{{ load.total_trip_amount|floatformat:2 }}
               </span>
+              <span style="font-size: 11px; color: #6b7280;">Total with charges</span>
             </div>
           </td>
           
           <td class="action-col">
-            <button class="action-view" onclick="viewTrip(event, {{ load.id }})">View</button>
+            <button class="action-view" onclick="viewTrip(event, {{ load.id }})">View Payment</button>
           </td>
         </tr>
         {% endfor %}
@@ -806,10 +851,117 @@
         <span id="currentLocation">-</span>
       </div>
 
-      <div class="payment-box">
-        <div class="payment-row">
-          <span>Final Payment</span>
-          <span id="finalPaymentStatus" class="pending">₹0 Pending</span>
+      <!-- COMPREHENSIVE PAYMENT DETAILS SECTION -->
+      <h3 class="section-title" style="margin-top:28px;">Payment Summary</h3>
+      
+      <!-- Payment Status Overview -->
+      <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 16px; border-radius: 12px; border-left: 4px solid #2563eb; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span style="font-weight: 600; color: #1e40af;">Payment Status</span>
+          <span id="paymentStatusBadge" style="background: #fef3c7; color: #d97706; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">⏳ Pending</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+          <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">First Half (90%)</div>
+            <div style="font-weight: 700; color: #1f2937;">₹<span id="firstHalfDisplay">0.00</span></div>
+            <div style="font-size: 10px; color: #d97706; margin-top: 4px;" id="firstHalfStatusBadge">⏳ Pending</div>
+          </div>
+          <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Second Half (10%)</div>
+            <div style="font-weight: 700; color: #1f2937;">₹<span id="secondHalfDisplay">0.00</span></div>
+            <div style="font-size: 10px; color: #d97706; margin-top: 4px;" id="secondHalfStatusBadge">⏳ Pending</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Holding Charges Section (if applicable) -->
+      <div id="holdingChargesSection" style="display: none; background: #fef3c7; padding: 14px; border-radius: 8px; border-left: 4px solid #d97706; margin-bottom: 16px;">
+        <div style="font-weight: 600; color: #92400e; margin-bottom: 12px;">
+          <i class="fas fa-clock" style="margin-right: 6px;"></i> Holding Charges
+        </div>
+        <div id="holdingChargesDetails"></div>
+      </div>
+
+      <!-- TDS Section (if applicable) -->
+      <div id="tdsSection" style="display: none; background: #fef08a; padding: 14px; border-radius: 8px; border-left: 4px solid #eab308; margin-bottom: 16px;">
+        <div style="font-weight: 600; color: #854d0e; margin-bottom: 12px;">
+          <i class="fas fa-percent" style="margin-right: 6px;"></i> TDS Deduction
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <div style="font-size: 12px; color: #6b7280;">TDS Rate</div>
+            <div style="font-weight: 600; color: #1f2937;"><span id="tdsRateDisplay">0</span>%</div>
+          </div>
+          <div>
+            <div style="font-size: 12px; color: #6b7280;">TDS Amount</div>
+            <div style="font-weight: 600; color: #1f2937;">₹<span id="tdsAmountDisplay">0.00</span></div>
+          </div>
+        </div>
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(107, 114, 128, 0.3);">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="font-size: 12px; color: #6b7280;">After TDS:</span>
+            <span style="font-weight: 600; color: #16a34a;">₹<span id="afterTdsDisplay">0.00</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Adjustment Section (if applicable) -->
+      <div id="adjustmentSection" style="display: none; background: #e0e7ff; padding: 14px; border-radius: 8px; border-left: 4px solid #6366f1; margin-bottom: 16px;">
+        <div style="font-weight: 600; color: #312e81; margin-bottom: 12px;">
+          <i class="fas fa-edit" style="margin-right: 6px;"></i> Payment Adjustment
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 12px; color: #6b7280;">Adjusted Amount</span>
+          <span style="font-weight: 600; color: #1f2937;">₹<span id="adjustmentAmountDisplay">0.00</span></span>
+        </div>
+        <div style="font-size: 12px; color: #6b7280; background: white; padding: 8px; border-radius: 6px; margin-top: 8px;">
+          <strong>Reason:</strong> <span id="adjustmentReasonDisplay">-</span>
+        </div>
+      </div>
+
+      <!-- Payment Breakdown -->
+      <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+        <div style="font-weight: 600; color: #1f2937; margin-bottom: 12px;">Payment Breakdown</div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+          <span style="color: #6b7280;">Total Freight</span>
+          <span style="font-weight: 600;">₹<span id="totalFreightDisplay">0.00</span></span>
+        </div>
+        <div id="breakdownHoldingCharges" style="display: none;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+            <span style="color: #6b7280;">+ Holding Charges</span>
+            <span style="font-weight: 600;">₹<span id="breakdownHoldingChargesAmount">0.00</span></span>
+          </div>
+        </div>
+        <div id="breakdownTDS" style="display: none;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+            <span style="color: #ef4444;">- TDS Deduction</span>
+            <span style="font-weight: 600; color: #ef4444;">₹<span id="breakdownTDSAmount">0.00</span></span>
+          </div>
+        </div>
+        <div id="breakdownAdjustment" style="display: none;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+            <span id="breakdownAdjustmentLabel" style="color: #6b7280;"></span>
+            <span id="breakdownAdjustmentValue" style="font-weight: 600;"></span>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 4px; background: linear-gradient(90deg, #f0fdf4 0%, #dcfce7 100%); padding: 12px 8px; border-radius: 6px;">
+          <span style="font-weight: 700; color: #1f2937;">Total Amount Due</span>
+          <span style="font-weight: 700; color: #16a34a; font-size: 16px;">₹<span id="totalAmountDueDisplay">0.00</span></span>
+        </div>
+      </div>
+
+      <!-- Payment Dates Section -->
+      <div id="paymentDatesSection" style="background: #f0fdf4; padding: 14px; border-radius: 8px; border-left: 4px solid #16a34a; display: none;">
+        <div style="font-weight: 600; color: #15803d; margin-bottom: 12px;">
+          <i class="fas fa-calendar-check" style="margin-right: 6px;"></i> Payment Timeline
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(22, 163, 74, 0.2); font-size: 12px;">
+          <span style="color: #6b7280;">Advance Paid On</span>
+          <span id="advancePaidDateDisplay" style="font-weight: 600;">-</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 12px;">
+          <span style="color: #6b7280;">Final Paid On</span>
+          <span id="finalPaidDateDisplay" style="font-weight: 600;">-</span>
         </div>
       </div>
 
@@ -932,12 +1084,50 @@ function attachSidebarEventListeners() {
   sidebarEventListenersAttached = true;
 }
 
+// Filter by payment status
+function filterByPaymentStatus(status) {
+  const allRows = Array.from(document.querySelectorAll('.clickable-row'));
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  
+  // Update active button
+  filterBtns.forEach(btn => btn.classList.remove('active'));
+  event.target.closest('.filter-btn').classList.add('active');
+  
+  // Update button styles
+  filterBtns.forEach(btn => {
+    if (btn.classList.contains('active')) {
+      btn.style.background = '#f0fdf4';
+      btn.style.borderColor = '#16a34a';
+      btn.style.color = '#16a34a';
+    } else {
+      btn.style.background = 'white';
+      btn.style.borderColor = '#d1d5db';
+      btn.style.color = '#111827';
+    }
+  });
+  
+  // Filter rows
+  if (status === 'all') {
+    allRows.forEach(row => row.style.display = '');
+  } else {
+    allRows.forEach(row => {
+      const rowStatus = row.dataset.paymentStatus;
+      row.style.display = rowStatus === status ? '' : 'none';
+    });
+  }
+  
+  // Update pagination
+  const currentFilter = status;
+  document.dispatchEvent(new CustomEvent('filterChanged', { detail: { filter: currentFilter } }));
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   const tbody = document.querySelector('#tripsTable tbody');
   let allRows = Array.from(document.querySelectorAll('.clickable-row'));
   let filteredRows = [...allRows];
   let currentPage = 1;
   let perPage = 10;
+  let currentFilter = 'all';
 
   const entriesSelect = document.getElementById('entriesPerPage');
   const showingStart = document.getElementById('showingStart');
@@ -1409,20 +1599,13 @@ function populateSidebar(data) {
   document.getElementById('eta').textContent = data.drop_date;
   document.getElementById('currentLocation').textContent = data.current_location;
   
-  const finalPaymentStatus = document.getElementById('finalPaymentStatus');
-  
-  if (data.final_payment_paid) {
-    finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
-    finalPaymentStatus.className = 'paid';
-  } else {
-    finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Pending`;
-    finalPaymentStatus.className = 'pending';
-  }
+  // COMPREHENSIVE PAYMENT DETAILS
+  populatePaymentDetails(data);
   
   document.getElementById('customerName').textContent = data.customer_name;
   document.getElementById('customerPhone').textContent = data.customer_phone;
-  document.getElementById('contactPerson').textContent = data.contact_person;
-  document.getElementById('contactPersonPhone').textContent = data.contact_person_phone;
+  document.getElementById('contactPerson').textContent = data.contact_person || '-';
+  document.getElementById('contactPersonPhone').textContent = data.contact_person_phone || '-';
   
   document.getElementById('vendorName').textContent = data.vendor_name;
   document.getElementById('vendorPhone').textContent = data.vendor_phone;
@@ -1454,6 +1637,180 @@ function populateSidebar(data) {
   btnCloseTrip.disabled = data.trip_status !== 'payment_completed';
   btnCloseTrip.style.opacity = data.trip_status !== 'payment_completed' ? '0.5' : '1';
   btnCloseTrip.style.cursor = data.trip_status !== 'payment_completed' ? 'not-allowed' : 'pointer';
+}
+
+// New function to populate comprehensive payment details
+function populatePaymentDetails(data) {
+  // Payment Status Badge
+  let statusBadge = 'Pending';
+  let statusBadgeClass = 'background: #fef3c7; color: #d97706;';
+  
+  if (data.final_payment_paid) {
+    statusBadge = 'Paid';
+    statusBadgeClass = 'background: #d1fae5; color: #16a34a;';
+  } else if (data.first_half_payment_paid) {
+    statusBadge = 'Advance Paid';
+    statusBadgeClass = 'background: #dbeafe; color: #2563eb;';
+  }
+  
+  const badgeEl = document.getElementById('paymentStatusBadge');
+  badgeEl.textContent = (data.final_payment_paid ? '✓ ' : data.first_half_payment_paid ? '⏳ ' : '⏳ ') + statusBadge;
+  badgeEl.style.cssText = statusBadgeClass + '; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;';
+  
+  // First Half and Second Half Displays
+  document.getElementById('firstHalfDisplay').textContent = data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  document.getElementById('secondHalfDisplay').textContent = data.second_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  
+  // First Half Status
+  const firstHalfBadge = document.getElementById('firstHalfStatusBadge');
+  if (data.first_half_payment_paid) {
+    firstHalfBadge.textContent = '✓ Paid';
+    firstHalfBadge.style.color = '#16a34a';
+    firstHalfBadge.style.fontSize = '11px';
+  } else {
+    firstHalfBadge.textContent = '⏳ Pending';
+    firstHalfBadge.style.color = '#d97706';
+    firstHalfBadge.style.fontSize = '11px';
+  }
+  
+  // Second Half Status
+  const secondHalfBadge = document.getElementById('secondHalfStatusBadge');
+  if (data.final_payment_paid) {
+    secondHalfBadge.textContent = '✓ Paid';
+    secondHalfBadge.style.color = '#16a34a';
+    secondHalfBadge.style.fontSize = '11px';
+  } else {
+    secondHalfBadge.textContent = '⏳ Pending';
+    secondHalfBadge.style.color = '#d97706';
+    secondHalfBadge.style.fontSize = '11px';
+  }
+  
+  // HOLDING CHARGES SECTION
+  const holdingChargesSection = document.getElementById('holdingChargesSection');
+  if (data.holding_charges > 0 && data.holding_charges_list && data.holding_charges_list.length > 0) {
+    holdingChargesSection.style.display = 'block';
+    let holdingChargesHTML = '';
+    
+    data.holding_charges_list.forEach(charge => {
+      holdingChargesHTML += `
+        <div style="background: white; padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #d97706;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+            <span style="font-weight: 600;">${charge.trip_stage_display}</span>
+            <span style="color: #d97706; font-weight: 600;">₹${charge.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
+          </div>
+          <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Added by: ${charge.added_by}</div>
+          <div style="font-size: 11px; color: #6b7280;">Reason: ${charge.reason}</div>
+          <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;">${charge.created_at_display}</div>
+        </div>
+      `;
+    });
+    
+    document.getElementById('holdingChargesDetails').innerHTML = holdingChargesHTML;
+  } else {
+    holdingChargesSection.style.display = 'none';
+  }
+  
+  // TDS SECTION - Applied to full freight amount (final_payment), not just second half
+  // TDS is deducted from the total freight to calculate the after-TDS amount
+  const tdsSection = document.getElementById('tdsSection');
+  if (data.apply_tds && data.tds_rate > 0) {
+    tdsSection.style.display = 'block';
+    document.getElementById('tdsRateDisplay').textContent = data.tds_rate.toFixed(2);
+    document.getElementById('tdsAmountDisplay').textContent = data.tds_amount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    document.getElementById('afterTdsDisplay').textContent = data.tds_deductible_amount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  } else {
+    tdsSection.style.display = 'none';
+  }
+  
+  // ADJUSTMENT SECTION
+  const adjustmentSection = document.getElementById('adjustmentSection');
+  if (data.adjustment_type && data.adjustment_type !== 'none' && data.adjustment_amount !== 0) {
+    adjustmentSection.style.display = 'block';
+    const adjustmentValue = data.adjustment_amount;
+    const adjustmentColor = adjustmentValue > 0 ? '#16a34a' : '#ef4444';
+    const adjustmentSign = adjustmentValue > 0 ? '+' : '';
+    
+    document.getElementById('adjustmentAmountDisplay').textContent = adjustmentValue.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    document.getElementById('adjustmentAmountDisplay').parentElement.style.color = adjustmentColor;
+    
+    const adjustmentReasonEl = document.getElementById('adjustmentReasonDisplay');
+    adjustmentReasonEl.textContent = data.payment_adjustment_reason || 'Not specified';
+  } else {
+    adjustmentSection.style.display = 'none';
+  }
+  
+  // PAYMENT BREAKDOWN
+  const totalFreight = parseFloat(data.total_amount) || parseFloat(data.first_half_payment || 0) + parseFloat(data.second_half_payment || 0);
+  document.getElementById('totalFreightDisplay').textContent = totalFreight.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  
+  // Holding Charges in Breakdown
+  const breakdownHoldingChargesEl = document.getElementById('breakdownHoldingCharges');
+  const holdingChargesAmount = parseFloat(data.holding_charges || 0);
+  if (holdingChargesAmount > 0) {
+    breakdownHoldingChargesEl.style.display = 'block';
+    document.getElementById('breakdownHoldingChargesAmount').textContent = holdingChargesAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  } else {
+    breakdownHoldingChargesEl.style.display = 'none';
+  }
+  
+  // TDS in Breakdown
+  const breakdownTDSEl = document.getElementById('breakdownTDS');
+  const tdsAmount = parseFloat(data.tds_amount || 0);
+  if (data.apply_tds && tdsAmount > 0) {
+    breakdownTDSEl.style.display = 'block';
+    document.getElementById('breakdownTDSAmount').textContent = tdsAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  } else {
+    breakdownTDSEl.style.display = 'none';
+  }
+  
+  // Adjustment in Breakdown
+  const breakdownAdjustmentEl = document.getElementById('breakdownAdjustment');
+  const adjustmentAmount = parseFloat(data.adjustment_amount || 0);
+  if (data.adjustment_type && data.adjustment_type !== 'none' && adjustmentAmount !== 0) {
+    breakdownAdjustmentEl.style.display = 'block';
+    const adjustmentSign = adjustmentAmount > 0 ? '+ ' : '- ';
+    document.getElementById('breakdownAdjustmentLabel').textContent = adjustmentSign + (adjustmentAmount > 0 ? 'Adjustment (Increase)' : 'Adjustment (Decrease)');
+    document.getElementById('breakdownAdjustmentLabel').style.color = adjustmentAmount > 0 ? '#16a34a' : '#ef4444';
+    document.getElementById('breakdownAdjustmentValue').textContent = '₹' + Math.abs(adjustmentAmount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    document.getElementById('breakdownAdjustmentValue').style.color = adjustmentAmount > 0 ? '#16a34a' : '#ef4444';
+  } else {
+    breakdownAdjustmentEl.style.display = 'none';
+  }
+  
+  // Calculate and display total amount due - WITH PROPER TYPE CONVERSION
+  let totalAmountDue = totalFreight;
+  
+  // Add holding charges
+  if (holdingChargesAmount > 0) {
+    totalAmountDue = totalAmountDue + holdingChargesAmount;
+  }
+  
+  // Subtract TDS deduction
+  if (data.apply_tds && tdsAmount > 0) {
+    totalAmountDue = totalAmountDue - tdsAmount;
+  }
+  
+  // Add adjustment
+  if (adjustmentAmount !== 0) {
+    totalAmountDue = totalAmountDue + adjustmentAmount;
+  }
+  
+  // Ensure it's a valid number and display
+  if (isNaN(totalAmountDue) || !isFinite(totalAmountDue)) {
+    totalAmountDue = totalFreight; // Fallback to freight amount if calculation fails
+  }
+  
+  document.getElementById('totalAmountDueDisplay').textContent = totalAmountDue.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  
+  // PAYMENT DATES SECTION
+  const paymentDatesSection = document.getElementById('paymentDatesSection');
+  if (data.first_half_payment_paid_at || data.final_payment_date) {
+    paymentDatesSection.style.display = 'block';
+    document.getElementById('advancePaidDateDisplay').textContent = data.first_half_payment_paid_at || '-';
+    document.getElementById('finalPaidDateDisplay').textContent = data.final_payment_date || '-';
+  } else {
+    paymentDatesSection.style.display = 'none';
+  }
 }
 
 function renderChatMessages(comments) {

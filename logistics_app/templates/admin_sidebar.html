@@ -383,6 +383,14 @@
         </svg>
         Vehicle Management
       </a>
+       <a href="{% url 'vehicle_inventory' %}" class="menu-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 13h18l-1 7H4l-1-7zm5-8h8l1 5H7l1-5z" />
+        </svg>
+        Vehicle Inventory
+      </a>
+
 
       <a href="/customers/" class="menu-item {% if request.path == '/customers/' %}active{% endif %}">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">

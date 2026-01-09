@@ -1162,6 +1162,17 @@ def add_load(request):
             material = request.POST.get('material', '').strip() or None
             notes = request.POST.get('notes', '').strip() or None
             apply_tds = request.POST.get('apply_tds') == 'on' and total_amount > 0
+            
+            # User Amount (Optional)
+            user_amount = Decimal('0.00')
+            user_amount_str = request.POST.get('user_amount', '').replace(',', '').strip()
+            if user_amount_str:
+                try:
+                    user_amount = Decimal(user_amount_str).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP
+                    )
+                except:
+                    user_amount = Decimal('0.00')
 
             # =========================
             # 9. Create Load
@@ -1180,6 +1191,7 @@ def add_load(request):
                 material=material,
                 notes=notes,
                 apply_tds=apply_tds,
+                user_amount=user_amount,
 
                 price_per_unit=total_amount,
                 final_payment=final_payment,
@@ -1560,6 +1572,29 @@ def vehicle_list(request):
         'vehicle_types': vehicle_types  # Add this
     })
 
+
+
+@login_required
+def vehicle_inventory(request):
+    if not request.user.is_staff:
+        return redirect('admin_login')
+
+    # Vehicles: still only those whose owner was created by this admin
+    vehicles = Vehicle.objects.select_related('owner').filter(status='active').order_by('-id')
+
+    # Vendors: ALL active vendors (role='vendor')
+    vendors = CustomUser.objects.filter(role='vendor', is_active=True).order_by('full_name')
+    
+    # Vehicle types from VehicleType model
+    vehicle_types = VehicleType.objects.all().order_by('name')
+
+    return render(request, 'vehicle_inventory.html', {
+        'vehicles': vehicles,
+        'vendors': vendors,
+        'vehicle_types': vehicle_types  # Add this
+    })
+
+
 @login_required
 @require_POST
 def add_vehicle(request):
@@ -1644,15 +1679,21 @@ def delete_vehicle(request, vehicle_id):
 @login_required
 @require_http_methods(["POST"])
 def toggle_vehicle_status(request, vehicle_id):
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+    
     try:
-        vehicle = get_object_or_404(Vehicle, id=vehicle_id, owner__created_by=request.user)
+        vehicle = get_object_or_404(Vehicle, id=vehicle_id)
         vehicle.status = 'inactive' if vehicle.status == 'active' else 'active'
         vehicle.save()
         return JsonResponse({
             'success': True,
-            'message': f'Vehicle {vehicle.reg_no} is now {vehicle.get_status_display().lower()}.'
+            'message': f'Vehicle {vehicle.reg_no} is now {vehicle.get_status_display().lower()}.',
+            'status': vehicle.status
         })
-    except Exception:
+    except Vehicle.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Vehicle not found'}, status=404)
+    except Exception as e:
         return JsonResponse({'success': False, 'error': 'Failed to update status.'}, status=500)
     
 @login_required
@@ -2074,6 +2115,12 @@ def get_trip_details_api(request, trip_id):
             # First half payment status (ADD THIS)
             'first_half_payment_paid': load.first_half_payment_paid,
             'first_half_payment_paid_at': first_half_payment_date,
+
+            # TDS Information - Applied to full amount (final_payment), not just second half
+            'apply_tds': load.apply_tds,
+            'tds_rate': float(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00),
+            'tds_amount': float((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100'))) if load.apply_tds else 0,
+            'tds_deductible_amount': float((load.final_payment or Decimal('0')) - ((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100')))) if load.apply_tds else float(load.final_payment or Decimal('0')),
 
             'weight': load.weight or 'N/A',
             'material': load.material or 'N/A',
@@ -2790,6 +2837,12 @@ def get_payment_details_api(request, trip_id):
             'holding_charges_added_at_status': load.holding_charges_added_at_status,
             'holding_charges_list': holding_charges_list,
 
+            # TDS Information - Applied to full amount (final_payment), not just second half
+            'apply_tds': load.apply_tds,
+            'tds_rate': float(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00),
+            'tds_amount': float((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100'))) if load.apply_tds else 0,
+            'tds_deductible_amount': float((load.final_payment or Decimal('0')) - ((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100')))) if load.apply_tds else float(load.final_payment or Decimal('0')),
+
             # Show creator information for admin
             'created_by_name': load.created_by.full_name if load.created_by else 'System',
             'created_by_role': load.created_by.role if load.created_by else 'N/A',
@@ -2861,7 +2914,8 @@ def mark_final_payment_paid_api(request, trip_id):
             # Calculate adjustment
             adjustment = confirmed_amount - remaining_amount
             
-            # Only require adjustment reason if there's actually an adjustment
+            # Only require adjustment reason if there's actually an adjustment beyond TDS deduction
+            # TDS is NOT considered an adjustment - only manual increases/decreases are
             if adjustment != Decimal('0.00') and not adjustment_reason:
                 return JsonResponse({
                     'success': False, 

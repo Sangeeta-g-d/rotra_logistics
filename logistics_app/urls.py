@@ -56,6 +56,7 @@ urlpatterns = [
          name='update_pod_received_date'),
 
     path('trips/', views.trip_management, name='trip_management'),
+    path('vehicle-inventory/', views.vehicle_inventory, name='vehicle_inventory'),
     path('api/trip/<int:trip_id>/details/', views.get_trip_details_api, name='get_trip_details_api'),
     path('api/trip/<int:trip_id>/update-status/', views.update_trip_status_api, name='update_trip_status_api'),
     path('api/trip/<int:trip_id>/add-comment/', views.add_trip_comment_api, name='add_trip_comment'),

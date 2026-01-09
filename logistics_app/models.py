@@ -361,6 +361,17 @@ class Load(models.Model):
         blank=True,
         help_text="Additional price field for user reference"
     )
+    
+    user_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="User Amount",
+        null=True,
+        blank=True,
+        help_text="User-specific amount for this load"
+    )
+    
     apply_tds = models.BooleanField(
         default=False,
         verbose_name="Apply TDS",
