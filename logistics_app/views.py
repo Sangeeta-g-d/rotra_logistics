@@ -1733,6 +1733,22 @@ def update_profile(request):
             
             user.save()
             
+            # Handle TDS rate update for admin/staff users
+            tds_rate = request.POST.get('tds_rate')
+            if tds_rate and (user.is_staff or user.role == 'admin'):
+                try:
+                    tds_rate_decimal = Decimal(str(tds_rate))
+                    
+                    # Get or create TDS rate
+                    tds_rate_obj, created = TDSRate.objects.get_or_create(pk=1)
+                    tds_rate_obj.rate = tds_rate_decimal
+                    tds_rate_obj.save()
+                except (ValueError, InvalidOperation):
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Invalid TDS rate value'
+                    }, status=400)
+            
             return JsonResponse({
                 'success': True,
                 'message': 'Profile updated successfully',
@@ -1760,6 +1776,15 @@ def get_profile_data(request):
     """
     user = request.user
     
+    # Get TDS rate if user is admin/staff
+    tds_rate = None
+    if user.is_staff or user.role == 'admin':
+        tds_rate_obj = TDSRate.objects.first()
+        if tds_rate_obj:
+            tds_rate = float(tds_rate_obj.rate)
+        else:
+            tds_rate = 2.00  # Default value
+    
     return JsonResponse({
         'full_name': user.full_name,
         'email': user.email,
@@ -1769,7 +1794,10 @@ def get_profile_data(request):
         'address': user.address or '',
         'pan_number': user.pan_number or '',
         'profile_image_url': user.profile_image.url if user.profile_image else None,
-        'created_by': user.created_by.full_name if user.created_by else 'System'
+        'created_by': user.created_by.full_name if user.created_by else 'System',
+        'is_admin': user.role == 'admin',
+        'is_staff': user.is_staff,
+        'tds_rate': tds_rate
     })
 
 from django.http import JsonResponse

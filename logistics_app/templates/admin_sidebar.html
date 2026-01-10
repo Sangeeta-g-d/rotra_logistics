@@ -522,6 +522,17 @@
             <input type="password" id="confirmPassword" name="confirm_password" placeholder="Confirm new password">
           </div>
         </div>
+
+        <!-- TDS Rate Section - Only for Admin -->
+        <div id="tdsRateSection" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tdsRate">TDS Percentage Rate (%)</label>
+              <input type="number" id="tdsRate" name="tds_rate" step="0.01" min="0" max="100" placeholder="Enter TDS rate percentage">
+              <small style="color: #666; font-size: 12px;">Default: 2% (if no value found)</small>
+            </div>
+          </div>
+        </div>
       </form>
     </div>
 
@@ -577,6 +588,14 @@
         if (data.profile_image_url) {
           document.getElementById('profileImg').src = data.profile_image_url;
         }
+
+        // Show TDS rate section only for admin/staff
+        if (data.is_admin || data.is_staff) {
+          document.getElementById('tdsRateSection').style.display = 'block';
+          if (data.tds_rate !== undefined) {
+            document.getElementById('tdsRate').value = data.tds_rate;
+          }
+        }
       })
       .catch(error => {
         Toastify({
@@ -618,11 +637,32 @@
       }
     }
 
+    // Validate TDS rate if provided
+    const tdsRateInput = document.getElementById('tdsRate');
+    if (tdsRateInput && tdsRateInput.value) {
+      const tdsRate = parseFloat(tdsRateInput.value);
+      if (isNaN(tdsRate) || tdsRate < 0 || tdsRate > 100) {
+        Toastify({
+          text: "TDS rate must be between 0 and 100!",
+          duration: 3000,
+          gravity: "top",
+          position: "right",
+          backgroundColor: "#ef4444",
+        }).showToast();
+        return;
+      }
+    }
+
     const formData = new FormData(document.getElementById('profileForm'));
 
     const profileImageInput = document.getElementById('profileImageInput');
     if (profileImageInput.files.length > 0) {
       formData.append('profile_image', profileImageInput.files[0]);
+    }
+
+    // Append TDS rate if it exists
+    if (tdsRateInput && tdsRateInput.value) {
+      formData.append('tds_rate', tdsRateInput.value);
     }
 
     fetch('/profile/update/', {
