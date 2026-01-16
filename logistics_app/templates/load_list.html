@@ -1073,7 +1073,10 @@ document.addEventListener('DOMContentLoaded', function () {
     Promise.all([
       fetch(`/api/vendors/${vendorId}/vehicles/`).then(r => r.json()),
       fetch(`/api/vendors/${vendorId}/drivers/`).then(r => r.json())
-    ]).then(([vehicles, drivers]) => {
+    ]).then(([vehiclesResp, driversResp]) => {
+      const vehicles = (vehiclesResp && vehiclesResp.vehicles) || [];
+      const drivers = (driversResp && driversResp.drivers) || [];
+
       vehicleTypeSelect.innerHTML = '<option value="">Select Vehicle</option>';
       driverSelect.innerHTML = '<option value="">Select Driver</option>';
 
