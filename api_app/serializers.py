@@ -603,6 +603,8 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
     full_name = serializers.CharField(required=False, allow_blank=False)
     profile_image = serializers.ImageField(required=False)
     tds_declaration = serializers.FileField(required=False)
+    bank_cheque = serializers.FileField(required=False)
+    aadhaar_card = serializers.FileField(required=False)
 
     # 🔹 New fields
     pan_number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -664,6 +666,13 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
 
         if "alternate_no" in data:
             user.alternate_no = data.get("alternate_no")
+
+            # 🔹 New docs
+        if data.get("bank_cheque"):
+            user.bank_cheque = data["bank_cheque"]
+    
+        if data.get("aadhaar_card"):
+            user.aadhaar_card = data["aadhaar_card"]
 
         if data.get("profile_image"):
             user.profile_image = data["profile_image"]

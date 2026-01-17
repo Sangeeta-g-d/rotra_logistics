@@ -91,7 +91,18 @@ class CustomUser(AbstractUser):
         blank=True,
         null=True
     )
-    
+    bank_cheque = models.FileField(
+        upload_to='bank_cheques/',
+        blank=True,
+        null=True
+    )
+
+    # 🔹 Aadhaar Card Document
+    aadhaar_card = models.FileField(
+        upload_to='aadhaar_documents/',
+        blank=True,
+        null=True
+    )
     # Profile Image
     profile_image = models.ImageField(
         upload_to='profile_images/',
