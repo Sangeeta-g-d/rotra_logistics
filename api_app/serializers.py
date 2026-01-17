@@ -604,12 +604,18 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
     profile_image = serializers.ImageField(required=False)
     tds_declaration = serializers.FileField(required=False)
 
+    # 🔹 New fields
+    pan_number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    acc_no = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    ifsc_code = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     old_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
     new_password = serializers.CharField(required=False, write_only=True, allow_blank=False)
+
     alternate_no = serializers.CharField(
-    required=False,
-    allow_blank=True,
-    allow_null=True
+        required=False,
+        allow_blank=True,
+        allow_null=True
     )
 
     def validate(self, data):
@@ -618,16 +624,20 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
         # ✅ alternate_no uniqueness check
         alternate_no = data.get("alternate_no")
         if alternate_no:
-            exists = CustomUser.objects.filter(
-                alternate_no=alternate_no
-            ).exclude(id=user.id).exists()
-
-            if exists:
+            if CustomUser.objects.filter(alternate_no=alternate_no).exclude(id=user.id).exists():
                 raise serializers.ValidationError({
                     "alternate_no": "This alternate number is already in use."
                 })
 
-        # Password validation (existing)
+        # ✅ PAN uniqueness check
+        pan_number = data.get("pan_number")
+        if pan_number:
+            if CustomUser.objects.filter(pan_number=pan_number).exclude(id=user.id).exists():
+                raise serializers.ValidationError({
+                    "pan_number": "This PAN number is already in use."
+                })
+
+        # ✅ Password validation
         if data.get("new_password"):
             if not data.get("old_password"):
                 raise serializers.ValidationError({
@@ -637,7 +647,7 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
                 raise serializers.ValidationError({
                     "old_password": "Incorrect old password."
                 })
-            if len(data.get("new_password", "")) < 6:
+            if len(data["new_password"]) < 6:
                 raise serializers.ValidationError({
                     "new_password": "New password must be at least 6 characters long."
                 })
@@ -646,23 +656,38 @@ class VendorProfileUpdateSerializer(serializers.Serializer):
 
     def save(self):
         user = self.context["request"].user
+        data = self.validated_data
 
-        if self.validated_data.get("full_name"):
-            user.full_name = self.validated_data["full_name"]
-        if "alternate_no" in self.validated_data:
-            user.alternate_no = self.validated_data.get("alternate_no")
+        # 🔹 Basic fields
+        if data.get("full_name"):
+            user.full_name = data["full_name"]
 
-        if self.validated_data.get("profile_image"):
-            user.profile_image = self.validated_data["profile_image"]
+        if "alternate_no" in data:
+            user.alternate_no = data.get("alternate_no")
 
-        if self.validated_data.get("tds_declaration"):
-            user.tds_declaration = self.validated_data["tds_declaration"]
+        if data.get("profile_image"):
+            user.profile_image = data["profile_image"]
 
-        if self.validated_data.get("new_password"):
-            user.set_password(self.validated_data["new_password"])
+        if data.get("tds_declaration"):
+            user.tds_declaration = data["tds_declaration"]
+
+        # 🔹 Banking & PAN
+        if "pan_number" in data:
+            user.pan_number = data.get("pan_number")
+
+        if "acc_no" in data:
+            user.acc_no = data.get("acc_no")
+
+        if "ifsc_code" in data:
+            user.ifsc_code = data.get("ifsc_code")
+
+        # 🔹 Password
+        if data.get("new_password"):
+            user.set_password(data["new_password"])
 
         user.save()
         return user
+
 
 
 class LoadFilterOptionsSerializer(serializers.Serializer):
