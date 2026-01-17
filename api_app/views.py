@@ -828,8 +828,12 @@ class VendorProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, *args, **kwargs):
+        user = request.user
+
         serializer = VendorProfileUpdateSerializer(
+            instance=user,               # ✅ Pass instance here
             data=request.data,
+            partial=True,                # ✅ Allow partial updates
             context={"request": request}
         )
 
@@ -843,11 +847,14 @@ class VendorProfileUpdateView(APIView):
                     "full_name": user.full_name,
                     "email": user.email,
                     "phone_number": user.phone_number,
+                    "alternate_no": user.alternate_no,
+                    "pan_number": user.pan_number,
+                    "acc_no": user.acc_no,
+                    "ifsc_code": user.ifsc_code,
                     "profile_image": request.build_absolute_uri(user.profile_image.url) if user.profile_image else None,
-                    "tds_declaration": (
-                        request.build_absolute_uri(user.tds_declaration.url)
-                        if user.tds_declaration else None
-                        ),
+                    "tds_declaration": request.build_absolute_uri(user.tds_declaration.url) if user.tds_declaration else None,
+                    "bank_cheque": request.build_absolute_uri(user.bank_cheque.url) if user.bank_cheque else None,
+                    "aadhaar_card": request.build_absolute_uri(user.aadhaar_card.url) if user.aadhaar_card else None,
                 }
             }, status=status.HTTP_200_OK)
 
@@ -856,6 +863,7 @@ class VendorProfileUpdateView(APIView):
             "message": "Failed to update profile.",
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoadFilterOptionsView(APIView):
