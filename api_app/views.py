@@ -1033,7 +1033,7 @@ class SaveFCMTokenView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class VendorProfileView(APIView):
     """
-    API endpoint to get vendor profile details from CustomUser model only
+    API endpoint to get vendor profile details from CustomUser model
     """
     permission_classes = [IsAuthenticated]
     
@@ -1048,45 +1048,48 @@ class VendorProfileView(APIView):
                     'message': 'Access denied. Vendor role required.'
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # Get profile image URL
-            profile_image_url = None
-            if user.profile_image and hasattr(user.profile_image, 'url'):
-                if user.profile_image.url:
-                    # Build absolute URL for the image
-                    profile_image_url = request.build_absolute_uri(user.profile_image.url)
+            # Helper function to build absolute file URLs
+            def get_file_url(file_field):
+                if file_field and hasattr(file_field, 'url') and file_field.url:
+                    return request.build_absolute_uri(file_field.url)
+                return None
             
-            # Prepare response data matching your UI design
+            # Prepare response data
             profile_data = {
                 'status': True,
                 'message': 'Profile fetched successfully',
                 'data': {
-                    # Main profile info (matching your UI)
+                    # Basic info
                     'full_name': user.full_name or '',
                     'email': user.email,
                     'phone_number': user.phone_number or '',
-                    
-                    # Role info
+                    'alternate_no': user.alternate_no or '',
                     'role': user.role,
                     'role_display': user.get_role_display(),
+                    'address': user.address or '',
                     
                     # Profile image
-                    'profile_image': profile_image_url,
+                    'profile_image': get_file_url(user.profile_image),
                     
-                    # Additional info from CustomUser
-                    'address': user.address or '',
+                    # Banking & PAN
                     'pan_number': user.pan_number or '',
+                    'acc_no': user.acc_no or '',
+                    'ifsc_code': user.ifsc_code or '',
                     
-                    # TDS declaration if exists
-                    'tds_declaration': request.build_absolute_uri(user.tds_declaration.url) if user.tds_declaration and hasattr(user.tds_declaration, 'url') else None,
+                    # Documents
+                    'tds_declaration': get_file_url(user.tds_declaration),
+                    'bank_cheque': get_file_url(user.bank_cheque),
+                    'aadhaar_card': get_file_url(user.aadhaar_card),
                     
                     # Account status
                     'is_active': user.is_active,
+                    'is_blocked': user.is_blocked,
                     'date_joined': user.date_joined.strftime('%Y-%m-%d %H:%M:%S') if user.date_joined else None,
                     'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else None,
                     
-                    # App version (static - you can make this dynamic from settings)
+                    # App info (static or dynamic)
                     'app_version': 'RoadFleet v2.0.0',
-                    'support_contact': '+91 XXXXXXXXXX'  # Add your support contact
+                    'support_contact': '+91 XXXXXXXXXX'
                 }
             }
             
