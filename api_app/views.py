@@ -855,6 +855,7 @@ class VendorProfileUpdateView(APIView):
                     "tds_declaration": request.build_absolute_uri(user.tds_declaration.url) if user.tds_declaration else None,
                     "bank_cheque": request.build_absolute_uri(user.bank_cheque.url) if user.bank_cheque else None,
                     "aadhaar_card": request.build_absolute_uri(user.aadhaar_card.url) if user.aadhaar_card else None,
+                    "pan_card": request.build_absolute_uri(user.pan_card.url) if user.pan_card else None,
                 }
             }, status=status.HTTP_200_OK)
 
@@ -1075,6 +1076,7 @@ class VendorProfileView(APIView):
                     'pan_number': user.pan_number or '',
                     'acc_no': user.acc_no or '',
                     'ifsc_code': user.ifsc_code or '',
+                    'pan_card': get_file_url(user.pan_card),
                     
                     # Documents
                     'tds_declaration': get_file_url(user.tds_declaration),

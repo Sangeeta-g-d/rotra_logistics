@@ -97,6 +97,12 @@ class CustomUser(AbstractUser):
         null=True
     )
 
+    pan_card = models.FileField(
+        upload_to='pan_cards/',
+        blank=True,
+        null=True
+    )
+
     # 🔹 Aadhaar Card Document
     aadhaar_card = models.FileField(
         upload_to='aadhaar_documents/',
