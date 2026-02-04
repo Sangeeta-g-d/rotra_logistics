@@ -595,13 +595,6 @@ class VendorLRUploadView(APIView):
                 "message": "LR document already uploaded"
             }, status=400)
 
-        # Only allow upload if status is 'loaded'
-        if load.trip_status != 'loaded':
-            return Response({
-                "success": False,
-                "message": f"LR can only be uploaded when trip status is 'Reach Loading Point'. Current status: {load.trip_status}"
-            }, status=400)
-
         # Check if file is provided
         if 'lr_document' not in request.FILES:
             return Response({
@@ -637,9 +630,9 @@ class VendorLRUploadView(APIView):
             if lr_number:
                 load.lr_number = lr_number
 
-            # Update trip status to lr_uploaded
+            # Update trip status to upload_lr
             load.update_trip_status(
-                new_status="lr_uploaded",
+                new_status="upload_lr",
                 user=vendor,
                 lr_number=lr_number
             )
@@ -705,21 +698,21 @@ class VendorPODUploadView(APIView):
             }, status=400)
 
         # Define the required workflow sequence
-        required_status_sequence = ['loaded', 'lr_uploaded', 'in_transit', 'unloading']
+        required_status_sequence = ['reached_loading_point', 'upload_lr', 'in_transit', 'reached_unloading_point', 'unloading_completed']
         
         # Get the current status index
         current_status = load.trip_status
         current_index = required_status_sequence.index(current_status) if current_status in required_status_sequence else -1
         
         # Check if current status is valid for POD upload
-        if current_status != 'unloading':
+        if current_status != 'unloading_completed':
             # Provide helpful message about what needs to be completed first
-            if current_status == 'loaded':
+            if current_status == 'reached_loading_point':
                 return Response({
                     "success": False,
                     "message": "Cannot upload POD yet. LR needs to be uploaded first."
                 }, status=400)
-            elif current_status == 'lr_uploaded':
+            elif current_status == 'upload_lr':
                 return Response({
                     "success": False,
                     "message": "Cannot upload POD yet. Trip must be 'In Transit' first."
@@ -727,13 +720,13 @@ class VendorPODUploadView(APIView):
             elif current_status == 'in_transit':
                 return Response({
                     "success": False,
-                    "message": "Cannot upload POD yet. Trip status must be 'Unloading' first."
+                    "message": "Cannot upload POD yet. Trip status must be 'Unloading Completed' first."
                 }, status=400)
             else:
                 # For any other status, show what's expected
                 return Response({
                     "success": False,
-                    "message": f"Cannot upload POD. Current status is '{current_status}'. Expected workflow: loaded → lr_uploaded → in_transit → unloading → pod_uploaded"
+                    "message": f"Cannot upload POD. Current status is '{current_status}'. Expected workflow: reached_loading_point → upload_lr → in_transit → reached_unloading_point → unloading_completed → pod_uploaded"
                 }, status=400)
 
         # Check if file is provided
@@ -1186,11 +1179,13 @@ class VendorTripsByStatusView(APIView):
         # Define allowed trip statuses based on your timestamp_fields
         # These are the statuses BEFORE pod_uploaded and payment_completed
         ALLOWED_STATUSES = [
-            'pending',
-            'loaded',
-            'lr_uploaded', 
+            'trip_requested',
+            'trip_confirmed',
+            'reached_loading_point',
+            'upload_lr', 
             'in_transit',
-            'unloading',
+            'reached_unloading_point',
+            'unloading_completed',
         ]
         
         # Get status from query parameter
@@ -1249,26 +1244,38 @@ class VendorTripsByStatusView(APIView):
     def get_status_display(self, status):
         """Convert status code to display name"""
         status_map = {
-            'pending': 'Pending',
-            'loaded': 'Loaded',
-            'lr_uploaded': 'LR Uploaded',
+            'trip_requested': 'Trip Requested',
+            'trip_confirmed': 'Trip Confirmed',
+            'reached_loading_point': 'Reached Loading Point',
+            'upload_lr': 'Upload LR',
             'in_transit': 'In Transit',
-            'unloading': 'Unloading',
-            'pod_uploaded': 'POD Uploaded',
-            'payment_completed': 'Payment Completed',
+            'reached_unloading_point': 'Reached Unloading Point',
+            'unloading_completed': 'Unloading Completed',
+            'pod_pending': 'POD Pending',
+            'pod_received_at_office': 'POD Received at Office',
+            'balance_pending': 'Balance Pending',
+            'balance_hold': 'Balance Hold',
+            'balance_paid': 'Balance Paid',
+            'trip_closed': 'Trip Closed',
         }
         return status_map.get(status, status.title())
     
     def get_timestamp_fields(self):
         """Return all timestamp fields"""
         return {
-            'pending': 'pending_at',
-            'loaded': 'loaded_at',
-            'lr_uploaded': 'lr_uploaded_at',
+            'trip_requested': 'pending_at',
+            'trip_confirmed': 'pending_at',
+            'reached_loading_point': 'loaded_at',
+            'upload_lr': 'lr_uploaded_at',
             'in_transit': 'in_transit_at',
-            'unloading': 'unloading_at',
-            'pod_uploaded': 'pod_uploaded_at',
-            'payment_completed': 'payment_completed_at',
+            'reached_unloading_point': 'unloading_at',
+            'unloading_completed': 'unloading_at',
+            'pod_pending': 'pod_uploaded_at',
+            'pod_received_at_office': 'pod_received_at',
+            'balance_pending': 'payment_completed_at',
+            'balance_hold': 'hold_at',
+            'balance_paid': 'payment_completed_at',
+            'trip_closed': 'payment_completed_at',
         }
     
     def get_timestamp_field(self, status):
@@ -1287,11 +1294,13 @@ class TripStatusOptionsView(APIView):
     def get(self, request):
         # Define ongoing statuses only (exclude pod_uploaded and payment_completed)
         STATUS_VALUES = [
-            'pending',
-            'loaded',
-            'lr_uploaded',
+            'trip_requested',
+            'trip_confirmed',
+            'reached_loading_point',
+            'upload_lr',
             'in_transit',
-            'unloading',
+            'reached_unloading_point',
+            'unloading_completed',
         ]
         
         return Response({
@@ -1420,8 +1429,8 @@ class VendorTripHistoryView(APIView):
                 "total_count": loads.count(),
                 "status_counts": status_counts,
                 "status_display": {
-                    'pod_uploaded': 'POD Uploaded',
-                    'payment_completed': 'Payment Completed',
+                    'pod_received_at_office': 'POD Received at Office',
+                    'balance_paid': 'Balance Paid',
                 },
                 "summary": {
                     "total_completed_trips": sum(status_counts.values()),
@@ -1436,13 +1445,19 @@ class VendorTripHistoryView(APIView):
     def get_status_display(self, status):
         """Convert status code to display name"""
         status_map = {
-            'pending': 'Pending',
-            'loaded': 'Loaded',
-            'lr_uploaded': 'LR Uploaded',
+            'trip_requested': 'Trip Requested',
+            'trip_confirmed': 'Trip Confirmed',
+            'reached_loading_point': 'Reached Loading Point',
+            'upload_lr': 'Upload LR',
             'in_transit': 'In Transit',
-            'unloading': 'Unloading',
-            'pod_uploaded': 'POD Uploaded',
-            'payment_completed': 'Payment Completed',
+            'reached_unloading_point': 'Reached Unloading Point',
+            'unloading_completed': 'Unloading Completed',
+            'pod_pending': 'POD Pending',
+            'pod_received_at_office': 'POD Received at Office',
+            'balance_pending': 'Balance Pending',
+            'balance_hold': 'Balance Hold',
+            'balance_paid': 'Balance Paid',
+            'trip_closed': 'Trip Closed',
         }
         return status_map.get(status, status.title())
 

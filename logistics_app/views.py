@@ -386,6 +386,89 @@ def delete_customer(request, pk):
         return JsonResponse({'success': True, 'message': 'Customer deleted'})
     except Customer.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Customer not found'}, status=404)
+
+@login_required
+@require_http_methods(["POST"])
+def add_new_customer(request):
+    """API endpoint to add new customer (for inline modal in add load page)"""
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+
+    try:
+        customer_name = request.POST.get('customer_name', '').strip()
+        phone_number = request.POST.get('phone_number', '').strip()
+        location = request.POST.get('location', '').strip()
+
+        # Validate required fields
+        if not customer_name or not phone_number:
+            return JsonResponse({'success': False, 'error': 'Customer name and phone number are required'}, status=400)
+
+        # Check if phone already exists
+        if Customer.objects.filter(phone_number=phone_number).exists():
+            return JsonResponse({'success': False, 'error': 'Phone number already exists'}, status=400)
+
+        # Create customer
+        customer = Customer.objects.create(
+            customer_name=customer_name,
+            phone_number=phone_number,
+            location=location or None,
+            is_active=True
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Customer added successfully',
+            'customer': {
+                'id': customer.id,
+                'customer_name': customer.customer_name,
+                'phone_number': customer.phone_number,
+                'location': customer.location or ''
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def add_new_contact_person(request):
+    """API endpoint to add new contact person (for inline modal in add load page)"""
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+
+    try:
+        customer_id = request.POST.get('customer_id')
+        contact_name = request.POST.get('contact_name', '').strip()
+        contact_phone = request.POST.get('contact_phone', '').strip()
+
+        # Validate required fields
+        if not customer_id or not contact_name or not contact_phone:
+            return JsonResponse({'success': False, 'error': 'All fields are required'}, status=400)
+
+        # Check if customer exists
+        customer = Customer.objects.get(id=customer_id)
+
+        # Create contact person
+        contact = CustomerContactPerson.objects.create(
+            customer=customer,
+            name=contact_name,
+            phone_number=contact_phone
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Contact person added successfully',
+            'contact': {
+                'id': contact.id,
+                'name': contact.name,
+                'phone_number': contact.phone_number
+            }
+        })
+
+    except Customer.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Customer not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
 
 @login_required
@@ -781,8 +864,8 @@ def accept_load_request(request, load_id, request_id):
             load.assigned_at = timezone.now()
             load.status = 'assigned'
             
-            # Update trip status to "confirmed" (vendor has accepted and assigned)
-            load.update_trip_status('confirmed', user=request.user, send_notification=True)
+            # Update trip status to "trip_confirmed" (vendor has accepted and assigned)
+            load.update_trip_status('trip_confirmed', user=request.user, send_notification=True)
             
             # ✅ SEND FIREBASE + DB NOTIFICATION TO VENDOR
             notification, success = send_trip_assigned_notification(
@@ -870,7 +953,7 @@ def accept_load_request_with_assignment(request, load_id, request_id):
             load.vehicle = vehicle
             load.status = 'assigned'
             load.assigned_at = timezone.now()
-            load.trip_status = 'confirmed'  # Update trip status to confirmed
+            load.trip_status = 'trip_confirmed'  # Update trip status to trip_confirmed
             load.save()
             
             # Accept request
@@ -1165,7 +1248,7 @@ def add_load(request):
             
             # User Amount (Optional)
             user_amount = Decimal('0.00')
-            user_amount_str = request.POST.get('user_amount', '').replace(',', '').strip()
+            user_amount_str = request.POST.get('customer_amount', '').replace(',', '').strip()
             if user_amount_str:
                 try:
                     user_amount = Decimal(user_amount_str).quantize(
@@ -1307,19 +1390,23 @@ def update_load_status(request, load_id):
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
     
     try:
+
         load = Load.objects.get(id=load_id)
-        new_status = request.POST.get('status')
-        
-        if new_status not in dict(Load.STATUS_CHOICES):
-            return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
-        
-        load.status = new_status
-        load.save()
-        
+        new_trip_status = request.POST.get('trip_status')
+
+        # Validate against TRIP_STATUS_CHOICES
+        trip_status_choices = dict(Load.TRIP_STATUS_CHOICES)
+        if new_trip_status not in trip_status_choices:
+            return JsonResponse({'success': False, 'error': 'Invalid trip status'}, status=400)
+
+        # Update trip_status using model method to ensure all logic is applied
+        load.update_trip_status(new_trip_status, user=request.user)
+
         return JsonResponse({
             'success': True,
-            'message': f'Load status updated to {load.get_status_display()}',
-            'status': load.get_status_display()
+            'message': f'Trip status updated to {trip_status_choices[new_trip_status]}',
+            'trip_status': new_trip_status,
+            'trip_status_display': trip_status_choices[new_trip_status]
         })
         
     except Load.DoesNotExist:
@@ -2052,19 +2139,24 @@ def get_trip_details_api(request, trip_id):
         
         # Progress mapping
         status_progress = {
-            'pending': 0,
-            'loaded': 12.5,
-            'lr_uploaded': 25,
-            'in_transit': 50,
-            'unloading': 62.5,
-            'pod_uploaded': 75,
-            'payment_completed': 100,
-            'hold': 75,  # Hold is at same progress as pod_uploaded
+            'trip_requested': 0,
+            'trip_confirmed': 7.7,
+            'reached_loading_point': 15.4,
+            'upload_lr': 23.1,
+            'in_transit': 30.8,
+            'reached_unloading_point': 38.5,
+            'unloading_completed': 46.2,
+            'pod_pending': 53.8,
+            'pod_received_at_office': 61.5,
+            'balance_pending': 69.2,
+            'balance_hold': 76.9,
+            'balance_paid': 84.6,
+            'trip_closed': 100,
         }
         progress = status_progress.get(load.trip_status, 0)
 
         # Payment status
-        final_payment_paid = load.trip_status == 'payment_completed'
+        final_payment_paid = load.trip_status == 'trip_closed'
 
         # Get comments for this trip
         comments = []
@@ -2128,7 +2220,7 @@ def get_trip_details_api(request, trip_id):
 
             'vendor_name': load.driver.owner.full_name if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'Not Assigned',
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
-
+            
             # Payment details
             'final_payment': float(load.final_payment),
             'first_half_payment': float(load.first_half_payment or Decimal('0')),
@@ -2139,7 +2231,7 @@ def get_trip_details_api(request, trip_id):
             'final_payment_paid': final_payment_paid,
             'holding_charges_added_at': load.holding_charges_added_at.isoformat() if load.holding_charges_added_at else None,
             'holding_charges_added_at_status': load.holding_charges_added_at_status or '',
-            
+            'user_amount':float(load.user_amount or 0),
             # First half payment status (ADD THIS)
             'first_half_payment_paid': load.first_half_payment_paid,
             'first_half_payment_paid_at': first_half_payment_date,
@@ -2214,13 +2306,6 @@ def upload_lr_document_api(request, trip_id):
                 'error': 'LR document already uploaded'
             }, status=400)
         
-        # Only allow upload if status is 'loaded'
-        if load.trip_status != 'loaded':
-            return JsonResponse({
-                'success': False, 
-                'error': 'LR can only be uploaded when trip status is "Reach Loading Point"'
-            }, status=400)
-        
         if 'lr_document' not in request.FILES:
             return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
         
@@ -2240,8 +2325,8 @@ def upload_lr_document_api(request, trip_id):
         load.lr_document = lr_document
         load.lr_uploaded_at = timezone.now()
         
-        # Update trip status to lr_uploaded
-        load.update_trip_status('lr_uploaded', user=request.user)
+        # Update trip status to upload_lr
+        load.update_trip_status('upload_lr', user=request.user)
         load.save()
         
         # Send notification to vendor
@@ -2312,8 +2397,9 @@ def update_trip_status_api(request, trip_id):
         if not new_status:
             # Define status flow
             status_flow = [
-                'pending', 'loaded', 'lr_uploaded',
-                'in_transit', 'unloading', 'pod_uploaded', 'payment_completed'
+                'trip_requested', 'trip_confirmed', 'reached_loading_point', 'upload_lr',
+                'in_transit', 'reached_unloading_point', 'unloading_completed', 'pod_pending',
+                'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid', 'trip_closed'
             ]
             
             try:
@@ -2328,8 +2414,9 @@ def update_trip_status_api(request, trip_id):
         
         # Validate the new status
         valid_statuses = [
-            'pending', 'loaded', 'lr_uploaded',
-            'in_transit', 'unloading', 'pod_uploaded', 'payment_completed', 'hold'
+            'trip_requested', 'trip_confirmed', 'reached_loading_point', 'upload_lr',
+            'in_transit', 'reached_unloading_point', 'unloading_completed', 'pod_pending',
+            'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid', 'trip_closed'
         ]
         
         if new_status not in valid_statuses:
@@ -2345,26 +2432,17 @@ def update_trip_status_api(request, trip_id):
                 'error': f'Trip is already at {load.get_trip_status_display()} status'
             }, status=400)
         
-        # For LR uploaded status, check if document exists
-        if new_status == 'lr_uploaded':
-            if not load.lr_document:
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'Please upload LR document before updating to LR Uploaded status',
-                    'requires_lr_upload': True
-                }, status=400)
-        
         # For POD uploaded status, check if document exists
-        if new_status == 'pod_uploaded':
+        if new_status == 'pod_received_at_office':
             if not load.pod_document:
                 return JsonResponse({
                     'success': False, 
-                    'error': 'Please upload POD document before updating to POD Uploaded status',
+                    'error': 'Please upload POD document before updating to POD status - received at rotra office',
                     'requires_pod_upload': True
                 }, status=400)
         
         # For hold status, require hold reason
-        if new_status == 'hold':
+        if new_status == 'hold' or new_status == 'balance_hold':
             hold_reason = body.get('hold_reason', '').strip()
             if not hold_reason:
                 return JsonResponse({
@@ -2395,14 +2473,19 @@ def update_trip_status_api(request, trip_id):
         
         # Get timestamp for the main status update
         timestamp_fields = {
-            'pending': 'pending_at',
-            'loaded': 'loaded_at',
-            'lr_uploaded': 'lr_uploaded_at',
+            'trip_requested': 'pending_at',
+            'trip_confirmed': 'pending_at',
+            'reached_loading_point': 'loaded_at',
+            'upload_lr': 'lr_uploaded_at',
             'in_transit': 'in_transit_at',
-            'unloading': 'unloading_at',
-            'pod_uploaded': 'pod_uploaded_at',
-            'payment_completed': 'payment_completed_at',
-            'hold': 'hold_at',
+            'reached_unloading_point': 'unloading_at',
+            'unloading_completed': 'unloading_at',
+            'pod_pending': 'pod_uploaded_at',
+            'pod_received_at_office': 'pod_received_at',
+            'balance_pending': 'payment_completed_at',
+            'balance_hold': 'hold_at',
+            'balance_paid': 'payment_completed_at',
+            'trip_closed': 'payment_completed_at',
         }
 
         field_name = timestamp_fields.get(new_status)
@@ -2411,14 +2494,19 @@ def update_trip_status_api(request, trip_id):
         
         # Determine the message to show
         status_messages = {
-            'pending': 'Trip status updated to Pending',
-            'loaded': 'Trip status updated to Reach Loading Point',
-            'lr_uploaded': 'LR Uploaded status updated successfully',
-            'in_transit': 'Trip status updated to In Transit',
-            'unloading': 'Reached unloading point! Ready for POD upload.',
-            'pod_uploaded': 'POD uploaded successfully! Ready for final payment.',
-            'payment_completed': 'Payment completed successfully! Trip is now complete.',
-            'hold': 'Trip has been put on hold.',
+            'trip_requested': 'Trip status updated to Trip Requested',
+            'trip_confirmed': 'Trip status updated to Trip Confirmed',
+            'reached_loading_point': 'Trip status updated to Reached at Loading point',
+            'upload_lr': 'Trip status updated to Upload LR',
+            'in_transit': 'Trip status updated to In transit',
+            'reached_unloading_point': 'Trip status updated to Reached at unloading point',
+            'unloading_completed': 'Trip status updated to Unloading completed',
+            'pod_pending': 'Trip status updated to POD status - Pending',
+            'pod_received_at_office': 'Trip status updated to POD status - received at rotra office',
+            'balance_pending': 'Trip status updated to Balance pending',
+            'balance_hold': 'Trip status updated to Balance hold',
+            'balance_paid': 'Trip status updated to Balance paid',
+            'trip_closed': 'Trip status updated to Trip closed',
         }
         
         message = status_messages.get(new_status, f'Trip status updated to {load.get_trip_status_display()}')
@@ -2632,10 +2720,10 @@ def close_trip_api(request, trip_id):
     try:
         load = Load.objects.get(id=trip_id, created_by=request.user)
         
-        if load.trip_status != 'payment_completed':
+        if load.trip_status != 'balance_paid':
             return JsonResponse({
                 'success': False,
-                'error': 'Can only close trips with completed payment'
+                'error': 'Can only close trips with completed balance payment'
             }, status=400)
         
         load.status = 'delivered'
@@ -2671,13 +2759,6 @@ def upload_pod_document_api(request, trip_id):
                 'error': 'POD document already uploaded'
             }, status=400)
         
-        # Only allow upload if status is 'unloading'
-        if load.trip_status != 'unloading':
-            return JsonResponse({
-                'success': False, 
-                'error': 'POD can only be uploaded when trip status is "Unloading"'
-            }, status=400)
-        
         if 'pod_document' not in request.FILES:
             return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
         
@@ -2697,8 +2778,9 @@ def upload_pod_document_api(request, trip_id):
         load.pod_document = pod_document
         load.pod_uploaded_at = timezone.now()
         
-        # Update trip status to pod_uploaded
+        # Update trip status to pod_uploaded and POD status to upload_soft_copy
         load.update_trip_status('pod_uploaded', user=request.user)
+        load.pod_status = 'upload_soft_copy'
         load.save()
         
         # Send notification to vendor
@@ -2736,25 +2818,35 @@ def payment_management(request):
         messages.error(request, "Access denied.")
         return redirect('admin_login')
 
-    # Show payments based on user role
+    # Only show trips with these statuses for payment management
+    payment_statuses = [
+        'upload_lr',
+        'in_transit',
+        'reached_unloading_point',
+        'unloading_completed',
+        'pod_pending',
+        'pod_received_at_office',
+        'balance_pending',
+        'balance_hold',
+        'balance_paid',
+        'trip_closed',
+    ]
+
     if request.user.role == 'traffic_person':
-        # Traffic person only sees their own payments
         trips = Load.objects.filter(
             created_by=request.user,
-        ).exclude(
-            status='pending'
+            trip_status__in=payment_statuses
         ).select_related(
             'driver', 'vehicle', 'vehicle_type', 'customer'
         ).order_by('-updated_at')
     else:
-        # Admin sees all payments
         trips = Load.objects.filter(
-            created_by=request.user,
-        ).exclude(
-            status='pending'
+            trip_status__in=payment_statuses
         ).select_related(
             'driver', 'vehicle', 'vehicle_type', 'customer'
         ).order_by('-updated_at')
+
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",trips)
 
     return render(request, 'payment_management.html', {'trips': trips})
 
@@ -2778,7 +2870,7 @@ def get_payment_details_api(request, trip_id):
             ).get(id=trip_id)
         
         # Determine payment status
-        final_payment_paid = load.trip_status == 'payment_completed'
+        final_payment_paid = load.trip_status == 'trip_closed'
 
         # Get payment dates
         final_payment_date = None
@@ -2967,9 +3059,9 @@ def mark_final_payment_paid_api(request, trip_id):
             # Save the model
             load.save()
 
-            # Update status to payment_completed WITH notification
+            # Update status to balance_paid WITH notification
             previous_status = load.trip_status
-            load.update_trip_status('payment_completed', user=request.user, send_notification=True)
+            load.update_trip_status('balance_paid', user=request.user, send_notification=True)
 
             return JsonResponse({
                 'success': True,
@@ -4268,6 +4360,7 @@ def assign_vendor_to_load(request, load_id):
         vendor_id = data.get('vendor_id')
         vehicle_id = data.get('vehicle_id')
         driver_id = data.get('driver_id')
+        new_amount = data.get('new_amount')  # New parameter for amount update
         
         if not vendor_id:
             return JsonResponse({
@@ -4322,6 +4415,28 @@ def assign_vendor_to_load(request, load_id):
                 'error': 'Load is already assigned'
             })
         
+        # Update amount if provided
+        if new_amount is not None:
+            try:
+                new_amount_decimal = Decimal(str(new_amount))
+                if new_amount_decimal < 0:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': 'Amount cannot be negative'
+                    })
+                # Update price_per_unit and final_payment
+                load.price_per_unit = new_amount_decimal
+                load.final_payment = new_amount_decimal
+                
+                # Calculate and update payment splits (90% and 10%)
+                load.first_half_payment = new_amount_decimal * Decimal('0.90')
+                load.second_half_payment = new_amount_decimal * Decimal('0.10')
+            except (ValueError, InvalidOperation):
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Invalid amount format'
+                })
+        
         # Create a LoadRequest for this vendor
         load_request, created = LoadRequest.objects.get_or_create(
             load=load,
@@ -4343,11 +4458,8 @@ def assign_vendor_to_load(request, load_id):
         load.driver = driver
         load.assigned_at = timezone.now()
         load.status = 'assigned'  # Set to assigned status since vehicle and driver are selected
-        # Also set trip_status to confirmed when vendor is assigned
-        try:
-            load.trip_status = 'confirmed'
-        except Exception:
-            pass
+        # Also set trip_status to trip_confirmed when vendor is assigned
+        load.trip_status = 'trip_confirmed'
         load.save()
         
         # Send notification to vendor with vehicle and driver details
@@ -4426,6 +4538,7 @@ def update_pod_received_date(request, trip_id):
         
         # Update the field
         load.pod_received_at = pod_received_datetime
+        load.pod_status = 'received_at_office'
         load.save()
         
         # Format for display
@@ -4453,3 +4566,39 @@ def update_pod_received_date(request, trip_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@login_required
+def pod_management(request):
+    """Display POD management page for trips from unloading_completed onwards"""
+    if not (request.user.is_staff or request.user.role == 'admin' or request.user.role == 'traffic_person'):
+        messages.error(request, "Access denied.")
+        return redirect('admin_login')
+
+    # Show all trips with these statuses for sidebar slider
+    pod_statuses = [
+        'unloading_completed',
+        'pod_pending',
+        'pod_received_at_office',
+        'balance_pending',
+        'balance_hold',
+        'balance_paid',
+        'trip_closed',
+    ]
+
+    if request.user.role == 'traffic_person':
+        loads = Load.objects.filter(
+            created_by=request.user,
+            trip_status__in=pod_statuses
+        )
+    else:
+        loads = Load.objects.filter(trip_status__in=pod_statuses)
+
+    loads = loads.select_related(
+        'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by'
+    ).order_by('-created_at')
+
+    context = {
+        'loads': loads,
+    }
+    return render(request, 'pod_management.html', context)

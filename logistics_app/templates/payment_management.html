@@ -1,6 +1,6 @@
 {% extends "admin_base.html" %}
 {% load static %}
-{% block title %}Trip Management{% endblock %}
+{% block title %}Payment Management{% endblock %}
 {% block content %}
 
 <!DOCTYPE html>
@@ -9,7 +9,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <title>Trip Management</title>
+  <title>Payment Management</title>
 
   <link rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
@@ -134,14 +134,19 @@
     .status-badge {
       padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
     }
-    .status-pending { background: #fef3c7; color: #d97706; }
-    .status-confirmed { background: #dbeafe; color: #2563eb; }
-    .status-loaded { background: #ffedd5; color: #ea580c; }
-    .status-lr_uploaded { background: #dbeafe; color: #2563eb; }
+    .status-trip_requested { background: #fef3c7; color: #d97706; }
+    .status-trip_confirmed { background: #dbeafe; color: #2563eb; }
+    .status-reached_loading_point { background: #ffedd5; color: #ea580c; }
+    .status-upload_lr { background: #dbeafe; color: #2563eb; }
     .status-in_transit { background: #ffedd5; color: #ea580c; }
-    .status-unloading { background: #dbeafe; color: #2563eb; }
-    .status-pod_uploaded { background: #d1fae5; color: #16a34a; }
-    .status-payment_completed { background: #d1fae5; color: #16a34a; }
+    .status-reached_unloading_point { background: #dbeafe; color: #2563eb; }
+    .status-unloading_completed { background: #d1fae5; color: #16a34a; }
+    .status-pod_pending { background: #fef3c7; color: #d97706; }
+    .status-pod_received_at_office { background: #d1fae5; color: #16a34a; }
+    .status-balance_pending { background: #fef3c7; color: #d97706; }
+    .status-balance_hold { background: #fed7d7; color: #c53030; }
+    .status-balance_paid { background: #d1fae5; color: #16a34a; }
+    .status-trip_closed { background: #d1fae5; color: #16a34a; }
 
     .pagination-container {
       display: flex;
@@ -698,6 +703,9 @@
     <button class="filter-btn" data-filter="pending" onclick="filterByPaymentStatus('pending')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
       <i class="fas fa-hourglass-end" style="color: #d97706;"></i> Pending
     </button>
+    <button class="filter-btn" data-filter="on_hold" onclick="filterByPaymentStatus('on_hold')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
+      <i class="fas fa-pause-circle" style="color: #c53030;"></i> On Hold
+    </button>
     <button class="filter-btn" data-filter="paid" onclick="filterByPaymentStatus('paid')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
       <i class="fas fa-check-double" style="color: #16a34a;"></i> Paid
     </button>
@@ -719,7 +727,7 @@
     <tbody>
       {% if trips %}
         {% for load in trips %}
-        <tr class="clickable-row" data-trip-id="{{ load.id }}" data-payment-status="{% if load.first_half_payment_paid and load.trip_status == 'payment_completed' %}paid{% elif load.first_half_payment_paid %}advance_paid{% else %}pending{% endif %}">
+        <tr class="clickable-row" data-trip-id="{{ load.id }}" data-payment-status="{% if load.trip_status == 'balance_hold' %}on_hold{% elif load.first_half_payment_paid and load.trip_status == 'trip_closed' %}paid{% elif load.first_half_payment_paid %}advance_paid{% else %}pending{% endif %}">
           <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
           <td>
             <div class="route-display">
@@ -732,7 +740,10 @@
           <!-- Payment Status Column -->
           <td>
             <div class="payment-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
-              {% if load.first_half_payment_paid and load.trip_status == "payment_completed" %}
+              {% if load.trip_status == 'balance_hold' %}
+                <i class="fas fa-pause-circle" style="color: #c53030;"></i>
+                <span style="color: #c53030; background: #fed7d7; padding: 0 8px; border-radius: 4px;">On Hold</span>
+              {% elif load.first_half_payment_paid and load.trip_status == "trip_closed" %}
                 <i class="fas fa-check-double" style="color: #16a34a;"></i>
                 <span style="color: #16a34a; background: #d1fae5; padding: 0 8px; border-radius: 4px;">Paid</span>
               {% elif load.first_half_payment_paid %}
@@ -761,7 +772,7 @@
           <td>
             <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
               <span style="font-weight: 600; color: #111827;">₹{{ load.second_half_payment|floatformat:2 }}</span>
-              {% if load.trip_status == "payment_completed" %}
+              {% if load.trip_status == "trip_closed" %}
                 <span style="font-size: 11px; color: #16a34a; background: #d1fae5; padding: 2px 6px; border-radius: 3px;">✓ Paid</span>
               {% else %}
                 <span style="font-size: 11px; color: #d97706; background: #fef3c7; padding: 2px 6px; border-radius: 3px;">⏳ Pending</span>
@@ -785,7 +796,7 @@
         </tr>
         {% endfor %}
       {% else %}
-        <tr><td colspan="8" style="text-align:center;padding:60px;color:#6b7280;">No trips found.</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:60px;color:#6b7280;">No payment records found.</td></tr>
       {% endif %}
     </tbody>
   </table>
@@ -1645,7 +1656,10 @@ function populatePaymentDetails(data) {
   let statusBadge = 'Pending';
   let statusBadgeClass = 'background: #fef3c7; color: #d97706;';
   
-  if (data.final_payment_paid) {
+  if (data.trip_status === 'balance_hold') {
+    statusBadge = 'On Hold';
+    statusBadgeClass = 'background: #fed7d7; color: #c53030;';
+  } else if (data.final_payment_paid) {
     statusBadge = 'Paid';
     statusBadgeClass = 'background: #d1fae5; color: #16a34a;';
   } else if (data.first_half_payment_paid) {
@@ -1858,14 +1872,19 @@ function renderTimeline(data) {
   container.innerHTML = '';
   
   const statusOrder = [
-    'pending',
-    'confirmed',
-    'loaded', 
-    'lr_uploaded',
+    'trip_requested',
+    'trip_confirmed',
+    'reached_loading_point',
+    'upload_lr',
     'in_transit',
-    'unloading',
-    'pod_uploaded',
-    'payment_completed'
+    'reached_unloading_point',
+    'unloading_completed',
+    'pod_pending',
+    'pod_received_at_office',
+    'balance_pending',
+    'balance_hold',
+    'balance_paid',
+    'trip_closed'
   ];
   
   const currentStatusIndex = statusOrder.indexOf(data.trip_status);
@@ -1944,65 +1963,100 @@ function getStatusInfo(status, data) {
   };
 
   const statusConfig = {
-    pending: {
+    trip_requested: {
       icon: 'fa-clipboard-check',
       title: 'Trip Requested',
       description: 'Trip booking requested',
       timestamp: formatTimestamp(data.pending_at),
       hasFile: false
     },
-    confirmed: {
+    trip_confirmed: {
       icon: 'fa-check-circle',
       title: 'Trip Confirmed',
       description: 'Trip booking confirmed by vendor',
       timestamp: formatTimestamp(data.assigned_at),
       hasFile: false
     },
-    loaded: {
+    reached_loading_point: {
       icon: 'fa-box',
-      title: 'Reach Loading Point',
+      title: 'Reached at Loading point',
       description: 'Cargo reached loading point',
       timestamp: formatTimestamp(data.loaded_at),
       hasFile: false
     },
-    lr_uploaded: {
+    upload_lr: {
       icon: 'fa-file-invoice',
-      title: 'LR Uploaded',
+      title: 'Upload LR',
       description: 'Loading receipt document uploaded',
       timestamp: formatTimestamp(data.lr_uploaded_at),
       hasFile: !!data.lr_document,
       fileUrl: data.lr_document,
       fileName: data.lr_document_name
     },
-    // first_half_payment: {
-    //   icon: 'fa-money-bill-wave',
-    //   title: 'First Half Payment',
-    //   description: `₹${data.first_half_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} paid to driver`,
-    //   timestamp: formatTimestamp(data.first_half_payment_at),
-    //   hasFile: false
-    // },
     in_transit: {
-      icon: 'fa-truck-moving',
-      title: 'In Transit',
-      description: 'Vehicle on route to destination',
+      icon: 'fa-truck',
+      title: 'In transit',
+      description: 'Cargo in transit to destination',
       timestamp: formatTimestamp(data.in_transit_at),
       hasFile: false
     },
-    unloading: {
+    reached_unloading_point: {
       icon: 'fa-box-open',
-      title: 'Reach Unloading Point',
+      title: 'Reached at unloading point',
       description: 'Cargo reached unloading point at destination',
       timestamp: formatTimestamp(data.unloading_at),
       hasFile: false
     },
-    pod_uploaded: {
-      icon: 'fa-file-signature',
-      title: 'POD Uploaded',
-      description: 'Proof of delivery document uploaded',
+    unloading_completed: {
+      icon: 'fa-check-double',
+      title: 'Unloading completed',
+      description: 'Unloading process completed',
+      timestamp: formatTimestamp(data.unloading_at),
+      hasFile: false
+    },
+    pod_pending: {
+      icon: 'fa-clock',
+      title: 'POD status - Pending',
+      description: 'Proof of delivery pending',
       timestamp: formatTimestamp(data.pod_uploaded_at),
+      hasFile: false
+    },
+    pod_received_at_office: {
+      icon: 'fa-building',
+      title: 'POD status - received at rotra office',
+      description: 'POD received at office',
+      timestamp: formatTimestamp(data.pod_received_at),
       hasFile: !!data.pod_document,
       fileUrl: data.pod_document,
       fileName: data.pod_document_name
+    },
+    balance_pending: {
+      icon: 'fa-money-bill-wave',
+      title: 'Balance pending',
+      description: 'Balance payment pending',
+      timestamp: formatTimestamp(data.payment_completed_at),
+      hasFile: false
+    },
+    balance_hold: {
+      icon: 'fa-pause-circle',
+      title: 'Balance hold',
+      description: data.hold_reason ? `Hold Reason: ${data.hold_reason}` : 'Balance payment on hold',
+      timestamp: formatTimestamp(data.hold_at),
+      hasFile: false
+    },
+    balance_paid: {
+      icon: 'fa-credit-card',
+      title: 'Balance paid',
+      description: 'Balance payment completed',
+      timestamp: formatTimestamp(data.payment_completed_at),
+      hasFile: false
+    },
+    trip_closed: {
+      icon: 'fa-check-circle',
+      title: 'Trip closed',
+      description: 'Trip completed successfully',
+      timestamp: formatTimestamp(data.payment_completed_at),
+      hasFile: false
     },
     payment_completed: {
       icon: 'fa-credit-card',

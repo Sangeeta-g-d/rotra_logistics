@@ -12,6 +12,8 @@ urlpatterns = [
     path('customers/', views.customer_list, name='customer_list'),
     path('customers/add/', views.add_customer, name='add_customer'),
     path('customers/<int:pk>/delete/', views.delete_customer, name='delete_customer'),
+    path('api/customers/add-new/', views.add_new_customer, name='add_new_customer'),
+    path('api/contact-persons/add-new/', views.add_new_contact_person, name='add_new_contact_person'),
     path('drivers/', views.driver_list, name='driver_list'),
     path('drivers/add/', views.add_driver, name='add_driver'),
     path('drivers/<int:driver_id>/update/', views.update_driver, name='update_driver'),
@@ -81,6 +83,7 @@ urlpatterns = [
 
 
 path('payments/', views.payment_management, name='payment_management'),
+path('pods/', views.pod_management, name='pod_management'),
 path('api/payment/<int:trip_id>/details/', views.get_payment_details_api, name='get_payment_details_api'),
     path('api/payment/<int:trip_id>/mark-final-payment-paid/', views.mark_final_payment_paid_api, name='mark_final_payment_paid'),
     path('api/trip/<int:trip_id>/add-holding-charges/', views.add_holding_charges_api, name='add_holding_charges_api'),

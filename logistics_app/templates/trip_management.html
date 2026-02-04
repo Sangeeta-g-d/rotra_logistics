@@ -19,6 +19,28 @@
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
   <link rel="stylesheet" href="/static/css/trip.css">
+  <style>
+    .status-badge {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+    }
+    .status-trip_requested { background: #fef3c7; color: #d97706; }
+    .status-trip_confirmed { background: #dbeafe; color: #2563eb; }
+    .status-reached_loading_point { background: #ffedd5; color: #ea580c; }
+    .status-upload_lr { background: #dbeafe; color: #2563eb; }
+    .status-in_transit { background: #ffedd5; color: #ea580c; }
+    .status-reached_unloading_point { background: #dbeafe; color: #2563eb; }
+    .status-unloading_completed { background: #d1fae5; color: #16a34a; }
+    .status-pod_pending { background: #fef3c7; color: #d97706; }
+    .status-pod_received_at_office { background: #d1fae5; color: #16a34a; }
+    .status-balance_pending { background: #fef3c7; color: #d97706; }
+    .status-balance_hold { background: #fed7d7; color: #c53030; }
+    .status-balance_paid { background: #d1fae5; color: #16a34a; }
+    .status-trip_closed { background: #d1fae5; color: #16a34a; }
+  </style>
 </head>
 <body>
 <style>
@@ -85,13 +107,19 @@
     <div class="search-add-container">
       <select id="statusFilter" class="search-input" style="width:180px;">
         <option value="all" selected>All Statuses</option>
-        <option value="pending">Pending</option>
-        <option value="loaded">Reach Loading Point</option>
-        <option value="lr_uploaded">LR Uploaded</option>
-        <option value="in_transit">In Transit</option>
-        <option value="unloading">Reach Unloading Point</option>
-        <option value="pod_uploaded">POD Uploaded</option>
-        <option value="payment_completed">Payment Completed</option>
+        <option value="trip_requested">Trip Requested</option>
+        <option value="trip_confirmed">Trip Confirmed</option>
+        <option value="reached_loading_point">Reached at Loading point</option>
+        <option value="upload_lr">Upload LR</option>
+        <option value="in_transit">In transit</option>
+        <option value="reached_unloading_point">Reached at unloading point</option>
+        <option value="unloading_completed">Unloading completed</option>
+        <option value="pod_pending">POD status - Pending</option>
+        <option value="pod_received_at_office">POD status - received at rotra office</option>
+        <option value="balance_pending">Balance pending</option>
+        <option value="balance_hold">Balance hold</option>
+        <option value="balance_paid">Balance paid</option>
+        <option value="trip_closed">Trip closed</option>
       </select>
       <input type="text" id="searchInput" placeholder="Search trips..." class="search-input">
       <button class="add-button" onclick="window.location.href='{% url 'load_list' %}'">View All Loads</button>
@@ -273,6 +301,10 @@
           <span>Total Amount</span>
           <span id="totalAmountStatus" class="pending">₹0</span>
         </div>
+        <div class="payment-row" style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; font-weight: 600; color: #2563eb;">
+          <span>User Amount</span>
+          <span id="userAmountStatus" class="pending">₹0</span>
+        </div>
         <div class="payment-row" style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; font-weight: 600; color: #16a34a;">
           <span>Remaining to be Paid</span>
           <span id="remainingAmountStatus" class="pending">₹0</span>
@@ -362,15 +394,19 @@
         <div style="display: flex; gap: 8px; align-items: center;">
           <select id="statusSelect" class="status-select" style="flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
             <option value="">Select Status...</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="loaded">Reach Loading Point</option>
-            <option value="lr_uploaded">LR Uploaded</option>
-            <option value="in_transit">In Transit</option>
-            <option value="unloading">Reach Unloading Point</option>
-            <option value="pod_uploaded">POD Uploaded</option>
-            <option value="payment_completed">Payment Completed</option>
-            <option value="hold">Hold</option>
+            <option value="trip_requested">Trip Requested</option>
+            <option value="trip_confirmed">Trip Confirmed</option>
+            <option value="reached_loading_point">Reached at Loading point</option>
+            <option value="upload_lr">Upload LR</option>
+            <option value="in_transit">In transit</option>
+            <option value="reached_unloading_point">Reached at unloading point</option>
+            <option value="unloading_completed">Unloading completed</option>
+            <option value="pod_pending">POD status - Pending</option>
+            <option value="pod_received_at_office">POD status - received at rotra office</option>
+            <option value="balance_pending">Balance pending</option>
+            <option value="balance_hold">Balance hold</option>
+            <option value="balance_paid">Balance paid</option>
+            <option value="trip_closed">Trip closed</option>
           </select>
           <button class="btn-update" id="btnUpdateStatus">Update Status</button>
         </div>
@@ -1267,6 +1303,11 @@ function populateSidebar(data) {
   }
   
   // Update payment display with first half and second half payment
+  // User Amount
+  const userAmountStatus = document.getElementById('userAmountStatus');
+  if (userAmountStatus && data.user_amount !== undefined) {
+    userAmountStatus.textContent = `\u20b9${parseFloat(data.user_amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  }
   const holdingChargesStatus = document.getElementById('holdingChargesStatus');
   const totalAmountStatus = document.getElementById('totalAmountStatus');
   const remainingAmountStatus = document.getElementById('remainingAmountStatus');
@@ -1384,23 +1425,23 @@ function populateSidebar(data) {
   renderChatMessages(data.comments || []);
   
   const uploadLRBtn = document.getElementById('btnUploadLR');
-  if (data.trip_status === 'loaded' && !data.lr_document) {
+  if (!data.lr_document) {
     uploadLRBtn.style.display = 'inline-block';
   } else {
     uploadLRBtn.style.display = 'none';
   }
   
   const uploadPODBtn = document.getElementById('btnUploadPOD');
-  if (data.trip_status === 'unloading' && !data.pod_document) {
+  if (!data.pod_document) {
     uploadPODBtn.style.display = 'inline-block';
   } else {
     uploadPODBtn.style.display = 'none';
   }
   
   const btnCloseTrip = document.getElementById('btnCloseTrip');
-  btnCloseTrip.disabled = data.trip_status !== 'payment_completed';
-  btnCloseTrip.style.opacity = data.trip_status !== 'payment_completed' ? '0.5' : '1';
-  btnCloseTrip.style.cursor = data.trip_status !== 'payment_completed' ? 'not-allowed' : 'pointer';
+  btnCloseTrip.disabled = data.trip_status !== 'trip_closed';
+  btnCloseTrip.style.opacity = data.trip_status !== 'trip_closed' ? '0.5' : '1';
+  btnCloseTrip.style.cursor = data.trip_status !== 'trip_closed' ? 'not-allowed' : 'pointer';
 }
 
 function renderChatMessages(comments) {
@@ -1448,15 +1489,19 @@ function renderTimeline(data) {
   container.innerHTML = '';
   
   const statusOrder = [
-    'pending',
-    'confirmed',
-    'loaded', 
-    'lr_uploaded',
+    'trip_requested',
+    'trip_confirmed',
+    'reached_loading_point',
+    'upload_lr',
     'in_transit',
-    'unloading',
-    'pod_uploaded',
-    'hold',
-    'payment_completed'
+    'reached_unloading_point',
+    'unloading_completed',
+    'pod_pending',
+    'pod_received_at_office',
+    'balance_pending',
+    'balance_hold',
+    'balance_paid',
+    'trip_closed'
   ];
   
   // Find current status index
@@ -1476,7 +1521,7 @@ function renderTimeline(data) {
     let isPending = index > displayCurrentIndex;
     
     // For final stage, everything is completed
-    if (data.trip_status === 'payment_completed') {
+    if (data.trip_status === 'trip_closed') {
       isCompleted = true;
       isCurrent = false;
       isPending = false;
@@ -1564,30 +1609,30 @@ function getStatusInfo(status, data) {
   };
 
   const statusConfig = {
-    pending: {
+    trip_requested: {
       icon: 'fa-clipboard-check',
       title: 'Trip Requested',
       description: 'Trip booking requested',
       timestamp: formatTimestamp(data.pending_at),
       hasFile: false
     },
-    confirmed: {
+    trip_confirmed: {
       icon: 'fa-check-circle',
       title: 'Trip Confirmed',
       description: 'Trip booking confirmed by vendor',
       timestamp: formatTimestamp(data.assigned_at),
       hasFile: false
     },
-    loaded: {
+    reached_loading_point: {
       icon: 'fa-box',
-      title: 'Reach Loading Point',
+      title: 'Reached at Loading point',
       description: 'Cargo reached loading point',
       timestamp: formatTimestamp(data.loaded_at),
       hasFile: false
     },
-    lr_uploaded: {
+    upload_lr: {
       icon: 'fa-file-invoice',
-      title: 'LR Uploaded',
+      title: 'Upload LR',
       description: 'Loading receipt document uploaded',
       timestamp: formatTimestamp(data.lr_uploaded_at),
       hasFile: !!data.lr_document,
@@ -1596,39 +1641,67 @@ function getStatusInfo(status, data) {
     },
     in_transit: {
       icon: 'fa-truck',
-      title: 'In Transit',
+      title: 'In transit',
       description: 'Cargo in transit to destination',
       timestamp: formatTimestamp(data.in_transit_at),
       hasFile: false
     },
-    unloading: {
+    reached_unloading_point: {
       icon: 'fa-box-open',
-      title: 'Reach Unloading Point',
+      title: 'Reached at unloading point',
       description: 'Cargo reached unloading point at destination',
       timestamp: formatTimestamp(data.unloading_at),
       hasFile: false
     },
-    pod_uploaded: {
-      icon: 'fa-file-signature',
-      title: 'POD Uploaded',
-      description: 'Proof of delivery document uploaded',
+    unloading_completed: {
+      icon: 'fa-check-double',
+      title: 'Unloading completed',
+      description: 'Unloading process completed',
+      timestamp: formatTimestamp(data.unloading_at),
+      hasFile: false
+    },
+    pod_pending: {
+      icon: 'fa-clock',
+      title: 'POD status - Pending',
+      description: 'Proof of delivery pending',
       timestamp: formatTimestamp(data.pod_uploaded_at),
+      hasFile: false
+    },
+    pod_received_at_office: {
+      icon: 'fa-building',
+      title: 'POD status - received at rotra office',
+      description: 'POD received at office',
+      timestamp: formatTimestamp(data.pod_received_at),
       hasFile: !!data.pod_document,
       fileUrl: data.pod_document,
       fileName: data.pod_document_name
     },
-    payment_completed: {
-      icon: 'fa-credit-card',
-      title: 'Payment Completed',
-      description: 'Final payment processed',
+    balance_pending: {
+      icon: 'fa-money-bill-wave',
+      title: 'Balance pending',
+      description: 'Balance payment pending',
       timestamp: formatTimestamp(data.payment_completed_at),
       hasFile: false
     },
-    hold: {
+    balance_hold: {
       icon: 'fa-pause-circle',
-      title: 'Trip On Hold',
-      description: data.hold_reason ? `Hold Reason: ${data.hold_reason}` : 'Trip is on hold',
+      title: 'Balance hold',
+      description: data.hold_reason ? `Hold Reason: ${data.hold_reason}` : 'Balance payment on hold',
       timestamp: formatTimestamp(data.hold_at),
+      hasFile: false
+    },
+    balance_paid: {
+      icon: 'fa-credit-card',
+      title: 'Balance paid',
+      description: 'Balance payment completed',
+      timestamp: formatTimestamp(data.payment_completed_at),
+      hasFile: false
+    },
+    trip_closed: {
+      icon: 'fa-check-circle',
+      title: 'Trip closed',
+      description: 'Trip completed successfully',
+      timestamp: formatTimestamp(data.payment_completed_at),
       hasFile: false
     }
   };
@@ -1674,14 +1747,19 @@ function updateTripStatus() {
   
   // Status display names
   const statusNames = {
-    'pending': 'Pending',
-    'loaded': 'Reach Loading Point',
-    'lr_uploaded': 'LR Uploaded',
-    'in_transit': 'In Transit',
-    'unloading': 'Reach Unloading Point',
-    'pod_uploaded': 'POD Uploaded',
-    'payment_completed': 'Payment Completed',
-    'hold': 'Hold'
+    'trip_requested': 'Trip Requested',
+    'trip_confirmed': 'Trip Confirmed',
+    'reached_loading_point': 'Reached at Loading point',
+    'upload_lr': 'Upload LR',
+    'in_transit': 'In transit',
+    'reached_unloading_point': 'Reached at unloading point',
+    'unloading_completed': 'Unloading completed',
+    'pod_pending': 'POD status - Pending',
+    'pod_received_at_office': 'POD status - received at rotra office',
+    'balance_pending': 'Balance pending',
+    'balance_hold': 'Balance hold',
+    'balance_paid': 'Balance paid',
+    'trip_closed': 'Trip closed'
   };
   
   // Check if status is same as current
@@ -1690,8 +1768,8 @@ function updateTripStatus() {
     return;
   }
   
-  // Special handling for Payment Completed - show Hold/Completed dialog
-  if (selectedStatus === 'payment_completed') {
+  // Special handling for Balance Paid - show Hold/Completed dialog
+  if (selectedStatus === 'balance_paid') {
     showHoldCompletedModal();
     return;
   }
@@ -1703,17 +1781,8 @@ function updateTripStatus() {
     return;
   }
   
-  // Check for LR document if trying to set to lr_uploaded
-  if (selectedStatus === 'lr_uploaded') {
-    // We'll check this on the backend, but show a warning
-    const lrCheck = confirm('Note: LR document must be uploaded. Continue?');
-    if (!lrCheck) {
-      return;
-    }
-  }
-  
-  // Check for POD document if trying to set to pod_uploaded
-  if (selectedStatus === 'pod_uploaded') {
+  // Check for POD document if trying to set to pod_received_at_office
+  if (selectedStatus === 'pod_received_at_office') {
     // We'll check this on the backend, but show a warning
     const podCheck = confirm('Note: POD document must be uploaded. Continue?');
     if (!podCheck) {
@@ -1722,8 +1791,8 @@ function updateTripStatus() {
   }
   
   // Handle Hold status - need reason
-  if (selectedStatus === 'hold') {
-    showHoldReasonModal();
+  if (selectedStatus === 'balance_hold') {
+    showHoldReasonModal(selectedStatus);
     return;
   }
   
@@ -1988,7 +2057,7 @@ function submitConfirmedPayment() {
       showToast(result.message || 'Payment completed', 'success');
       closePaymentCompleteModal();
       // update UI: update row and sidebar
-      updateTableRow(currentTripId, 'payment_completed', 'Payment Completed');
+      updateTableRow(currentTripId, 'balance_paid', 'Balance Paid');
       setTimeout(() => {
         loadTripDetails(currentTripId);
       }, 300);
@@ -2028,7 +2097,7 @@ function updateConfirmedAmountDisplay(e) {
   document.getElementById('pcConfirmedAmount').textContent = `₹${confirmed.toLocaleString('en-IN',{minimumFractionDigits:2})}`;
 }
 
-function showHoldReasonModal() {
+function showHoldReasonModal(selectedStatus) {
   // Create modal if it doesn't exist
   let modal = document.getElementById('holdReasonModal');
   if (!modal) {
@@ -2065,7 +2134,7 @@ function showHoldReasonModal() {
         return;
       }
       closeHoldReasonModal();
-      proceedWithStatusUpdate('hold', reason);
+      proceedWithStatusUpdate(selectedStatus, reason);
     });
   }
   
@@ -2162,15 +2231,19 @@ function createHoldingChargesModal() {
       <div style="margin-bottom: 15px;">
         <label style="display: block; margin-bottom: 5px; font-weight: 500;">Trip Stage</label>
         <select id="hcTripStage" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
-          <option value="pending">Pending</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="loaded">Reach Loading Point</option>
-          <option value="lr_uploaded">LR Uploaded</option>
-          <option value="in_transit">In Transit</option>
-          <option value="unloading">Reach Unloading Point</option>
-          <option value="pod_uploaded">POD Uploaded</option>
-          <option value="payment_completed">Payment Completed</option>
-          <option value="hold">Hold</option>
+          <option value="trip_requested">Trip Requested</option>
+          <option value="trip_confirmed">Trip Confirmed</option>
+          <option value="reached_loading_point">Reached at Loading point</option>
+          <option value="upload_lr">Upload LR</option>
+          <option value="in_transit">In transit</option>
+          <option value="reached_unloading_point">Reached at unloading point</option>
+          <option value="unloading_completed">Unloading completed</option>
+          <option value="pod_pending">POD status - Pending</option>
+          <option value="pod_received_at_office">POD status - received at rotra office</option>
+          <option value="balance_pending">Balance pending</option>
+          <option value="balance_hold">Balance hold</option>
+          <option value="balance_paid">Balance paid</option>
+          <option value="trip_closed">Trip closed</option>
         </select>
       </div>
       

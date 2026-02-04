@@ -57,7 +57,14 @@
         "driver_name": "{{ load.driver.full_name|default:'-' }}",
         "driver_phone": "{{ load.driver.phone_number|default:'-' }}",
         "status": "{{ load.status }}",
-        "status_display": "{{ load.get_status_display }}"
+        "status_display": "{{ load.get_status_display }}",
+        "customer_name": "{{ load.customer.customer_name }}",
+        "customer_phone": "{{ load.customer.phone_number }}",
+        "customer_location": "{{ load.customer.location|default:'-' }}",
+        "contact_person_name": "{{ load.contact_person_name|default_if_none:''|default:'' }}{% if not load.contact_person_name and load.customer.contacts.all %}{{ load.customer.contacts.all.0.name }}{% elif not load.contact_person_name %}-{% endif %}",
+        "contact_person_phone": "{{ load.contact_person_phone|default_if_none:''|default:'' }}{% if not load.contact_person_phone and load.customer.contacts.all %}{{ load.customer.contacts.all.0.phone_number }}{% elif not load.contact_person_phone %}-{% endif %}",
+        "price_per_unit": "{{ load.price_per_unit }}",
+        "final_payment": "{{ load.final_payment }}"
     }'>
     <td style="color:var(--primary); font-weight: 1000;">{{ load.load_id }}</td>
     <td>
@@ -184,6 +191,40 @@
       </button>
     </div>
 
+    <!-- Customer Details -->
+    <div class="sidebar-section" style="background:#fef3c7; border-left: 4px solid #f59e0b;">
+      <h4 style="color:#92400e; margin-top: 0;">Customer Details</h4>
+      <div class="trip-info-grid">
+        <div>
+          <div class="trip-info-label" style="color:#92400e;">Customer Name</div>
+          <div id="sidebarCustomerName" class="trip-info-value" style="color:#451a03;"></div>
+        </div>
+        <div>
+          <div class="trip-info-label" style="color:#92400e;">Phone</div>
+          <div id="sidebarCustomerPhone" class="trip-info-value" style="color:#451a03;"></div>
+        </div>
+        <div>
+          <div class="trip-info-label" style="color:#92400e;">Location</div>
+          <div id="sidebarCustomerLocation" class="trip-info-value" style="color:#451a03;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contact Person Details -->
+    <div class="sidebar-section" style="background:#dbeafe; border-left: 4px solid #3b82f6;">
+      <h4 style="color:#1e3a8a; margin-top: 0;">Contact Person</h4>
+      <div class="trip-info-grid">
+        <div>
+          <div class="trip-info-label" style="color:#1e3a8a;">Name</div>
+          <div id="sidebarContactPersonName" class="trip-info-value" style="color:#0c2340;"></div>
+        </div>
+        <div>
+          <div class="trip-info-label" style="color:#1e3a8a;">Phone</div>
+          <div id="sidebarContactPersonPhone" class="trip-info-value" style="color:#0c2340;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Trip Info -->
     <div class="sidebar-section" style="background:#fafafa;">
       <h4>Trip Information</h4>
@@ -212,23 +253,6 @@
     <i class="fas fa-user-plus"></i> Assign Vendor
   </button>
 </div>
-    <!-- Chat -->
-    <div class="sidebar-section chat-container">
-      <h4 class="chat-header">Chat</h4>
-      <div class="chat-messages">
-        <div class="chat-message">
-          <div class="chat-label">Admin</div>
-          <div class="chat-bubble admin">Driver confirmed departure from Mumbai warehouse.</div>
-          <div class="chat-time">Dec 21, 10:30 AM</div>
-        </div>
-      </div>
-      <div class="chat-input-container">
-        <input type="text" class="chat-input" placeholder="Type a comment">
-        <button class="chat-send-btn">
-          <i class="fa-solid fa-paper-plane"></i>
-        </button>
-      </div>
-    </div>
 
     <!-- Close Trip Button -->
     <div class="sidebar-section">
@@ -269,12 +293,14 @@
         {{ customer.customer_name }}
       </option>
       {% endfor %}
+      <option value="__add_new__" style="font-weight: bold; color: #dc2626;">+ Add New Customer</option>
     </select>
   </div>
   <div class="form-group">
     <label>Contact Person <span class="required">*</span></label>
     <select name="contactPerson" id="contactPersonSelect" required>
       <option value="">Select Contact Person</option>
+      <option value="__add_new__" style="font-weight: bold; color: #dc2626;">+ Add New Contact Person</option>
     </select>
   </div>
 </div>
@@ -284,6 +310,20 @@
     <label>Contact Phone</label>
     <input type="tel" name="contactPersonPhone" id="contactPersonPhone" placeholder="Phone number will auto-fill" readonly>
   </div>
+  <div class="form-group">
+    <label>Customer Amount (Optional)</label>
+    <input type="number" 
+           name="customer_amount" 
+           id="customerAmountInput"
+           step="0.01" 
+           min="0" 
+           placeholder="Enter customer-specific amount"
+           style="font-size:14px; font-weight:600; padding: 10px;">
+    <small style="color:#6b7280; font-size: 12px; margin-top: 4px;">Customer-specific amount for this load</small>
+  </div>
+</div>
+
+<div class="form-row">
   <div class="form-group">
     <label>Vehicle Type <span class="required">*</span></label>
     <select name="vehicleType" required>
@@ -351,19 +391,6 @@
       </div>
 
       <div class="form-row">
-  <div class="checkbox-container">
-  <input 
-    type="checkbox" 
-    name="apply_tds" 
-    id="apply_tds" 
-    class="form-check-input"
-  >
-  <label for="apply_tds" class="form-check-label fw-semibold">
-    Apply TDS Deduction
-  </label>
-</div>
-</div>
-      <div class="form-row">
         <div class="form-group full-width">
           <label>Total Trip Amount</label>
           <input type="number" 
@@ -375,20 +402,6 @@
                  placeholder="Enter full freight amount"
                  style="font-size:16px; font-weight:600; padding: 12px;">
           <small style="color:#6b7280; font-size: 12px; margin-top: 4px;">Enter the complete freight amount for the trip</small>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group full-width">
-          <label>User Amount (Optional)</label>
-          <input type="number" 
-                 name="user_amount" 
-                 id="userAmountInput"
-                 step="0.01" 
-                 min="0" 
-                 placeholder="Enter user-specific amount"
-                 style="font-size:16px; font-weight:600; padding: 12px;">
-          <small style="color:#6b7280; font-size: 12px; margin-top: 4px;">Enter the user-specific amount for this load (if applicable)</small>
         </div>
       </div>
 
@@ -438,6 +451,76 @@
       <div class="modal-actions">
         <button type="button" class="cancel-btn" id="cancelLoadModal">Cancel</button>
         <button type="submit" class="save-btn">Create Load</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ====================== ADD NEW CUSTOMER MODAL ====================== -->
+<div id="addNewCustomerModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Add New Customer</h3>
+      <button class="modal-close" id="closeNewCustomerModal">×</button>
+    </div>
+    <p class="modal-subtitle">Fill in the details below to add a new customer</p>
+
+    <form id="addNewCustomerForm">
+      {% csrf_token %}
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label>Customer Name <span class="required">*</span></label>
+          <input type="text" name="customer_name" required placeholder="Enter customer name" minlength="2">
+        </div>
+        <div class="form-group">
+          <label>Phone Number <span class="required">*</span></label>
+          <input type="tel" name="phone_number" required placeholder="10-digit mobile number" pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Location</label>
+          <input type="text" name="location" placeholder="Enter customer location">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="cancel-btn" id="cancelNewCustomerModal">Cancel</button>
+        <button type="submit" class="save-btn">Save Customer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ====================== ADD NEW CONTACT PERSON MODAL ====================== -->
+<div id="addNewContactPersonModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Add New Contact Person</h3>
+      <button class="modal-close" id="closeNewContactPersonModal">×</button>
+    </div>
+    <p class="modal-subtitle">Fill in the details below to add a new contact person</p>
+
+    <form id="addNewContactPersonForm">
+      {% csrf_token %}
+      <input type="hidden" name="customer_id" id="contactPersonCustomerId">
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contact Person Name <span class="required">*</span></label>
+          <input type="text" name="contact_name" required placeholder="Enter contact person name" minlength="2">
+        </div>
+        <div class="form-group">
+          <label>Phone Number <span class="required">*</span></label>
+          <input type="tel" name="contact_phone" required placeholder="10-digit mobile number" pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="cancel-btn" id="cancelNewContactPersonModal">Cancel</button>
+        <button type="submit" class="save-btn">Save Contact Person</button>
       </div>
     </form>
   </div>
@@ -667,6 +750,28 @@
               <div style="text-align: center; color: #9ca3af; padding: 10px;">Select a vendor to view drivers</div>
             </div>
           </div>
+
+          <!-- Update Amount Section -->
+          <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            <h4 style="margin-bottom: 10px; color: #374151; font-size: 14px; font-weight: 600;">Update Amount (Optional)</h4>
+            <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <small style="color: #1e40af; font-size: 12px;">
+                <i class="fas fa-info-circle"></i> Current Amount: <span id="currentAmountDisplay" style="font-weight: 600;">₹0.00</span>
+              </small>
+            </div>
+            <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #374151;">
+              New Amount (₹)
+            </label>
+            <input type="number" 
+                   id="updateAmountInput" 
+                   placeholder="Enter new amount" 
+                   step="0.01" 
+                   min="0"
+                   style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; margin-bottom: 8px;">
+            <small style="color: #6b7280; font-size: 12px; display: block;">
+              Leave empty to keep current amount
+            </small>
+          </div>
         </div>
 
         <div id="vendorDetailsEmpty" style="text-align: center; padding: 60px 20px; color: #9ca3af;">
@@ -767,11 +872,20 @@ document.addEventListener('DOMContentLoaded', function () {
   customerSelect?.addEventListener('change', function() {
     const customerId = this.value;
     const selectedOption = this.options[this.selectedIndex];
+    
+    // Handle "Add New Customer" option
+    if (customerId === '__add_new__') {
+      document.getElementById('addNewCustomerModal').style.display = 'flex';
+      this.value = ''; // Reset the select
+      return;
+    }
+    
     const customerPhone = selectedOption.dataset.phone || '';
     const customerLocation = selectedOption.dataset.location || '';
     
     // Clear contact person dropdown and phone
     contactPersonSelect.innerHTML = '<option value="">Select Contact Person</option>';
+    contactPersonSelect.appendChild(new Option('+ Add New Contact Person', '__add_new__'));
     contactPhoneInput.value = '';
     contactPhoneInput.placeholder = 'Phone number will auto-fill';
     
@@ -804,25 +918,49 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       }
       
+      // Add "Add New Contact Person" option
+      const addNewOption = document.createElement('option');
+      addNewOption.value = '__add_new__';
+      addNewOption.textContent = '+ Add New Contact Person';
+      addNewOption.style.fontWeight = 'bold';
+      addNewOption.style.color = '#dc2626';
+      contactPersonSelect.appendChild(addNewOption);
+      
       // If only customer primary, auto-select it and show phone
-      if (contactPersonSelect.options.length === 2) { // 1 for placeholder + 1 for primary
+      if (contactPersonSelect.options.length === 3) { // 1 for placeholder + 1 for primary + 1 for add new
         contactPersonSelect.selectedIndex = 1;
         contactPhoneInput.value = customerPhone;
       }
       
       // If no contact persons found, show message
-      if (contactPersonSelect.options.length === 1) {
+      if (contactPersonSelect.options.length === 2) { // Only placeholder and add new
         const noContactsOption = document.createElement('option');
         noContactsOption.value = '';
         noContactsOption.textContent = 'No contact persons found';
         noContactsOption.disabled = true;
-        contactPersonSelect.appendChild(noContactsOption);
+        contactPersonSelect.insertBefore(noContactsOption, contactPersonSelect.querySelector('option[value="__add_new__"]'));
       }
     }, 100);
   });
 
   // When contact person changes, update phone number
   contactPersonSelect?.addEventListener('change', function() {
+    const selectedValue = this.value;
+    
+    // Handle "Add New Contact Person" option
+    if (selectedValue === '__add_new__') {
+      const customerId = customerSelect.value;
+      if (!customerId) {
+        showToast('Please select a customer first', 'warning');
+        this.value = ''; // Reset the select
+        return;
+      }
+      document.getElementById('contactPersonCustomerId').value = customerId;
+      document.getElementById('addNewContactPersonModal').style.display = 'flex';
+      this.value = ''; // Reset the select
+      return;
+    }
+    
     const selectedOption = this.options[this.selectedIndex];
     const phone = selectedOption.dataset.phone || '';
     contactPhoneInput.value = phone;
@@ -977,6 +1115,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('sidebarDateTime').textContent = `${data.date} ${data.time || ''}`;
     document.getElementById('sidebarMaterial').textContent = data.material || '-';
     document.getElementById('sidebarWeight').textContent = data.weight || '-';
+    document.getElementById('sidebarCustomerName').textContent = data.customer_name || '-';
+    document.getElementById('sidebarCustomerPhone').textContent = data.customer_phone || '-';
+    document.getElementById('sidebarCustomerLocation').textContent = data.customer_location || '-';
+    document.getElementById('sidebarContactPersonName').textContent = data.contact_person_name || '-';
+    document.getElementById('sidebarContactPersonPhone').textContent = data.contact_person_phone || '-';
 
     confirmPanel.style.display = 'none';
     loadTripRequests(currentLoadId);
@@ -1229,7 +1372,158 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('quickAddVehicleForm').reset();
   });
 
-  // Quick Add Driver/Vehicle Modals
+  // ====================== NEW CUSTOMER MODAL HANDLERS ======================
+  document.getElementById('closeNewCustomerModal')?.addEventListener('click', () => {
+    document.getElementById('addNewCustomerModal').style.display = 'none';
+    document.getElementById('addNewCustomerForm').reset();
+  });
+  
+  document.getElementById('cancelNewCustomerModal')?.addEventListener('click', () => {
+    document.getElementById('addNewCustomerModal').style.display = 'none';
+    document.getElementById('addNewCustomerForm').reset();
+  });
+
+  document.getElementById('addNewCustomerForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const btn = this.querySelector('.save-btn');
+    const oldText = btn.textContent;
+    btn.textContent = 'Saving...';
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch('/api/customers/add-new/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken },
+        body: formData
+      });
+      
+      const json = await resp.json();
+      
+      if (json.success) {
+        const customer = json.customer;
+        
+        // Add new customer to the dropdown
+        const newOption = new Option(customer.customer_name, customer.id);
+        newOption.dataset.phone = customer.phone_number || '';
+        newOption.dataset.location = customer.location || '';
+        
+        // Add before the "Add New" option
+        const addNewOption = customerSelect.querySelector('option[value="__add_new__"]');
+        customerSelect.insertBefore(newOption, addNewOption);
+        
+        // Select the new customer
+        customerSelect.value = customer.id;
+        customerSelect.dispatchEvent(new Event('change'));
+        
+        showToast('Customer added successfully', 'success');
+        document.getElementById('addNewCustomerModal').style.display = 'none';
+        this.reset();
+      } else {
+        showToast(json.error || 'Failed to add customer', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error adding customer', 'error');
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
+
+  // ====================== NEW CONTACT PERSON MODAL HANDLERS ======================
+  document.getElementById('closeNewContactPersonModal')?.addEventListener('click', () => {
+    document.getElementById('addNewContactPersonModal').style.display = 'none';
+    document.getElementById('addNewContactPersonForm').reset();
+  });
+  
+  document.getElementById('cancelNewContactPersonModal')?.addEventListener('click', () => {
+    document.getElementById('addNewContactPersonModal').style.display = 'none';
+    document.getElementById('addNewContactPersonForm').reset();
+  });
+
+  // Close modals when clicking outside
+  document.getElementById('addNewCustomerModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'addNewCustomerModal') {
+      e.target.style.display = 'none';
+    }
+  });
+
+  document.getElementById('addNewContactPersonModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'addNewContactPersonModal') {
+      e.target.style.display = 'none';
+    }
+  });
+
+  document.getElementById('addNewContactPersonForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    
+    const customerId = document.getElementById('contactPersonCustomerId').value;
+    const contactName = this.querySelector('input[name="contact_name"]').value;
+    const contactPhone = this.querySelector('input[name="contact_phone"]').value;
+    
+    if (!customerId || !contactName || !contactPhone) {
+      showToast('Please fill all fields', 'error');
+      return;
+    }
+
+    const btn = this.querySelector('.save-btn');
+    const oldText = btn.textContent;
+    btn.textContent = 'Saving...';
+    btn.disabled = true;
+
+    try {
+      const formData = new FormData();
+      formData.append('customer_id', customerId);
+      formData.append('contact_name', contactName);
+      formData.append('contact_phone', contactPhone);
+      
+      const resp = await fetch('/api/contact-persons/add-new/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken },
+        body: formData
+      });
+      
+      const json = await resp.json();
+      
+      if (json.success) {
+        const contact = json.contact;
+        
+        // Add to contact persons data
+        if (!contactPersonsData[customerId]) {
+          contactPersonsData[customerId] = [];
+        }
+        
+        contactPersonsData[customerId].push(contact);
+        
+        // Update the contact person select dropdown
+        const newOption = document.createElement('option');
+        newOption.value = contact.id;
+        newOption.textContent = contact.name;
+        newOption.dataset.phone = contact.phone_number || '';
+        
+        const addNewOption = contactPersonSelect.querySelector('option[value="__add_new__"]');
+        contactPersonSelect.insertBefore(newOption, addNewOption);
+        
+        // Select the new contact person
+        contactPersonSelect.value = contact.id;
+        contactPersonSelect.dispatchEvent(new Event('change'));
+        
+        showToast('Contact person added successfully', 'success');
+        document.getElementById('addNewContactPersonModal').style.display = 'none';
+        this.reset();
+      } else {
+        showToast(json.error || 'Failed to add contact person', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error adding contact person', 'error');
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
   openAddDriverModalBtn?.addEventListener('click', () => {
     if (!currentVendorId) {
       showToast('No vendor selected. Please select a trip request first.', 'error');
@@ -1621,6 +1915,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const loadData = JSON.parse(activeRow.dataset.load);
     document.getElementById('assignLoadId').textContent = loadData.load_id;
     
+    // Display current amount in the update amount section - use final_payment if available, otherwise price_per_unit
+    const currentAmount = parseFloat(loadData.final_payment || loadData.price_per_unit || 0);
+    document.getElementById('currentAmountDisplay').textContent = '₹' + currentAmount.toFixed(2);
+    document.getElementById('updateAmountInput').value = '';
+    
     // Reset selection
     selectedVendorId = null;
     selectedVendorName = null;
@@ -1901,8 +2200,10 @@ document.addEventListener('DOMContentLoaded', function () {
     
     const vehicleSelect = document.getElementById('assignVendorVehicleSelect');
     const driverSelect = document.getElementById('assignVendorDriverSelect');
+    const updateAmountInput = document.getElementById('updateAmountInput');
     const selectedVehicleId = vehicleSelect.value;
     const selectedDriverId = driverSelect.value;
+    const newAmount = updateAmountInput.value.trim();
     
     if (!selectedVehicleId) {
       showToast('Please select a vehicle', 'error');
@@ -1916,23 +2217,38 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     
+    // Validate new amount if provided
+    if (newAmount && (isNaN(newAmount) || parseFloat(newAmount) < 0)) {
+      showToast('Please enter a valid amount', 'error');
+      updateAmountInput.focus();
+      return;
+    }
+    
     const btn = this;
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Assigning...';
     btn.disabled = true;
     
-    // Send assignment request with vehicle and driver
+    // Build request body
+    const requestBody = {
+      vendor_id: selectedVendorId,
+      vehicle_id: parseInt(selectedVehicleId),
+      driver_id: parseInt(selectedDriverId)
+    };
+    
+    // Add new amount if provided
+    if (newAmount) {
+      requestBody.new_amount = parseFloat(newAmount);
+    }
+    
+    // Send assignment request with vehicle, driver, and optional amount
     fetch(`/loads/${currentLoadId}/assign-vendor/`, {
       method: 'POST',
       headers: {
         'X-CSRFToken': csrftoken,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        vendor_id: selectedVendorId,
-        vehicle_id: parseInt(selectedVehicleId),
-        driver_id: parseInt(selectedDriverId)
-      })
+      body: JSON.stringify(requestBody)
     })
     .then(response => {
       // Always parse JSON first, then check status

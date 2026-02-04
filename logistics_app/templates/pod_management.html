@@ -1,0 +1,873 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}POD Management{% endblock %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>POD Management</title>
+
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <link rel="stylesheet" href="/static/css/trip.css">
+
+  <style>
+    :root {
+      --primary: #ef4444;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --amber: #d97706;
+      --gray-light: #f9fafb;
+      --border: #e5e7eb;
+      --icon-color: #6b7280;
+      --icon-hover-bg: #f3f4f6;
+      --text: #111827;
+      --muted: #6b7280;
+      --light: #f3f4f6;
+      --success: #16a34a;
+    }
+
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      font-family: "Inter", sans-serif;
+      background-color: #f8fafc;
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Move sidebar and overlay here, outside table and modals -->
+    <aside id="profileSidebar">
+      <div class="sidebar-header">
+        <div>
+          <h3 id="sidebarTripId">Loading...</h3>
+          <span class="status-badge" id="sidebarStatusBadge" style="font-size:11px;padding:4px 10px;margin-top:6px;display:inline-block;">
+            Loading...
+          </span>
+        </div>
+        <button class="close-btn" id="closeSidebar">×</button>
+      </div>
+
+      <div class="route-header">
+        <div class="route-title">Route Information</div>
+        <div class="route-path">
+          <div class="route-line"></div>
+          <div class="truck-icon"><i class="fas fa-truck"></i></div>
+          <div class="route-line"></div>
+        </div>
+        <div style="margin-top:8px;font-weight:600;">
+          <span id="routeFrom">-</span> — <span id="routeTo">-</span>
+        </div>
+      </div>
+
+      <div class="trip-info-section">
+        <h3 class="section-title">Trip Information</h3>
+        <div class="info-grid">
+          <div class="info-item"><div class="info-label">Vehicle No</div><div class="info-value" id="vehicleNo">-</div></div>
+          <div class="info-item"><div class="info-label">Driver</div><div class="info-value" id="driverName">-</div></div>
+          <div class="info-item"><div class="info-label">Vehicle Type</div><div class="info-value" id="vehicleType">-</div></div>
+          <div class="info-item"><div class="info-label">Distance</div><div class="info-value" id="distance">-</div></div>
+          <div class="info-item"><div class="info-label">Start Date</div><div class="info-value" id="startDate">-</div></div>
+          <div class="info-item"><div class="info-label">ETA</div><div class="info-value" id="eta">-</div></div>
+        </div>
+
+        <div class="progress-container">
+          <div class="progress-header">
+            <div class="progress-title">Trip Progress</div>
+            <div class="progress-percent" id="progressPercent">0% Complete</div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="timeline-section">
+          <h3 class="timeline-title">Trip Status Timeline</h3>
+          <div class="timeline" id="timelineContainer">
+            <!-- Timeline will be populated dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <h3 class="section-title" style="margin-top:28px;">Customer Details</h3>
+      <div class="detail-row"><span class="detail-label">Customer Name</span><span class="detail-value" id="customerName">-</span></div>
+      <div class="detail-row"><span class="detail-label">Customer Phone</span><span class="detail-value" id="customerPhone">-</span></div>
+      <div class="detail-row"><span class="detail-label">Contact Person</span><span class="detail-value" id="contactPerson">-</span></div>
+      <div class="detail-row"><span class="detail-label">Contact Person Phone</span><span class="detail-value" id="contactPersonPhone">-</span></div>
+
+      <h3 class="section-title" style="margin-top:28px;">Vendor Details</h3>
+      <div class="detail-row"><span class="detail-label">Vendor Name</span><span class="detail-value" id="vendorName">-</span></div>
+      <div class="detail-row"><span class="detail-label">Vendor Phone</span><span class="detail-value" id="vendorPhone">-</span></div>
+
+      <h3 class="section-title" style="margin-top:28px;">Assigned Driver</h3>
+      <div class="detail-row"><span class="detail-label">Driver Name</span><span class="detail-value" id="assignedDriverName">-</span></div>
+      <div class="detail-row"><span class="detail-label">Driver Phone</span><span class="detail-value" id="assignedDriverPhone">-</span></div>
+    </aside>
+    <div id="sidebarOverlay"></div>
+
+    <!-- POD Upload Modal -->
+    <div id="podModal" class="pod-modal">
+      ...existing code...
+    </div>
+
+    <!-- POD Received Date Modal -->
+    <div id="podReceivedModal" class="pod-received-modal">
+      ...existing code...
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+    .search-input {
+      width: 250px;
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      background: white;
+    }
+
+    .add-button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .add-button:hover {
+      background: #dc2626;
+    }
+
+    .table-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .table-header {
+      padding: 20px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f9fafb;
+    }
+
+    .table-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      background: #f9fafb;
+      font-weight: 600;
+      color: #374151;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    td {
+      font-size: 14px;
+      color: #4b5563;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .status-trip_requested { background: #fef3c7; color: #d97706; }
+    .status-trip_confirmed { background: #dbeafe; color: #2563eb; }
+    .status-reached_loading_point { background: #fef3c7; color: #d97706; }
+    .status-upload_lr { background: #dbeafe; color: #2563eb; }
+    .status-in_transit { background: #fef3c7; color: #d97706; }
+    .status-reached_unloading_point { background: #fef3c7; color: #d97706; }
+    .status-unloading_completed { background: #dbeafe; color: #2563eb; }
+    .status-pod_pending { background: #fef3c7; color: #d97706; }
+    .status-pod_received_at_office { background: #dbeafe; color: #2563eb; }
+    .status-balance_pending { background: #fef3c7; color: #d97706; }
+    .status-balance_hold { background: #fee2e2; color: #dc2626; }
+    .status-balance_paid { background: #d1fae5; color: #059669; }
+    .status-trip_closed { background: #d1fae5; color: #059669; }
+
+    .pod-status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .pod-status-pod_pending { background: #fef3c7; color: #d97706; }
+    .pod-status-upload_soft_copy { background: #dbeafe; color: #2563eb; }
+    .pod-status-received_at_office { background: #d1fae5; color: #059669; }
+    .pod-status-received_at_unloading { background: #e0e7ff; color: #3730a3; }
+
+    .clickable-row {
+      /* cursor: pointer; */
+      transition: background 0.2s;
+    }
+
+    .clickable-row:hover {
+      background: #f9fafb;
+    }
+
+    .clickable-row.selected {
+      background: #fef2f2;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .action-view {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      /* cursor: pointer; */
+    }
+
+    .action-view:hover {
+      background: #dc2626;
+    }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #6b7280;
+      cursor: pointer;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .detail-label {
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .detail-value {
+      color: #6b7280;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2937;
+      margin: 24px 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .btn-upload-pod {
+      background: #2563eb;
+      color: white;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-upload-pod:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-upload-pod:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .pod-modal, .pod-received-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pod-modal-content, .pod-received-modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .pod-modal-header, .pod-received-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .pod-modal-header h3, .pod-received-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .close-pod-modal, .close-pod-received-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #6b7280;
+      cursor: pointer;
+    }
+
+    .upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #fafafa;
+      margin-bottom: 20px;
+    }
+
+    .upload-area:hover {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .upload-area.dragover {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .file-info {
+      margin-top: 16px;
+      padding: 12px;
+      background: #f0fdf4;
+      border-radius: 6px;
+      border-left: 4px solid #16a34a;
+    }
+
+    .file-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+      color: #166534;
+    }
+
+    .file-name i {
+      font-size: 16px;
+    }
+
+    .progress-container {
+      margin: 20px 0;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .progress-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .progress-percent {
+      font-size: 14px;
+      font-weight: 600;
+      color: #6b7280;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .timeline-container {
+      margin: 20px 0;
+      position: relative;
+      padding-left: 30px;
+    }
+
+    .timeline-item {
+      position: relative;
+      padding: 16px 0;
+      border-left: 2px solid #e5e7eb;
+    }
+
+    .timeline-item:not(:last-child) {
+      border-left-color: #e5e7eb;
+    }
+
+    .timeline-item.completed .timeline-dot {
+      background: #16a34a;
+      border-color: #16a34a;
+    }
+
+    .timeline-item.current .timeline-dot {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: -7px;
+      top: 20px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #e5e7eb;
+      border: 2px solid #e5e7eb;
+      z-index: 1;
+    }
+
+    .timeline-content {
+      margin-left: 16px;
+    }
+
+    .timeline-main {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .timeline-main.completed {
+      color: #16a34a;
+    }
+
+    .timeline-main.current {
+      color: #2563eb;
+    }
+
+    .timeline-main.pending {
+      color: #6b7280;
+    }
+
+    .timeline-sub {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .timeline-time {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    .view-file-btn {
+      background: #f3f4f6;
+      color: #374151;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+
+    .view-file-btn:hover {
+      background: #e5e7eb;
+    }
+
+    .btn-add-pod-received {
+      background: #16a34a;
+      color: white;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 16px;
+    }
+
+    .btn-add-pod-received:hover {
+      background: #15803d;
+    }
+
+    .btn-add-pod-received:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard {
+        padding: 15px;
+      }
+
+      .top-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .search-add-container {
+        justify-content: space-between;
+      }
+
+      .table-container {
+        overflow-x: auto;
+      }
+
+      table {
+        min-width: 800px;
+      }
+
+      .modal-content {
+        width: 95%;
+        padding: 20px;
+      }
+
+      .action-buttons {
+        flex-direction: column;
+        gap: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="top-bar">
+      <h2><i class="fas fa-file-signature"></i> POD Management</h2>
+      <div class="search-add-container">
+        <input type="text" class="search-input" placeholder="Search loads..." id="searchInput">
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <h3 class="table-title">POD Status Overview</h3>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Load ID</th>
+              <th>Customer</th>
+              <th>Route</th>
+              <th>Vehicle</th>
+              <th>Driver</th>
+              <th>Trip Status</th>
+              <th>POD Status</th>
+            </tr>
+          </thead>
+          <tbody id="loadsTableBody">
+            {% for load in loads %}
+            <tr>
+              <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
+              <td>{{ load.customer.customer_name }}</td>
+              <td>{{ load.pickup_location }} → {{ load.drop_location }}</td>
+              <td>{{ load.vehicle.reg_no|default:"Not Assigned" }}</td>
+              <td>{{ load.driver.full_name|default:"Not Assigned" }}</td>
+              <td>
+                <span class="status-badge status-{{ load.trip_status }}">
+                  {{ load.get_trip_status_display }}
+                </span>
+              </td>
+              <td>
+                <span class="pod-status-badge pod-status-{{ load.pod_status }}">
+                  {{ load.get_pod_status_display }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+
+  <!-- POD Upload Modal -->
+  <div id="podModal" class="pod-modal">
+    <div class="pod-modal-content">
+      <div class="pod-modal-header">
+        <h3>Upload POD Document</h3>
+        <button class="close-pod-modal" onclick="closePODModal()">&times;</button>
+      </div>
+
+      <div class="upload-area" onclick="document.getElementById('podFileInput').click()">
+        <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+        <div style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 8px;">Click to upload POD document</div>
+        <div style="font-size: 14px; color: #6b7280;">PDF, JPG, PNG up to 10MB</div>
+        <input type="file" id="podFileInput" accept=".pdf,.jpg,.jpeg,.png" style="display: none;" onchange="handlePODFileSelect(event)">
+      </div>
+
+      <div id="podFilePreview" style="display: none;">
+        <div class="file-info">
+          <div class="file-name">
+            <i class="fas fa-file"></i>
+            <span id="podModalFileName">Selected file</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn-cancel" onclick="closePODModal()">Cancel</button>
+        <button class="btn-upload-pod" id="btnSubmitPOD" onclick="uploadPODDocument()" disabled>
+          <i class="fas fa-upload"></i> Upload Document
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- POD Received Date Modal -->
+  <div id="podReceivedModal" class="pod-received-modal">
+    <div class="pod-received-modal-content">
+      <div class="pod-received-modal-header">
+        <h3>Add POD Received Date</h3>
+        <button class="close-pod-received-modal" onclick="closePODReceivedModal()">&times;</button>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151;">
+          POD Received Date & Time
+    <aside id="profileSidebar">
+      <div class="sidebar-header">
+        <div>
+          <h3 id="sidebarTripId">Loading...</h3>
+          <span class="status-badge" id="sidebarStatusBadge" style="font-size:11px;padding:4px 10px;margin-top:6px;display:inline-block;">
+            Loading...
+          </span>
+        </div>
+        <button class="close-btn" id="closeSidebar">×</button>
+      </div>
+
+      <div class="route-header">
+        <div class="route-title">Route Information</div>
+        <div class="route-path">
+          <div class="route-line"></div>
+          <div class="truck-icon"><i class="fas fa-truck"></i></div>
+          <div class="route-line"></div>
+        </div>
+        <div style="margin-top:8px;font-weight:600;">
+          <span id="routeFrom">-</span> — <span id="routeTo">-</span>
+        </div>
+      </div>
+
+      <div class="trip-info-section">
+        <h3 class="section-title">Trip Information</h3>
+        <div class="info-grid">
+          <div class="info-item"><div class="info-label">Vehicle No</div><div class="info-value" id="vehicleNo">-</div></div>
+          <div class="info-item"><div class="info-label">Driver</div><div class="info-value" id="driverName">-</div></div>
+          <div class="info-item"><div class="info-label">Vehicle Type</div><div class="info-value" id="vehicleType">-</div></div>
+          <div class="info-item"><div class="info-label">Distance</div><div class="info-value" id="distance">-</div></div>
+          <div class="info-item"><div class="info-label">Start Date</div><div class="info-value" id="startDate">-</div></div>
+          <div class="info-item"><div class="info-label">ETA</div><div class="info-value" id="eta">-</div></div>
+        </div>
+
+        <div class="progress-container">
+          <div class="progress-header">
+            <div class="progress-title">Trip Progress</div>
+            <div class="progress-percent" id="progressPercent">0% Complete</div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%;"></div></div>
+        <!-- Pagination and search controls -->
+        <div class="pagination-container">
+          <div class="entries-per-page">
+            <span>Show</span>
+            <select id="entriesPerPage">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+            <span>entries</span>
+          </div>
+          <div class="pagination-info">
+            Showing <span id="showingStart">1</span> to <span id="showingEnd">10</span> of <span id="totalEntries">0</span> entries
+          </div>
+          <div class="pagination-controls">
+            <button id="prevPage">Previous</button>
+            <span id="currentPageInfo">Page 1</span>
+            <button id="nextPage">Next</button>
+          </div>
+        </div>
+
+        <script>
+          document.addEventListener('DOMContentLoaded', function () {
+            const table = document.querySelector('table');
+            const tbody = table.querySelector('tbody');
+            let allRows = Array.from(tbody.querySelectorAll('tr'));
+            let filteredRows = [...allRows];
+            let currentPage = 1;
+            let perPage = 10;
+
+            const entriesSelect = document.getElementById('entriesPerPage');
+            const showingStart = document.getElementById('showingStart');
+            const showingEnd = document.getElementById('showingEnd');
+            const totalEntries = document.getElementById('totalEntries');
+            const prevBtn = document.getElementById('prevPage');
+            const nextBtn = document.getElementById('nextPage');
+            const currentPageInfo = document.getElementById('currentPageInfo');
+            const searchInput = document.getElementById('searchInput');
+
+            function renderPage() {
+              const start = (currentPage - 1) * perPage;
+              const end = start + perPage;
+              allRows.forEach(r => r.style.display = 'none');
+              filteredRows.slice(start, end).forEach(r => r.style.display = '');
+
+              const visibleEnd = Math.min(end, filteredRows.length);
+              showingStart.textContent = filteredRows.length ? start + 1 : 0;
+              showingEnd.textContent = visibleEnd;
+              totalEntries.textContent = filteredRows.length;
+              currentPageInfo.textContent = `Page ${currentPage}`;
+
+              prevBtn.disabled = currentPage === 1;
+              nextBtn.disabled = currentPage >= Math.ceil(filteredRows.length / perPage);
+            }
+
+            entriesSelect.addEventListener('change', () => {
+              perPage = parseInt(entriesSelect.value);
+              currentPage = 1;
+              renderPage();
+            });
+
+            prevBtn.addEventListener('click', () => { 
+              if (currentPage > 1) { 
+                currentPage--; 
+                renderPage(); 
+              } 
+            });
+            nextBtn.addEventListener('click', () => { 
+              if (currentPage < Math.ceil(filteredRows.length / perPage)) { 
+                currentPage++; 
+                renderPage(); 
+              } 
+            });
+
+            function applyFilters() {
+              const term = (searchInput && searchInput.value) ? searchInput.value.toLowerCase() : '';
+              filteredRows = allRows.filter(row => {
+                const matchesSearch = term === '' || row.textContent.toLowerCase().includes(term);
+                return matchesSearch;
+              });
+              currentPage = 1;
+              renderPage();
+            }
+
+            if (searchInput) {
+              searchInput.addEventListener('input', () => {
+                applyFilters();
+              });
+            }
+
+            applyFilters();
+          });
+        
+      document.getElementById('vendorName').textContent = data.vendor_name;
+      document.getElementById('vendorPhone').textContent = data.vendor_phone;
+      document.getElementById('assignedDriverName').textContent = data.driver_name;
+      document.getElementById('assignedDriverPhone').textContent = data.driver_phone;
+      document.getElementById('progressPercent').textContent = `${data.progress}% Complete`;
+      document.getElementById('progressFill').style.width = `${data.progress}%`;
+      renderTimeline(data);
+    }
+  </script>
+</body>
+</html>
+{% endblock %}

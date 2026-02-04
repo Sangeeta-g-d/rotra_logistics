@@ -344,15 +344,19 @@ class Load(models.Model):
     ]
 
     TRIP_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('confirmed', 'Confirmed'),
-        ('loaded', 'Reach Loading Point'),
-        ('lr_uploaded', 'LR Uploaded'),
-        ('in_transit', 'In Transit'),
-        ('unloading', 'Reach Unloading Point'),
-        ('pod_uploaded', 'POD Uploaded'),
-        ('payment_completed', 'Payment Completed'),
-        ('hold', 'Hold'),
+        ('trip_requested', 'Trip Requested'),
+        ('trip_confirmed', 'Trip Confirmed'),
+        ('reached_loading_point', 'Reached at Loading point'),
+        ('upload_lr', 'Upload LR'),
+        ('in_transit', 'In transit'),
+        ('reached_unloading_point', 'Reached at unloading point'),
+        ('unloading_completed', 'Unloading completed'),
+        ('pod_pending', 'POD status - Pending'),
+        ('pod_received_at_office', 'POD status - received at rotra office'),
+        ('balance_pending', 'Balance pending'),
+        ('balance_hold', 'Balance hold'),
+        ('balance_paid', 'Balance paid'),
+        ('trip_closed', 'Trip closed'),
     ]
 
     # Basic Info
@@ -447,7 +451,7 @@ class Load(models.Model):
 
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    trip_status = models.CharField(max_length=20, choices=TRIP_STATUS_CHOICES, default='pending')
+    trip_status = models.CharField(max_length=30, choices=TRIP_STATUS_CHOICES, default='trip_requested')
 
     # TRACKING DETAILS (NEW FIELD)
     tracking_details = models.TextField(
@@ -484,6 +488,22 @@ class Load(models.Model):
         blank=True,
         verbose_name="POD Received At",
         help_text="Date and time when POD was physically received"
+    )
+
+    # POD STATUS CHOICES
+    POD_STATUS_CHOICES = [
+        ('pod_pending', 'POD Pending'),
+        ('upload_soft_copy', 'Upload Soft Copy'),
+        ('received_at_office', 'Received at RoTra Office'),
+        ('received_at_unloading', 'POD Received at Unloading Point'),
+    ]
+
+    pod_status = models.CharField(
+        max_length=25,
+        choices=POD_STATUS_CHOICES,
+        default='pod_pending',
+        verbose_name="POD Status",
+        help_text="Current status of POD processing"
     )
 
     # Timeline
@@ -611,14 +631,19 @@ class Load(models.Model):
         self.trip_status = new_status
 
         timestamp_fields = {
-            'pending': 'pending_at',
-            'loaded': 'loaded_at',
-            'lr_uploaded': 'lr_uploaded_at',
+            'trip_requested': 'pending_at',
+            'trip_confirmed': 'pending_at',
+            'reached_loading_point': 'loaded_at',
+            'upload_lr': 'lr_uploaded_at',
             'in_transit': 'in_transit_at',
-            'unloading': 'unloading_at',
-            'pod_uploaded': 'pod_uploaded_at',
-            'payment_completed': 'payment_completed_at',
-            'hold': 'hold_at',
+            'reached_unloading_point': 'unloading_at',
+            'unloading_completed': 'unloading_at',
+            'pod_pending': 'pod_uploaded_at',
+            'pod_received_at_office': 'pod_received_at',
+            'balance_pending': 'payment_completed_at',
+            'balance_hold': 'hold_at',
+            'balance_paid': 'payment_completed_at',
+            'trip_closed': 'payment_completed_at',
         }
 
         field_name = timestamp_fields.get(new_status)
@@ -626,24 +651,32 @@ class Load(models.Model):
             setattr(self, field_name, timezone.now())
 
         # LR Logic
-        if new_status == 'lr_uploaded' and lr_number:
+        if new_status == 'upload_lr' and lr_number:
             self.lr_number = lr_number
             if user:
                 self.lr_uploaded_by = user
                 self.lr_uploaded_at = timezone.now()
 
         # POD Logic - Store tracking details
-        if new_status == 'pod_uploaded' and user:
+        if new_status == 'pod_received_at_office' and user:
             self.pod_uploaded_by = user
             self.pod_uploaded_at = timezone.now()
             # Save tracking details if provided
             if tracking_details:
                 self.tracking_details = tracking_details
 
+        # POD Status Logic - Update POD status based on trip status
+        if new_status == 'unloading_completed':
+            self.pod_status = 'pod_pending'
+        elif new_status == 'pod_pending':
+            self.pod_status = 'upload_soft_copy'
+        elif new_status == 'pod_received_at_office':
+            self.pod_status = 'received_at_office'
+
         # Sync main status
         if new_status == 'in_transit':
             self.status = 'in_transit'
-        elif new_status == 'payment_completed':
+        elif new_status == 'trip_closed':
             self.status = 'delivered'
 
         # Save the model
@@ -748,14 +781,19 @@ class Load(models.Model):
     def get_status_progress(self):
         """Get progress percentage based on trip status"""
         progress_map = {
-            'pending': 0,
-            'loaded': 12.5,
-            'lr_uploaded': 25,
-            'in_transit': 50,
-            'unloading': 62.5,
-            'pod_uploaded': 75,
-            'payment_completed': 100,
-            'hold': 75,  # Hold is at same progress as pod_uploaded
+            'trip_requested': 0,
+            'trip_confirmed': 7.7,
+            'reached_loading_point': 15.4,
+            'upload_lr': 23.1,
+            'in_transit': 30.8,
+            'reached_unloading_point': 38.5,
+            'unloading_completed': 46.2,
+            'pod_pending': 53.8,
+            'pod_received_at_office': 61.5,
+            'balance_pending': 69.2,
+            'balance_hold': 76.9,
+            'balance_paid': 84.6,
+            'trip_closed': 100,
         }
         return progress_map.get(self.trip_status, 0)
 
@@ -787,7 +825,7 @@ class HoldingCharge(models.Model):
     )
     
     trip_stage = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=Load.TRIP_STATUS_CHOICES,
         help_text='The trip stage/status at which this charge was applied'
     )
