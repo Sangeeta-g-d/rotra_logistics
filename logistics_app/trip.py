@@ -66,49 +66,45 @@ def admin_dashboard(request):
     if request.user.role == 'traffic_person':
         # Traffic person only sees their own data
         total_loads = Load.objects.filter(created_by=request.user).count()
-        closed_trips = Load.objects.filter(created_by=request.user, trip_status='trip_closed').count()
-        ongoing_trips = Load.objects.filter(created_by=request.user).exclude(trip_status__in=['trip_closed', 'trip_requested']).count()
-        unassigned_loads = Load.objects.filter(created_by=request.user, driver__isnull=True).count()
-        balance_pending = Load.objects.filter(created_by=request.user, trip_status='balance_pending').count()
+        pending_loads = Load.objects.filter(created_by=request.user, status='pending').count()
+        assigned_loads = Load.objects.filter(created_by=request.user, status='assigned').count()
+        completed_loads = Load.objects.filter(created_by=request.user, status='delivered').count()
 
         context = {
             'user': request.user,
             'total_loads': total_loads,
-            'closed_trips': closed_trips,
-            'ongoing_trips': ongoing_trips,
-            'unassigned_loads': unassigned_loads,
-            'balance_pending': balance_pending,
+            'pending_loads': pending_loads,
+            'assigned_loads': assigned_loads,
+            'completed_loads': completed_loads,
         }
     else:
-        # Admin sees all statistics and KPIs - Trip/Load Status Focus
+        # Admin sees all statistics and KPIs
         now = timezone.now()
-        
-        # Trip Status Statistics
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Basic counts
+        total_users = CustomUser.objects.count()
+        staff_count = CustomUser.objects.filter(is_staff=True).count()
         total_loads = Load.objects.count()
-        closed_trips = Load.objects.filter(trip_status='trip_closed').count()
-        
-        # On-going trips (all active statuses except closed/requested)
-        ongoing_statuses = [
-            'trip_confirmed', 'reached_loading_point', 'upload_lr', 'in_transit',
-            'reached_unloading_point', 'unloading_completed', 'pod_pending', 
-            'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid'
-        ]
-        ongoing_trips = Load.objects.filter(trip_status__in=ongoing_statuses).count()
-        
-        # Non-assigned loads (pending status with no driver)
-        unassigned_loads = Load.objects.filter(driver__isnull=True).count()
-        
-        # Payment-related stats
-        balance_pending = Load.objects.filter(trip_status='balance_pending').count()
-        balance_paid = Load.objects.filter(trip_status='balance_paid').count()
-        balance_hold = Load.objects.filter(trip_status='balance_hold').count()
-        
-        # On-hold trips
-        on_hold_trips = Load.objects.filter(trip_status='balance_hold').count()
-        
-        # Active drivers and vehicles
+        pending_loads = Load.objects.filter(status='pending').count()
+        assigned_loads = Load.objects.filter(status='assigned').count()
+        completed_loads = Load.objects.filter(status='delivered').count()
+
+        # Deliveries this month
+        total_deliveries = Load.objects.filter(payment_completed_at__gte=start_of_month, payment_completed_at__lte=now).count()
+
+        # Active drivers
         active_drivers = Driver.objects.filter(is_active=True).count()
+
+        # Revenue this month (sum of final payment where payment_completed_at in this month)
+        revenue_qs = Load.objects.filter(payment_completed_at__gte=start_of_month, payment_completed_at__lte=now)
+        revenue_agg = revenue_qs.aggregate(total=Sum('final_payment'))
+        revenue_this_month = revenue_agg.get('total') or Decimal('0.00')
+
+        # Fleet utilization
+        total_vehicles = Vehicle.objects.count()
         active_vehicles = Vehicle.objects.filter(status='active').count()
+        fleet_utilization = round((active_vehicles / total_vehicles) * 100, 2) if total_vehicles else 0
 
         # Trip status counts for charting
         status_counts_qs = Load.objects.values('trip_status').annotate(count=Count('id'))
@@ -118,16 +114,18 @@ def admin_dashboard(request):
 
         context = {
             'user': request.user,
+            'total_users': total_users,
+            'staff_count': staff_count,
             'total_loads': total_loads,
-            'closed_trips': closed_trips,
-            'ongoing_trips': ongoing_trips,
-            'unassigned_loads': unassigned_loads,
-            'balance_pending': balance_pending,
-            'balance_paid': balance_paid,
-            'balance_hold': balance_hold,
-            'on_hold_trips': on_hold_trips,
+            'pending_loads': pending_loads,
+            'assigned_loads': assigned_loads,
+            'completed_loads': completed_loads,
+
+            # KPIs
+            'total_deliveries': total_deliveries,
             'active_drivers': active_drivers,
-            'active_vehicles': active_vehicles,
+            'revenue_this_month': revenue_this_month,
+            'fleet_utilization': fleet_utilization,
 
             # Chart data
             'trip_status_labels': trip_status_labels,
@@ -2116,14 +2114,10 @@ def update_trip_location(request, trip_id):
     load.updated_at = timezone.now()
     load.save()
     
-    # Format the timestamp for display
-    formatted_timestamp = load.updated_at.strftime('%b %d, %Y %I:%M %p')
-    
     return JsonResponse({
         'success': True,
         'message': 'Location updated successfully',
         'updated_at': load.updated_at.isoformat(),
-        'formatted_updated_at': formatted_timestamp,
         'location': location
     })
 
@@ -2251,9 +2245,9 @@ def get_trip_details_api(request, trip_id):
             'weight': load.weight or 'N/A',
             'material': load.material or 'N/A',
             'distance': 'Calculating...',
-            'current_location': load.current_location or 'N/A',
-            'current_location_updated_at': load.updated_at.strftime('%b %d, %Y %I:%M %p') if load.updated_at else '-',
+            'current_location': 'Location tracking not available',
             'notes': load.notes or '',
+            'current_location': load.current_location or 'N/A',
             
 
             'progress': progress,
@@ -2726,18 +2720,13 @@ def close_trip_api(request, trip_id):
     try:
         load = Load.objects.get(id=trip_id, created_by=request.user)
         
-        # Allow closing trips that are already closed (idempotent) or in balance_paid/payment-related states
-        closed_statuses = ['balance_paid', 'trip_closed', 'pod_received_at_office', 'unloading_completed']
-        
-        if load.trip_status not in closed_statuses:
+        if load.trip_status != 'balance_paid':
             return JsonResponse({
                 'success': False,
-                'error': f'Trip cannot be closed. Current status: {load.get_trip_status_display()}. Trip must be in a completion stage (POD received or payment marked) before closing.'
+                'error': 'Can only close trips with completed balance payment'
             }, status=400)
         
-        # Update both status and trip_status to indicate trip is closed
         load.status = 'delivered'
-        load.trip_status = 'trip_closed'
         load.save()
         
         return JsonResponse({

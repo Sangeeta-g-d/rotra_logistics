@@ -176,33 +176,42 @@
 </style>
 
 <div class="dashboard">
-    <!-- KPI Cards -->
+    <!-- Trip & Load Status Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-header">
                 <div>
-                    <div class="stat-label">Total Deliveries (This Month)</div>
-                    <div class="stat-value">{{ total_deliveries|default:0 }}</div>
+                    <div class="stat-label">Total Loads</div>
+                    <div class="stat-value">{{ total_loads|default:0 }}</div>
+                </div>
+                <div class="stat-icon">📦</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div>
+                    <div class="stat-label">Closed Trips</div>
+                    <div class="stat-value">{{ closed_trips|default:0 }}</div>
+                </div>
+                <div class="stat-icon">✅</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div>
+                    <div class="stat-label">On-Going Trips</div>
+                    <div class="stat-value">{{ ongoing_trips|default:0 }}</div>
                 </div>
                 <div class="stat-icon">🚚</div>
             </div>
         </div>
-
         <div class="stat-card">
             <div class="stat-header">
                 <div>
-                    <div class="stat-label">Active Drivers</div>
-                    <div class="stat-value">{{ active_drivers|default:0 }}</div>
-                </div>
-                <div class="stat-icon">👤</div>
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-header">
-                <div>
-                    <div class="stat-label">Revenue This Month</div>
-                    <div class="stat-value">₹{{ revenue_this_month|floatformat:2 }}</div>
+                    <div class="stat-label">Balance Paid</div>
+                    <div class="stat-value">{{ balance_paid|default:0 }}</div>
                 </div>
                 <div class="stat-icon">💰</div>
             </div>
@@ -211,8 +220,18 @@
         <div class="stat-card">
             <div class="stat-header">
                 <div>
-                    <div class="stat-label">Fleet Utilization</div>
-                    <div class="stat-value">{{ fleet_utilization }}%</div>
+                    <div class="stat-label">On Hold</div>
+                    <div class="stat-value">{{ on_hold_trips|default:0 }}</div>
+                </div>
+                <div class="stat-icon">🔒</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div>
+                    <div class="stat-label">Active Vehicles</div>
+                    <div class="stat-value">{{ active_vehicles|default:0 }}</div>
                 </div>
                 <div class="stat-icon">🚗</div>
             </div>
@@ -227,12 +246,14 @@
         </div>
 
         <div style="width:320px; background:#fff; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-            <h4>Quick Summary</h4>
+            <h4>Trip Status Summary</h4>
             <ul style="list-style:none; padding:0; margin:0;">
                 <li>Total Loads: <strong>{{ total_loads }}</strong></li>
-                <li>Pending: <strong>{{ pending_loads }}</strong></li>
-                <li>Assigned: <strong>{{ assigned_loads }}</strong></li>
-                <li>Completed (Delivered): <strong>{{ completed_loads }}</strong></li>
+                <li>Closed Trips: <strong>{{ closed_trips }}</strong></li>
+                <li>On-Going: <strong>{{ ongoing_trips }}</strong></li>
+                <li>Unassigned: <strong>{{ unassigned_loads }}</strong></li>
+                <li>Balance Pending: <strong>{{ balance_pending }}</strong></li>
+                <li>On Hold: <strong>{{ on_hold_trips }}</strong></li>
             </ul>
         </div>
     </div>

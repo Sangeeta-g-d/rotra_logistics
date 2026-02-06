@@ -738,23 +738,36 @@
           </td>
           
           <!-- Payment Status Column -->
-          <td>
-            <div class="payment-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
-              {% if load.trip_status == 'balance_hold' %}
-                <i class="fas fa-pause-circle" style="color: #c53030;"></i>
-                <span style="color: #c53030; background: #fed7d7; padding: 0 8px; border-radius: 4px;">On Hold</span>
-              {% elif load.first_half_payment_paid and load.trip_status == "trip_closed" %}
-                <i class="fas fa-check-double" style="color: #16a34a;"></i>
-                <span style="color: #16a34a; background: #d1fae5; padding: 0 8px; border-radius: 4px;">Paid</span>
-              {% elif load.first_half_payment_paid %}
-                <i class="fas fa-check-circle" style="color: #2563eb;"></i>
-                <span style="color: #2563eb; background: #dbeafe; padding: 0 8px; border-radius: 4px;">Advance Paid</span>
-              {% else %}
-                <i class="fas fa-hourglass-end" style="color: #d97706;"></i>
-                <span style="color: #d97706; background: #fef3c7; padding: 0 8px; border-radius: 4px;">Pending</span>
-              {% endif %}
-            </div>
-          </td>
+         <td>
+  <div class="payment-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+    
+    {% if load.trip_status == "balance_hold" %}
+      <i class="fas fa-pause-circle" style="color: #c53030;"></i>
+      <span style="color: #c53030; background: #fed7d7; padding: 0 8px; border-radius: 4px;">
+        On Hold
+      </span>
+
+    {% elif load.trip_status in "trip_closed,balance_paid" and load.first_half_payment_paid %}
+      <i class="fas fa-check-double" style="color: #16a34a;"></i>
+      <span style="color: #16a34a; background: #d1fae5; padding: 0 8px; border-radius: 4px;">
+        Paid
+      </span>
+
+    {% elif load.first_half_payment_paid %}
+      <i class="fas fa-check-circle" style="color: #2563eb;"></i>
+      <span style="color: #2563eb; background: #dbeafe; padding: 0 8px; border-radius: 4px;">
+        Advance Paid
+      </span>
+
+    {% else %}
+      <i class="fas fa-hourglass-end" style="color: #d97706;"></i>
+      <span style="color: #d97706; background: #fef3c7; padding: 0 8px; border-radius: 4px;">
+        Pending
+      </span>
+    {% endif %}
+
+  </div>
+</td>
           
           <!-- First Half Payment Column (90%) -->
           <td>
@@ -772,7 +785,7 @@
           <td>
             <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
               <span style="font-weight: 600; color: #111827;">₹{{ load.second_half_payment|floatformat:2 }}</span>
-              {% if load.trip_status == "trip_closed" %}
+              {% if load.trip_status == "trip_closed" or load.trip_status == "balance_paid" %}
                 <span style="font-size: 11px; color: #16a34a; background: #d1fae5; padding: 2px 6px; border-radius: 3px;">✓ Paid</span>
               {% else %}
                 <span style="font-size: 11px; color: #d97706; background: #fef3c7; padding: 2px 6px; border-radius: 3px;">⏳ Pending</span>
@@ -876,11 +889,13 @@
             <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">First Half (90%)</div>
             <div style="font-weight: 700; color: #1f2937;">₹<span id="firstHalfDisplay">0.00</span></div>
             <div style="font-size: 10px; color: #d97706; margin-top: 4px;" id="firstHalfStatusBadge">⏳ Pending</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Paid At: <span id="firstHalfPaymentDate">-</span></div>
           </div>
           <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
             <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Second Half (10%)</div>
             <div style="font-weight: 700; color: #1f2937;">₹<span id="secondHalfDisplay">0.00</span></div>
             <div style="font-size: 10px; color: #d97706; margin-top: 4px;" id="secondHalfStatusBadge">⏳ Pending</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Paid At: <span id="secondHalfPaymentDate">-</span></div>
           </div>
         </div>
       </div>
@@ -1061,7 +1076,7 @@ function showToast(message, type = 'success') {
     duration: 3000,
     gravity: "top",
     position: "right",
-    backgroundColor: background,
+    style: { background: background },
     stopOnFocus: true,
     className: "toastify-custom",
   }).showToast();
@@ -1687,9 +1702,11 @@ function populatePaymentDetails(data) {
     firstHalfBadge.style.fontSize = '11px';
   }
   
-  // Second Half Status
+  // Second Half Status - Check both final_payment_paid AND if trip_status is balance_paid or trip_closed
   const secondHalfBadge = document.getElementById('secondHalfStatusBadge');
-  if (data.final_payment_paid) {
+  const isSecondHalfPaid = data.final_payment_paid || data.trip_status === 'balance_paid' || data.trip_status === 'trip_closed';
+  
+  if (isSecondHalfPaid) {
     secondHalfBadge.textContent = '✓ Paid';
     secondHalfBadge.style.color = '#16a34a';
     secondHalfBadge.style.fontSize = '11px';
@@ -1698,6 +1715,27 @@ function populatePaymentDetails(data) {
     secondHalfBadge.style.color = '#d97706';
     secondHalfBadge.style.fontSize = '11px';
   }
+  
+  // First Half and Second Half Payment Dates
+  document.getElementById('firstHalfPaymentDate').textContent = data.first_half_payment_paid_at || '-';
+  
+  // For second half payment date:
+  // Use final_payment_date if available, otherwise use payment_completed_at (when status changed to balance_paid)
+  let secondHalfPaymentDate = data.final_payment_date;
+  if (!secondHalfPaymentDate && data.payment_completed_at) {
+    // Convert ISO format to readable date
+    const paymentDate = new Date(data.payment_completed_at);
+    secondHalfPaymentDate = paymentDate.toLocaleDateString('en-IN', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: '2-digit' 
+    }) + ' ' + paymentDate.toLocaleTimeString('en-IN', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
+  document.getElementById('secondHalfPaymentDate').textContent = secondHalfPaymentDate || '-';
   
   // HOLDING CHARGES SECTION
   const holdingChargesSection = document.getElementById('holdingChargesSection');
@@ -1816,12 +1854,39 @@ function populatePaymentDetails(data) {
   
   document.getElementById('totalAmountDueDisplay').textContent = totalAmountDue.toLocaleString('en-IN', {minimumFractionDigits: 2});
   
-  // PAYMENT DATES SECTION
+  // PAYMENT DATES SECTION - With Timing
   const paymentDatesSection = document.getElementById('paymentDatesSection');
-  if (data.first_half_payment_paid_at || data.final_payment_date) {
+  
+  // Check if either payment date is available
+  const hasPaymentDates = data.first_half_payment_paid_at || data.final_payment_date || data.payment_completed_at;
+  
+  if (hasPaymentDates) {
     paymentDatesSection.style.display = 'block';
-    document.getElementById('advancePaidDateDisplay').textContent = data.first_half_payment_paid_at || '-';
-    document.getElementById('finalPaidDateDisplay').textContent = data.final_payment_date || '-';
+    
+    // First Half Payment Date with time
+    const advanceDateText = data.first_half_payment_paid_at || '-';
+    document.getElementById('advancePaidDateDisplay').textContent = advanceDateText;
+    
+    // Final/Second Half Payment Date with time - use payment_completed_at if available
+    let finalDateText = data.final_payment_date;
+    
+    // If payment_completed_at exists and no final_payment_date, convert it to readable format with time
+    if (!finalDateText && data.payment_completed_at) {
+      const paymentDate = new Date(data.payment_completed_at);
+      const dateStr = paymentDate.toLocaleDateString('en-IN', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: '2-digit' 
+      });
+      const timeStr = paymentDate.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true
+      });
+      finalDateText = `${dateStr} ${timeStr}`;
+    }
+    
+    document.getElementById('finalPaidDateDisplay').textContent = finalDateText || '-';
   } else {
     paymentDatesSection.style.display = 'none';
   }

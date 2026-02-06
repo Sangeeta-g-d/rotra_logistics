@@ -515,6 +515,7 @@ class Load(models.Model):
     payment_completed_at = models.DateTimeField(null=True, blank=True)
     hold_at = models.DateTimeField(null=True, blank=True)
     current_location = models.CharField(max_length=255, blank=True, null=True)
+    current_location_updated_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when current location was last updated")
 
     # Hold reason
     hold_reason = models.TextField(

@@ -207,6 +207,14 @@
           <div class="trip-info-label" style="color:#92400e;">Location</div>
           <div id="sidebarCustomerLocation" class="trip-info-value" style="color:#451a03;"></div>
         </div>
+                <div>
+          <div class="trip-info-label" style="color:#92400e;">Customer Amount</div>
+          <div id="sidebarCustomerAmount" class="trip-info-value" style="color:#451a03;"></div>
+        </div>
+                <div>
+          <div class="trip-info-label" style="color:#92400e;">Vendor Amount</div>
+          <div id="sidebarVendorAmount" class="trip-info-value" style="color:#451a03;"></div>
+        </div>
       </div>
     </div>
 
@@ -836,7 +844,7 @@ document.addEventListener('DOMContentLoaded', function () {
       duration: 3000, 
       gravity: "top", 
       position: "right", 
-      backgroundColor: colors[type],
+      style: { background: colors[type] },
       close: true 
     }).showToast();
   }
@@ -1120,6 +1128,8 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('sidebarCustomerLocation').textContent = data.customer_location || '-';
     document.getElementById('sidebarContactPersonName').textContent = data.contact_person_name || '-';
     document.getElementById('sidebarContactPersonPhone').textContent = data.contact_person_phone || '-';
+    document.getElementById('sidebarCustomerAmount').textContent = data.user_amount || '-';
+    document.getElementById('sidebarVendorAmount').textContent = data.price_per_unit || '-';
 
     confirmPanel.style.display = 'none';
     loadTripRequests(currentLoadId);
@@ -1866,7 +1876,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       
       if (confirm('Are you sure you want to close this trip?')) {
-        fetch(`/loads/${currentLoadId}/close/`, {
+        fetch(`/api/trip/${currentLoadId}/close/`, {
           method: 'POST',
           headers: { 'X-CSRFToken': csrftoken }
         })

@@ -100,6 +100,128 @@
   max-width: 450px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
+
+/* Current Location Styling - Isolated */
+.location-card {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #2563eb;
+  margin-top: 10px;
+  margin-bottom: 16px;
+}
+
+.location-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.location-card__icon {
+  color: #2563eb;
+  font-size: 14px;
+}
+
+.location-card__title {
+  font-weight: 600;
+  color: #1e40af;
+  font-size: 12px;
+}
+
+.location-card__content {
+  background: white;
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.location-card__location-text {
+  font-weight: 600;
+  color: #111827;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.location-card__timestamp {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.location-card__timestamp-icon {
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+.location-card__timestamp-value {
+  font-weight: 500;
+}
+
+.location-card__edit-mode {
+  display: none;
+}
+
+.location-card__edit-mode.active {
+  display: block;
+}
+
+.location-card__input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.location-card__button-group {
+  display: flex;
+  gap: 6px;
+}
+
+.location-card__button {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+  color: white;
+}
+
+.location-card__button--save {
+  background: #16a34a;
+}
+
+.location-card__button--save:hover {
+  background: #15803d;
+}
+
+.location-card__button--cancel {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.location-card__button--cancel:hover {
+  background: #e5e7eb;
+}
+
+.location-card__button--edit {
+  width: 100%;
+  padding: 8px;
+  background: #2563eb;
+  color: white;
+}
+
+.location-card__button--edit:hover {
+  background: #1d4ed8;
+}
 </style>
 <div class="dashboard">
   <div class="top-bar">
@@ -125,7 +247,6 @@
       <button class="add-button" onclick="window.location.href='{% url 'load_list' %}'">View All Loads</button>
     </div>
   </div>
-
   <div class="table-card">
     <table id="tripsTable">
       <thead>
@@ -225,40 +346,70 @@
           <div class="info-label">POD Received</div>
           <div class="info-value" id="podReceivedDate">-</div>
         </div>
-        <div class="current-location" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
-          <i class="fas fa-map-marker-alt"></i>
-
+        <br>
+       
+      </div>
+ <div class="location-card">
+          <div class="location-card__header">
+            <i class="fas fa-map-marker-alt location-card__icon"></i>
+            <span class="location-card__title">Current Location</span>
+          </div>
+          
           <!-- Display mode -->
-          <span id="currentLocationText">-</span>
+          <div class="location-card__content">
+            <div class="location-card__location-text" id="currentLocationText">-</div>
+            <div class="location-card__timestamp">
+              <i class="fas fa-clock location-card__timestamp-icon"></i>
+              <span>Updated:</span>
+              <span class="location-card__timestamp-value" id="currentLocationTimestamp">-</span>
+            </div>
+          </div>
 
           <!-- Edit mode -->
-          <input
-            type="text"
-            id="currentLocationInput"
-            placeholder="Enter current location"
-            style="display:none; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;"
-          />
+          <div class="location-card__edit-mode" id="locationEditMode">
+            <input
+              type="text"
+              id="currentLocationInput"
+              class="location-card__input"
+              placeholder="Enter current location"
+            />
+            <div class="location-card__button-group">
+              <button
+                id="btnSaveLocation"
+                class="location-card__button location-card__button--save"
+              >
+                <i class="fas fa-check" style="margin-right: 4px;"></i> Save
+              </button>
+              <button
+                id="btnCancelEditLocation"
+                class="location-card__button location-card__button--cancel"
+              >
+                <i class="fas fa-times" style="margin-right: 4px;"></i> Cancel
+              </button>
+            </div>
+          </div>
 
           <button
             id="btnEditLocation"
-            style="padding:4px 8px; background:#2563eb; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
+            class="location-card__button location-card__button--edit"
           >
-            Update
-          </button>
-
-          <button
-            id="btnSaveLocation"
-            style="display:none; padding:4px 8px; background:#16a34a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;"
-          >
-            Save
+            <i class="fas fa-edit" style="margin-right: 6px;"></i> Update Location
           </button>
         </div>
 
-      </div>
-
-      <div class="current-location">
-        <i class="fas fa-map-marker-alt"></i>
-        <span id="currentLocation">-</span>
+      <div class="location-card">
+        <div class="location-card__header">
+          <i class="fas fa-map-marker-alt location-card__icon"></i>
+          <span class="location-card__title">Current Location</span>
+        </div>
+        <div class="location-card__content">
+          <div class="location-card__location-text" id="currentLocation">-</div>
+          <div class="location-card__timestamp">
+            <i class="fas fa-clock location-card__timestamp-icon"></i>
+            <span>Updated:</span>
+            <span class="location-card__timestamp-value" id="currentLocationSidebarTimestamp">-</span>
+          </div>
+        </div>
       </div>
 
       <div class="payment-box">
@@ -272,10 +423,12 @@
             <span id="firstHalfPaymentStatus" class="pending">₹0</span>
             <input type="checkbox" id="firstHalfPaymentCheckbox" title="Mark as paid" style="cursor: pointer; width: 18px; height: 18px;">
           </div>
+        
         </div>
         <div class="payment-row">
           <span>Second Half Payment (10%)</span>
           <span id="secondHalfPaymentStatus" class="pending">₹0</span>
+         
         </div>
         <div class="payment-row">
           <span>Holding Charges</span>
@@ -496,7 +649,7 @@ function showToast(message, type = 'success') {
     duration: 3000,
     gravity: "top",
     position: "right",
-    backgroundColor: background,
+    style: { background: background },
     stopOnFocus: true,
     className: "toastify-custom",
   }).showToast();
@@ -1250,7 +1403,19 @@ function populateSidebar(data) {
   document.getElementById('distance').textContent = data.distance;
   document.getElementById('startDate').textContent = data.pickup_date;
   document.getElementById('eta').textContent = data.drop_date;
-  document.getElementById('currentLocation').textContent = data.current_location;
+  
+  // Update current location with formatted timestamp
+  document.getElementById('currentLocation').textContent = data.current_location || '-';
+  document.getElementById('currentLocationText').textContent = data.current_location || '-';
+  
+  // Format the timestamp nicely
+  if (data.current_location_updated_at && data.current_location_updated_at !== '-') {
+    document.getElementById('currentLocationTimestamp').textContent = data.current_location_updated_at;
+    document.getElementById('currentLocationSidebarTimestamp').textContent = data.current_location_updated_at;
+  } else {
+    document.getElementById('currentLocationTimestamp').textContent = '-';
+    document.getElementById('currentLocationSidebarTimestamp').textContent = '-';
+  }
   
   // Update button text based on whether POD received date is already set
   const btnAddPODReceived = document.getElementById('btnAddPODReceivedDate');
@@ -2547,36 +2712,42 @@ function updateTableRow(tripId, newStatus, newStatusDisplay) {
 
 // Current location update functionality
 document.addEventListener('DOMContentLoaded', function () {
-  // Get the trip ID from the sidebar data (currentTripId should be set when loading trip details)
-  let tripId = currentTripId;
-  
   const locationText = document.getElementById('currentLocationText');
   const locationInput = document.getElementById('currentLocationInput');
+  const locationEditMode = document.getElementById('locationEditMode');
   const btnEdit = document.getElementById('btnEditLocation');
   const btnSave = document.getElementById('btnSaveLocation');
+  const btnCancel = document.getElementById('btnCancelEditLocation');
 
   // Initial value - this will be updated when loadTripDetails is called
   locationText.textContent = 'Not updated';
+  document.getElementById('currentLocationTimestamp').textContent = '-';
 
   // Switch to edit mode
   btnEdit.addEventListener('click', function () {
-    if (!tripId) {
+    if (!currentTripId) {
       showToast('No trip selected. Please select a trip first.', 'error');
       return;
     }
     
     locationInput.value = locationText.textContent === 'Not updated' ? '' : locationText.textContent;
-    locationText.style.display = 'none';
+    locationEditMode.classList.add('active');
     btnEdit.style.display = 'none';
-
-    locationInput.style.display = 'inline-block';
-    btnSave.style.display = 'inline-block';
     locationInput.focus();
   });
 
+  // Cancel edit mode
+  if (btnCancel) {
+    btnCancel.addEventListener('click', function () {
+      locationEditMode.classList.remove('active');
+      btnEdit.style.display = 'block';
+      locationInput.value = '';
+    });
+  }
+
   // Save updated location
   btnSave.addEventListener('click', async function () {
-    if (!tripId) {
+    if (!currentTripId) {
       showToast('No trip selected. Please select a trip first.', 'error');
       return;
     }
@@ -2591,7 +2762,10 @@ document.addEventListener('DOMContentLoaded', function () {
       // Get CSRF token
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || csrftoken;
       
-      const response = await fetch(`/api/trip/${tripId}/update-location/`, {
+      btnSave.disabled = true;
+      btnSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+      
+      const response = await fetch(`/api/trip/${currentTripId}/update-location/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2611,33 +2785,46 @@ document.addEventListener('DOMContentLoaded', function () {
 
       if (data.success) {
         locationText.textContent = data.location;
+        
+        // Use the formatted timestamp from the API response
+        if (data.formatted_updated_at) {
+          document.getElementById('currentLocationTimestamp').textContent = data.formatted_updated_at;
+          document.getElementById('currentLocationSidebarTimestamp').textContent = data.formatted_updated_at;
+        } else if (data.updated_at) {
+          const updatedDate = new Date(data.updated_at);
+          const formattedTime = updatedDate.toLocaleDateString('en-IN', {
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit'
+          }) + ' ' + updatedDate.toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          document.getElementById('currentLocationTimestamp').textContent = formattedTime;
+          document.getElementById('currentLocationSidebarTimestamp').textContent = formattedTime;
+        }
+        
         showToast('Location updated successfully', 'success');
         
         // Back to display mode
-        locationInput.style.display = 'none';
-        btnSave.style.display = 'none';
-        locationText.style.display = 'inline';
-        btnEdit.style.display = 'inline';
-        
-        // Update the sidebar current location as well
-        document.getElementById('currentLocation').textContent = data.location;
+        locationEditMode.classList.remove('active');
+        btnEdit.style.display = 'block';
+        btnSave.disabled = false;
+        btnSave.innerHTML = '<i class="fas fa-check" style="margin-right: 4px;"></i> Save';
+        locationInput.value = '';
       } else {
-        showToast(data.error || 'Failed to update location', 'error');
+        showToast('Error: ' + (data.error || 'Failed to update location'), 'error');
+        btnSave.disabled = false;
+        btnSave.innerHTML = '<i class="fas fa-check" style="margin-right: 4px;"></i> Save';
       }
-    } catch (err) {
-      console.error('Location update error:', err);
-      showToast('Failed to update location. Please check if the trip ID is valid.', 'error');
+    } catch (error) {
+      console.error('Error:', error);
+      showToast('Error: ' + error.message, 'error');
+      btnSave.disabled = false;
+      btnSave.innerHTML = '<i class="fas fa-check" style="margin-right: 4px;"></i> Save';
     }
   });
-  
-  // Also update the location when trip details are loaded
-  // We'll modify the loadTripDetails function to update this
-  const originalLoadTripDetails = window.loadTripDetails;
-  window.loadTripDetails = function(tripIdParam) {
-    originalLoadTripDetails(tripIdParam);
-    // Update the local tripId variable
-    tripId = tripIdParam;
-  };
 });
 </script>
 </body>
