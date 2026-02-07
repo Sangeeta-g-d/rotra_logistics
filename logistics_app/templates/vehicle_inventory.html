@@ -357,6 +357,165 @@
             text-align: right;
             word-break: break-word;
         }
+
+        /* TABLE LAYOUT FIXES */
+        .table-card {
+            overflow-x: auto;
+        }
+
+        #vehicleTable {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+            box-sizing: border-box;
+        }
+
+        #vehicleTable thead {
+            background: #f9fafb;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        #vehicleTable th, #vehicleTable td {
+            box-sizing: border-box;
+        }
+
+        #vehicleTable th {
+            padding: 12px 12px;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #vehicleTable td {
+            padding: 12px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+            color: #374151;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            overflow: hidden;
+        }
+
+        /* Column width distribution */
+        #vehicleTable th:nth-child(1),
+        #vehicleTable td:nth-child(1) {
+            width: 11%;
+        }
+
+        #vehicleTable th:nth-child(2),
+        #vehicleTable td:nth-child(2) {
+            width: 18%;
+        }
+
+        #vehicleTable th:nth-child(3),
+        #vehicleTable td:nth-child(3) {
+            width: 9%;
+        }
+
+        #vehicleTable th:nth-child(4),
+        #vehicleTable td:nth-child(4) {
+            width: 12%;
+        }
+
+        #vehicleTable th:nth-child(5),
+        #vehicleTable td:nth-child(5) {
+            width: 12%;
+            text-align: center;
+        }
+
+        #vehicleTable th:nth-child(6),
+        #vehicleTable td:nth-child(6) {
+            width: 21%;
+            text-align: left;
+        }
+
+        #vehicleTable th:nth-child(7),
+        #vehicleTable td:nth-child(7) {
+            width: 10%;
+            text-align: center;
+        }
+
+        #vehicleTable th:nth-child(8),
+        #vehicleTable td:nth-child(8) {
+            width: 7%;
+            text-align: center;
+        }
+
+        .action-col {
+            text-align: center;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: nowrap;
+        }
+
+        .action-view, .action-edit, .action-delete {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-width: fit-content;
+        }
+
+        .action-view:hover {
+            background: #dc2626;
+            color: white;
+            border-color: #dc2626;
+        }
+
+        .action-edit:hover {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+        .action-delete:hover {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+
+        /* To Location column fix */
+        #vehicleTable td:nth-child(6) > div {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Ensure status badges fit properly */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .status-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
     </style>
 </head>
 <body>
@@ -378,8 +537,11 @@
                     <th>Reg No</th>
                     <th>Owner</th>
                     <th>Type</th>
+                    <th>Location</th>
+                    <th>Current Location</th>
+                    <th>To Location</th>
                     <th>Status</th>
-                    <th style="width:10%">Actions</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -394,6 +556,7 @@
                         data-type="{{ vehicle.type|escapejs }}"
                         data-load-capacity="{{ vehicle.load_capacity|default:""|stringformat:"s" }}"
                         data-location="{{ vehicle.location|default:""|escapejs }}"
+                        data-current-location="{{ vehicle.current_location_from_load|default:""|escapejs }}"
                         data-to-locations="{{ vehicle.to_location|safe|default_if_none:"[]" }}"
                         data-insurance-doc="{% if vehicle.insurance_doc %}{{ vehicle.insurance_doc.url }}{% endif %}"
                         data-rc-doc="{% if vehicle.rc_doc %}{{ vehicle.rc_doc.url }}{% endif %}"
@@ -403,10 +566,29 @@
                         data-status-label="{{ vehicle.get_status_display }}">
                         <td>{{ vehicle.reg_no }}</td>
                         <td>
-                            <div>{{ vehicle.owner.full_name }}</div>
-                            <div style="font-size:12px;color:#6b7280;">{{ vehicle.owner.phone_number }}</div>
+                            <div style="text-align: left; word-break: break-word;">{{ vehicle.owner.full_name }}</div>
+                            <div style="font-size:11px;color:#6b7280;word-break: break-word;">{{ vehicle.owner.phone_number }}</div>
                         </td>
                         <td>{{ vehicle.type }}</td>
+                        <td>{{ vehicle.location|default:"Not Set" }}</td>
+                        <td>
+                            {% if vehicle.current_location_from_load %}
+                                <span style="background:#dbeafe;color:#2563eb;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:500;">{{ vehicle.current_location_from_load }}</span>
+                            {% else %}
+                                <span style="color:#9ca3af;font-size:12px;">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if vehicle.to_location %}
+                                <div style="font-size:11px;display:flex;flex-wrap:wrap;gap:3px;max-height:50px;overflow-y:auto;align-items:flex-start;">
+                                    {% for location in vehicle.to_location %}
+                                        <span style="display:inline-block;background:#e5e7eb;padding:2px 4px;border-radius:3px;font-size:10px;white-space:nowrap;flex-shrink:0;">{{ location }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span style="color:#9ca3af;">—</span>
+                            {% endif %}
+                        </td>
                         <td>
                             <span class="status-badge {% if vehicle.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
                                 {{ vehicle.get_status_display }}
@@ -423,7 +605,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="5" style="text-align:center;padding:40px;color:#6b7280;">
+                        <td colspan="8" style="text-align:center;padding:40px;color:#6b7280;">
                             No vehicles found. Click "Add Vehicle" to get started.
                         </td>
                     </tr>
@@ -824,7 +1006,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     searchInput.addEventListener("input", () => {
         const term = searchInput.value.toLowerCase();
-        filteredRows = allRows.filter(r => r.textContent.toLowerCase().includes(term));
+        filteredRows = allRows.filter(r => {
+            const regNo = r.getAttribute('data-reg-no') || '';
+            const location = r.getAttribute('data-location') || '';
+            const currentLocation = r.getAttribute('data-current-location') || '';
+            const searchText = [regNo, location, currentLocation].join(' ').toLowerCase();
+            return searchText.includes(term);
+        });
         currentPage = 1;
         renderPage();
     });

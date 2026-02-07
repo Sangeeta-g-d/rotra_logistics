@@ -1670,6 +1670,16 @@ def vehicle_inventory(request):
 
     # Vehicles: still only those whose owner was created by this admin
     vehicles = Vehicle.objects.select_related('owner').filter(status='active').order_by('-id')
+    
+    # Add current_location to each vehicle by fetching from latest active load
+    for vehicle in vehicles:
+        # Get the latest load for this vehicle that's currently in transit or later
+        latest_load = Load.objects.filter(
+            vehicle=vehicle,
+            status__in=['assigned', 'in_transit']
+        ).select_related().order_by('-created_at').first()
+        
+        vehicle.current_location_from_load = latest_load.current_location if latest_load else None
 
     # Vendors: ALL active vendors (role='vendor')
     vendors = CustomUser.objects.filter(role='vendor', is_active=True).order_by('full_name')
