@@ -2736,13 +2736,16 @@ def close_trip_api(request, trip_id):
     try:
         load = Load.objects.get(id=trip_id, created_by=request.user)
         
-        # Allow closing trips that are already closed (idempotent) or in balance_paid/payment-related states
-        closed_statuses = ['balance_paid', 'trip_closed', 'pod_received_at_office', 'unloading_completed']
+        # Prevent closing from early/active stages
+        cannot_close_statuses = [
+            'trip_requested', 'trip_confirmed', 'reached_loading_point',
+            'upload_lr', 'in_transit', 'reached_unloading_point'
+        ]
         
-        if load.trip_status not in closed_statuses:
+        if load.trip_status in cannot_close_statuses:
             return JsonResponse({
                 'success': False,
-                'error': f'Trip cannot be closed. Current status: {load.get_trip_status_display()}. Trip must be in a completion stage (POD received or payment marked) before closing.'
+                'error': f'Cannot close trip in "{load.get_trip_status_display()}" status. Trip must reach unloading completion or beyond.'
             }, status=400)
         
         # Update both status and trip_status to indicate trip is closed

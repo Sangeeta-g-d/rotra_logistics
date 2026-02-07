@@ -1875,32 +1875,49 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
       
-      if (confirm('Are you sure you want to close this trip?')) {
+      if (confirm('Are you sure you want to close this trip? This action cannot be undone.')) {
+        closeTripBtn.disabled = true;
+        closeTripBtn.style.opacity = '0.6';
+        closeTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Closing...';
+        
         fetch(`/api/trip/${currentLoadId}/close/`, {
           method: 'POST',
           headers: { 'X-CSRFToken': csrftoken }
         })
         .then(r => r.json())
         .then(data => {
+          closeTripBtn.disabled = false;
+          closeTripBtn.style.opacity = '1';
+          closeTripBtn.innerHTML = 'Close Trip';
+          
           if (data.success) {
             showToast('Trip closed successfully', 'success');
             // Update UI
             document.getElementById('sidebarStatus').textContent = 'Closed';
-            document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"] .status-badge`).textContent = 'Closed';
-            document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"] .status-badge`).className = 'status-badge status-delivered';
+            const statusBadge = document.querySelector(`.clickable-row[data-load-id="${currentLoadId}"] .status-badge`);
+            if (statusBadge) {
+              statusBadge.textContent = 'Closed';
+              statusBadge.className = 'status-badge status-delivered';
+            }
             
             // Close sidebar
             setTimeout(() => {
               sidebar.classList.remove('open');
               overlay.classList.remove('show');
+              currentLoadId = null;
+              location.reload();
             }, 1500);
           } else {
-            showToast(data.message || 'Failed to close trip', 'error');
+            console.error('Close trip error:', data);
+            showToast(data.error || data.message || 'Failed to close trip', 'error');
           }
         })
         .catch(error => {
+          closeTripBtn.disabled = false;
+          closeTripBtn.style.opacity = '1';
+          closeTripBtn.innerHTML = 'Close Trip';
           console.error('Error closing trip:', error);
-          showToast('Error closing trip', 'error');
+          showToast('Network error: ' + error.message, 'error');
         });
       }
     });

@@ -2712,38 +2712,6 @@ def get_unread_comments_count_api(request, trip_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-
-@login_required
-@require_http_methods(["POST"])
-def close_trip_api(request, trip_id):
-    """Mark trip as completed and close it"""
-    try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
-        
-        if load.trip_status != 'balance_paid':
-            return JsonResponse({
-                'success': False,
-                'error': 'Can only close trips with completed balance payment'
-            }, status=400)
-        
-        load.status = 'delivered'
-        load.save()
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Trip closed successfully'
-        })
-        
-    except Load.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Trip not found'
-        }, status=404)
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
     
 @login_required
 @require_http_methods(["POST"])
