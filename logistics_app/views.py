@@ -4518,6 +4518,45 @@ def assign_vendor_to_load(request, load_id):
 
 
 @require_http_methods(["POST"])
+def update_pod_notes(request, trip_id):
+    """
+    API endpoint to update POD notes/tracking details
+    """
+    try:
+        load = Load.objects.get(id=trip_id)
+        
+        # Parse request body
+        data = json.loads(request.body)
+        tracking_details = data.get('tracking_details', '').strip()
+        
+        # Update the tracking_details field
+        load.tracking_details = tracking_details
+        load.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'POD notes updated successfully',
+            'tracking_details': tracking_details
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Trip/Load not found'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["POST"])
 def update_pod_received_date(request, trip_id):
     """
     API endpoint to update POD received date and time

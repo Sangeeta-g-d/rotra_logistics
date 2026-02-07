@@ -599,6 +599,43 @@
       cursor: not-allowed;
     }
 
+    .pod-notes-input {
+      width: 100%;
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: "Inter", sans-serif;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .pod-notes-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .btn-update-pod-notes {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-weight: 500;
+    }
+
+    .btn-update-pod-notes:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-update-pod-notes:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+    }
+
     @media (max-width: 768px) {
       .dashboard {
         padding: 15px;
@@ -657,11 +694,13 @@
               <th>Driver</th>
               <th>Trip Status</th>
               <th>POD Status</th>
+              <th>POD Notes</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="loadsTableBody">
             {% for load in loads %}
-            <tr>
+            <tr data-load-id="{{ load.id }}">
               <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
               <td>{{ load.customer.customer_name }}</td>
               <td>{{ load.pickup_location }} → {{ load.drop_location }}</td>
@@ -676,6 +715,22 @@
                 <span class="pod-status-badge pod-status-{{ load.pod_status }}">
                   {{ load.get_pod_status_display }}
                 </span>
+              </td>
+              <td>
+                <input type="text" 
+                       class="pod-notes-input" 
+                       data-load-id="{{ load.id }}"
+                       placeholder="Enter POD notes..." 
+                       value="{{ load.tracking_details|default:'' }}"
+                       style="width: 100%; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px;">
+              </td>
+              <td>
+                <button class="btn-update-pod-notes" 
+                        type="button"
+                        onclick="updatePODNotes({{ load.id }}, this)"
+                        style="background: #2563eb; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 13px; cursor: pointer; transition: background 0.2s;">
+                  Save
+                </button>
               </td>
             </tr>
             {% endfor %}
@@ -788,6 +843,64 @@
         </div>
 
         <script>
+        // Function to update POD notes/status - define globally before DOM ready
+        async function updatePODNotes(loadId, buttonElement) {
+          const notesInput = document.querySelector(`input[data-load-id="${loadId}"]`);
+          if (!notesInput) return;
+
+          const podNotes = notesInput.value.trim();
+          
+          // Disable button during update
+          buttonElement.disabled = true;
+          const originalText = buttonElement.textContent;
+          buttonElement.textContent = 'Saving...';
+
+          try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                              document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            const response = await fetch(`/api/trip/${loadId}/update-pod-notes/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+              },
+              body: JSON.stringify({
+                tracking_details: podNotes
+              })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+              // Show success message
+              Toastify({
+                text: 'POD notes updated successfully',
+                backgroundColor: '#10b981',
+                duration: 3000
+              }).showToast();
+              
+              buttonElement.textContent = 'Saved ✓';
+              setTimeout(() => {
+                buttonElement.textContent = originalText;
+                buttonElement.disabled = false;
+              }, 2000);
+            } else {
+              throw new Error(data.error || 'Failed to update POD notes');
+            }
+          } catch (error) {
+            console.error('Error updating POD notes:', error);
+            Toastify({
+              text: error.message || 'Error updating POD notes',
+              backgroundColor: '#ef4444',
+              duration: 3000
+            }).showToast();
+            
+            buttonElement.textContent = originalText;
+            buttonElement.disabled = false;
+          }
+        }
+
           document.addEventListener('DOMContentLoaded', function () {
             const table = document.querySelector('table');
             const tbody = table.querySelector('tbody');
@@ -858,16 +971,7 @@
 
             applyFilters();
           });
-        
-      document.getElementById('vendorName').textContent = data.vendor_name;
-      document.getElementById('vendorPhone').textContent = data.vendor_phone;
-      document.getElementById('assignedDriverName').textContent = data.driver_name;
-      document.getElementById('assignedDriverPhone').textContent = data.driver_phone;
-      document.getElementById('progressPercent').textContent = `${data.progress}% Complete`;
-      document.getElementById('progressFill').style.width = `${data.progress}%`;
-      renderTimeline(data);
-    }
-  </script>
+        </script>
 </body>
 </html>
 {% endblock %}
