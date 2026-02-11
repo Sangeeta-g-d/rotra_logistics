@@ -241,7 +241,7 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "drop_location",
             "pickup_date",
             "drop_date",
-            'mat'
+            'mat',
             "time",
             "weight",
             "price_per_unit",
