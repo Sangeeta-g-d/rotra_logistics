@@ -400,6 +400,8 @@ class VendorAcceptedLoadDetailsSerializer(serializers.ModelSerializer):
         return req.status if req else None
     
 class VendorTripDetailsSerializer(serializers.ModelSerializer):
+    first_half_payment_paid_at_ist = serializers.SerializerMethodField()
+    second_half_payment_paid_at_ist = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
     created_by_phone = serializers.CharField(source="created_by.phone_number", read_only=True)
 
@@ -488,7 +490,33 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "confirmed_paid_amount",
 
             "created_at",
+            # IST-formatted payment timestamps
+            "first_half_payment_paid_at_ist",
+            "second_half_payment_paid_at_ist",
         ]
+    def get_first_half_payment_paid_at_ist(self, obj):
+        import pytz
+        from django.utils import timezone
+        dt = getattr(obj, 'first_half_payment_paid_at', None)
+        if not dt:
+            return None
+        ist = pytz.timezone("Asia/Kolkata")
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.utc)
+        dt_ist = dt.astimezone(ist)
+        return dt_ist.strftime("%d %b %Y, %I:%M %p")
+
+    def get_second_half_payment_paid_at_ist(self, obj):
+        import pytz
+        from django.utils import timezone
+        dt = getattr(obj, 'payment_completed_at', None)
+        if not dt:
+            return None
+        ist = pytz.timezone("Asia/Kolkata")
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.utc)
+        dt_ist = dt.astimezone(ist)
+        return dt_ist.strftime("%d %b %Y, %I:%M %p")
 
     def get_tds_percentage(self, obj):
         """
