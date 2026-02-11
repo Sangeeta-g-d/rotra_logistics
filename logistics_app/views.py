@@ -4531,6 +4531,7 @@ def assign_vendor_to_load(request, load_id):
         })
 
 
+@login_required
 @require_http_methods(["POST"])
 def update_pod_notes(request, trip_id):
     """
@@ -4570,6 +4571,7 @@ def update_pod_notes(request, trip_id):
         }, status=500)
 
 
+@login_required
 @require_http_methods(["POST"])
 def update_pod_received_date(request, trip_id):
     """
