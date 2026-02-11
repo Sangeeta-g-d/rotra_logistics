@@ -564,7 +564,6 @@
           <button class="btn-update" id="btnUpdateStatus">Update Status</button>
         </div>
         <button class="btn-upload-lr" id="btnUploadLR" style="display: none;">Upload LR</button>
-        <button class="btn-upload-pod" id="btnUploadPOD" style="display: none;">Upload POD</button>
         <button class="btn-pod-received" id="btnAddPODReceivedDate" style="display:block; padding: 10px 14px; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; margin-top: 8px;">
           <i class="fas fa-calendar-check"></i> Add POD Received Date
         </button>
@@ -737,7 +736,6 @@ function attachSidebarEventListeners() {
 
   document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
   document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
-  document.getElementById('btnUploadPOD').addEventListener('click', showPODUploadModal);
   document.getElementById('btnAddComment').addEventListener('click', addComment);
   document.getElementById('sendComment').addEventListener('click', addComment);
   document.getElementById('btnCloseTrip').addEventListener('click', closeTrip);
@@ -1594,13 +1592,6 @@ function populateSidebar(data) {
     uploadLRBtn.style.display = 'inline-block';
   } else {
     uploadLRBtn.style.display = 'none';
-  }
-  
-  const uploadPODBtn = document.getElementById('btnUploadPOD');
-  if (!data.pod_document) {
-    uploadPODBtn.style.display = 'inline-block';
-  } else {
-    uploadPODBtn.style.display = 'none';
   }
   
   const btnCloseTrip = document.getElementById('btnCloseTrip');

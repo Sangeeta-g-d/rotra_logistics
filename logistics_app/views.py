@@ -1,3 +1,4 @@
+
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -4665,3 +4666,59 @@ def pod_management(request):
         'loads': loads,
     }
     return render(request, 'pod_management.html', context)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_pod_status(request, trip_id):
+    """
+    API endpoint to update POD status (AJAX)
+    """
+    try:
+        load = Load.objects.get(id=trip_id)
+        data = json.loads(request.body)
+        new_status = data.get('pod_status')
+        
+        if new_status not in dict(Load.POD_STATUS_CHOICES):
+            return JsonResponse({'success': False, 'error': 'Invalid POD status'}, status=400)
+        
+        load.pod_status = new_status
+        load.pod_uploaded_at = timezone.now()
+        load.save(update_fields=['pod_status', 'pod_uploaded_at'])
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'POD status updated successfully',
+            'pod_status': new_status,
+            'pod_status_display': load.get_pod_status_display(),
+            'pod_uploaded_at': load.pod_uploaded_at.strftime('%d %b %Y, %I:%M %p') if load.pod_uploaded_at else None
+        })
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip/Load not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    """
+    API endpoint to update POD status (AJAX)
+    """
+    try:
+        load = Load.objects.get(id=trip_id)
+        data = json.loads(request.body)
+        new_status = data.get('pod_status')
+        if new_status not in dict(Load.POD_STATUS_CHOICES):
+            return JsonResponse({'success': False, 'error': 'Invalid POD status'}, status=400)
+        load.pod_status = new_status
+        load.pod_uploaded_at = timezone.now()
+        load.save(update_fields=['pod_status', 'pod_uploaded_at'])
+        return JsonResponse({
+            'success': True,
+            'message': 'POD status updated successfully',
+            'pod_status': new_status,
+            'pod_status_display': load.get_pod_status_display(),
+            'pod_uploaded_at': load.pod_uploaded_at.strftime('%d %b %Y, %I:%M %p') if load.pod_uploaded_at else None
+        })
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip/Load not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

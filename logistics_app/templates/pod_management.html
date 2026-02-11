@@ -702,7 +702,15 @@
             {% for load in loads %}
             <tr data-load-id="{{ load.id }}">
               <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
-              <td>{{ load.customer.customer_name }}</td>
+              <td>
+                {{ load.customer.customer_name }}
+                {% if load.pod_uploaded_at %}
+                  <div style="font-size:12px;color:#6b7280;line-height:1.2;">
+                    <span>POD Status Updated:</span><br>
+                    <span>{{ load.pod_uploaded_at|date:'d M Y, h:i A' }}</span>
+                  </div>
+                {% endif %}
+              </td>
               <td>{{ load.pickup_location }} → {{ load.drop_location }}</td>
               <td>{{ load.vehicle.reg_no|default:"Not Assigned" }}</td>
               <td>{{ load.driver.full_name|default:"Not Assigned" }}</td>
@@ -712,9 +720,26 @@
                 </span>
               </td>
               <td>
-                <span class="pod-status-badge pod-status-{{ load.pod_status }}">
-                  {{ load.get_pod_status_display }}
-                </span>
+                <div>
+                  <span class="pod-status-badge pod-status-{{ load.pod_status }}">
+                    {{ load.get_pod_status_display }}
+                  </span>
+                  <form method="post" action="" style="margin-top:6px;">
+                    {% csrf_token %}
+                    <select name="pod_status" data-load-id="{{ load.id }}" class="pod-status-select" style="margin-top:4px; font-size:13px; padding:2px 6px;">
+                      {% for value, label in load.POD_STATUS_CHOICES %}
+                        <option value="{{ value }}" {% if load.pod_status == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="button" onclick="updatePODStatus({{ load.id }}, this)" style="margin-left:4px; font-size:12px; padding:2px 8px;">Save</button>
+                  </form>
+                  {% if load.pod_uploaded_at %}
+                    <div style="font-size:11px;color:#6b7280;line-height:1.2;">
+                      <span>Status Updated:</span>
+                      <span>{{ load.pod_uploaded_at|date:'d M Y, h:i A' }}</span>
+                    </div>
+                  {% endif %}
+                </div>
               </td>
               <td>
                 <input type="text" 
@@ -876,7 +901,7 @@
               // Show success message
               Toastify({
                 text: 'POD notes updated successfully',
-                backgroundColor: '#10b981',
+                style: { background: '#10b981' },
                 duration: 3000
               }).showToast();
               
@@ -892,7 +917,7 @@
             console.error('Error updating POD notes:', error);
             Toastify({
               text: error.message || 'Error updating POD notes',
-              backgroundColor: '#ef4444',
+              style: { background: '#ef4444' },
               duration: 3000
             }).showToast();
             
@@ -972,6 +997,52 @@
             applyFilters();
           });
         </script>
+<script>
+// Update POD Status AJAX (must be global)
+async function updatePODStatus(loadId, buttonElement) {
+  const row = buttonElement.closest('tr');
+  const select = row.querySelector('select.pod-status-select');
+  const statusValue = select.value;
+  buttonElement.disabled = true;
+  buttonElement.textContent = 'Saving...';
+  try {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const response = await fetch(`/api/trip/${loadId}/update-pod-status/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ pod_status: statusValue })
+    });
+    const data = await response.json();
+    if (data.success) {
+      // Update badge and status date
+      const badge = row.querySelector('.pod-status-badge');
+      badge.textContent = data.pod_status_display;
+      badge.className = `pod-status-badge pod-status-${data.pod_status}`;
+      let dateDiv = row.querySelector('.pod-status-date');
+      if (!dateDiv) {
+        dateDiv = document.createElement('div');
+        dateDiv.className = 'pod-status-date';
+        badge.parentNode.appendChild(dateDiv);
+      }
+      dateDiv.style.fontSize = '11px';
+      dateDiv.style.color = '#6b7280';
+      dateDiv.style.lineHeight = '1.2';
+      dateDiv.innerHTML = `<span>Status Updated:</span> <span>${data.pod_uploaded_at || ''}</span>`;
+      Toastify({ text: 'POD status updated!', style: { background: '#16a34a' }, duration: 2000 }).showToast();
+    } else {
+      Toastify({ text: data.error || 'Failed to update POD status', style: { background: '#ef4444' }, duration: 3000 }).showToast();
+    }
+  } catch (err) {
+    Toastify({ text: 'Error updating POD status', style: { background: '#ef4444' }, duration: 3000 }).showToast();
+  } finally {
+    buttonElement.disabled = false;
+    buttonElement.textContent = 'Save';
+  }
+}
+</script>
 </body>
 </html>
 {% endblock %}

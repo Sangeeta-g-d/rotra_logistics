@@ -101,10 +101,7 @@ path('reset-password/<int:user_id>/', views.reset_password_view, name='reset_pas
 path('api/loads/customers/contact-persons/', 
          views.get_customer_contact_persons, 
          name='get_customer_contact_persons'),
-
-
-    
-    
-    
+    path('api/trip/<int:trip_id>/update-pod-status/', views.update_pod_status, name='update_pod_status'),
 ]
+
 

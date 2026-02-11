@@ -417,6 +417,7 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     holding_charges = serializers.SerializerMethodField()
 
     first_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    first_half_payment_paid = serializers.BooleanField(read_only=True)
     second_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     total_holding_charges = serializers.SerializerMethodField()
     total_trip_amount = serializers.SerializerMethodField()
@@ -445,6 +446,7 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
 
             # payments
             "first_half_payment",
+            "first_half_payment_paid",
             "second_half_payment",
             "total_holding_charges",
             "total_trip_amount",
