@@ -241,7 +241,6 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "drop_location",
             "pickup_date",
             "drop_date",
-            'mat',
             "time",
             "weight",
             "price_per_unit",
@@ -250,7 +249,7 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
             "notes",
             "request_status",   # 👈 added here
             "created_at",
-            "material",
+            "material"
         ]
 
     def get_tds_percentage(self, obj):
