@@ -481,8 +481,6 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             # holding charges
             "holding_charges",
 
-            # hold
-            "hold_reason",
 
             # payment adjustment
             "before_payment_amount",
@@ -569,7 +567,7 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     
     def get_hold_reason(self, obj):
         """Return hold reason if trip status is 'hold', otherwise None"""
-        if obj.trip_status == 'hold':
+        if obj.trip_status == 'balance_hold':
             return obj.hold_reason
         return None
     
