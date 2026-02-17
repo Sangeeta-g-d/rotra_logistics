@@ -234,26 +234,35 @@ def update_employee(request, employee_id):
     try:
         employee = CustomUser.objects.get(id=employee_id)
         
-        # Update fields
+        # Update full_name field
         if request.POST.get('fullName'):
-            full_name = request.POST.get('fullName')
-            employee.first_name = full_name.split()[0] if full_name else ''
-            employee.last_name = ' '.join(full_name.split()[1:]) if len(full_name.split()) > 1 else ''
+            employee.full_name = request.POST.get('fullName')
         
+        # Update email
         if request.POST.get('email'):
             employee.email = request.POST.get('email')
-            
-        if request.POST.get('mobile'):
-            employee.phone_number = request.POST.get('mobile')
-            
-        if request.POST.get('password'):
-            employee.set_password(request.POST.get('password'))
-            
+        
+        # Update phone number
+        if request.POST.get('phone'):
+            employee.phone_number = request.POST.get('phone')
+        
+        # Update PAN number
+        if request.POST.get('panNumber'):
+            employee.pan_number = request.POST.get('panNumber')
+        
+        # Update address
+        if request.POST.get('address'):
+            employee.address = request.POST.get('address')
+        
+        # Update role
         if request.POST.get('role'):
-            employee.is_staff = (request.POST.get('role') == 'Admin')
-            
-        if request.FILES.get('profilePhoto'):
-            employee.profile_image = request.FILES.get('profilePhoto')
+            role = request.POST.get('role')
+            employee.role = role
+            employee.is_staff = (role == 'admin')
+        
+        # Update profile image
+        if request.FILES.get('profile_image'):
+            employee.profile_image = request.FILES.get('profile_image')
         
         employee.save()
         
@@ -291,6 +300,19 @@ def delete_employee(request, employee_id):
         return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def edit_employee(request, employee_id):
+    """Display edit employee form"""
+    if not request.user.is_staff:
+        return redirect('admin_login')
+    
+    try:
+        employee = CustomUser.objects.get(id=employee_id)
+        return render(request, 'edit_employee.html', {'employee': employee})
+    except CustomUser.DoesNotExist:
+        return redirect('employee_list')
 
 
 @login_required

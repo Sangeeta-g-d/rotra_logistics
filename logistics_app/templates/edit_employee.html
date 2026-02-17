@@ -1,0 +1,413 @@
+{% extends "admin_base.html" %}
+{% load static %}
+{% block title %}Edit Employee{% endblock %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Edit Employee</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer" />
+
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+  <style>
+    .dashboard {
+      padding: 24px;
+    }
+
+    .form-container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      padding: 32px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-header {
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .form-header h2 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #6b7280;
+      text-decoration: none;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .back-link:hover {
+      color: #374151;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .form-row.full {
+      grid-template-columns: 1fr;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+
+    .profile-photo-section {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .photo-preview {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      background: #f3f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .photo-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .photo-action {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-upload {
+      padding: 8px 16px;
+      background-color: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .btn-upload:hover {
+      background-color: #e5e7eb;
+    }
+
+    #photoInput {
+      display: none;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .btn-save {
+      flex: 1;
+      padding: 12px;
+      background-color: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-save:hover {
+      background-color: #b91c1c;
+    }
+
+    .btn-cancel {
+      flex: 1;
+      padding: 12px;
+      background-color: white;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-cancel:hover {
+      background-color: #f9fafb;
+    }
+
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 5000;
+    }
+
+    .toast {
+      background: white;
+      padding: 16px 20px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      animation: slideIn 0.3s ease;
+    }
+
+    .toast.success {
+      border-left: 4px solid #16a34a;
+      color: #16a34a;
+    }
+
+    .toast.error {
+      border-left: 4px solid #dc2626;
+      color: #dc2626;
+    }
+
+    .toast.info {
+      border-left: 4px solid #3b82f6;
+      color: #3b82f6;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .loader {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #dc2626;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    .btn-save.loading .loader {
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard">
+  <div class="form-container">
+    <a href="{% url 'employee_list' %}" class="back-link">
+      <i class="fas fa-arrow-left"></i> Back to Employees
+    </a>
+
+    <div class="form-header">
+      <h2>Edit Employee</h2>
+    </div>
+
+    <form id="editEmployeeForm" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <!-- PROFILE PHOTO -->
+      <div class="profile-photo-section">
+        <div class="photo-preview">
+          <img id="photoPreview" 
+               src="{% if employee.profile_image %}{{ employee.profile_image.url }}{% else %}{% static 'images/default_avatar.png' %}{% endif %}"
+               alt="Profile Photo">
+        </div>
+        <div class="photo-action">
+          <button type="button" class="btn-upload" id="uploadBtn">
+            <i class="fas fa-camera"></i> Change Photo
+          </button>
+          <input type="file" id="photoInput" name="profile_image" accept="image/*">
+          <small style="color: #6b7280;">JPG, PNG (Max 5MB)</small>
+        </div>
+      </div>
+
+      <!-- FULL NAME -->
+      <div class="form-row full">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" name="fullName" value="{{ employee.full_name }}" placeholder="Enter full name" required>
+        </div>
+      </div>
+
+      <!-- ROLE & EMAIL -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Role *</label>
+          <select name="role" required>
+            <option value="traffic_person" {% if employee.is_staff == False %}selected{% endif %}>Traffic Person</option>
+            <option value="admin" {% if employee.is_staff == True %}selected{% endif %}>Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" name="email" value="{{ employee.email }}" placeholder="Enter email" required>
+        </div>
+      </div>
+
+      <!-- CONTACT & PAN -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Phone Number *</label>
+          <input type="tel" name="phone" value="{{ employee.phone_number }}" placeholder="Enter phone number" required>
+        </div>
+        <div class="form-group">
+          <label>PAN Number</label>
+          <input type="text" name="panNumber" value="{{ employee.pan_number|default:'' }}" placeholder="Enter PAN number">
+        </div>
+      </div>
+
+      <!-- ADDRESS -->
+      <div class="form-row full">
+        <div class="form-group">
+          <label>Address</label>
+          <input type="text" name="address" value="{{ employee.address|default:'' }}" placeholder="Enter address">
+        </div>
+      </div>
+
+      <!-- ACTIONS -->
+      <div class="form-actions">
+        <button type="submit" class="btn-save">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+        <a href="{% url 'employee_list' %}" class="btn-cancel">
+          <i class="fas fa-times"></i> Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- TOAST NOTIFICATIONS -->
+<div id="toastContainer" class="toast-container"></div>
+
+<script>
+  const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const form = document.getElementById('editEmployeeForm');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const photoInput = document.getElementById('photoInput');
+  const photoPreview = document.getElementById('photoPreview');
+
+  // Photo upload handling
+  uploadBtn.addEventListener('click', () => photoInput.click());
+
+  photoInput.addEventListener('change', function(e) {
+    const file = this.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        photoPreview.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Show toast notification
+  function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+      <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+      <span>${message}</span>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  // Form submission
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(form);
+    const submitBtn = form.querySelector('.btn-save');
+    submitBtn.disabled = true;
+
+    try {
+      const response = await fetch('{% url "update_employee" employee.id %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast(data.message, 'success');
+        setTimeout(() => {
+          window.location.href = '{% url "employee_list" %}';
+        }, 1500);
+      } else {
+        showToast(data.error || 'Failed to update employee', 'error');
+        submitBtn.disabled = false;
+      }
+    } catch (error) {
+      showToast('Network error: ' + error.message, 'error');
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
+
+{% endblock %}

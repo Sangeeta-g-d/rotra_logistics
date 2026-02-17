@@ -312,7 +312,8 @@
             data-employee='{
               "id": {{ employee.id }},
               "name": "{{ employee.get_full_name|default:employee.username }}",
-              "role": "{{ employee.get_role_display }}",
+              "role": "{% if employee.is_staff %}Admin{% else %}Traffic Person{% endif %}",
+              "roleValue": "{{ employee.role }}",
               "contact": "{{ employee.phone_number|default:'' }}",
               "email": "{{ employee.email }}",
               "joinDate": "{{ employee.date_joined|date:"M d, Y" }}",
@@ -493,14 +494,11 @@
     </div>
 
     <div class="sidebar-actions">
-      <button class="sidebar-btn btn-view-history">
-        <i class="fas fa-history"></i>
-        View Activity History
-      </button>
-      <button class="sidebar-btn btn-edit">
+      
+      <a class="sidebar-btn btn-edit" href="/employees/{{ employee.id }}/edit/">
         <i class="fas fa-edit"></i>
         Edit
-      </button>
+      </a>
       <button class="sidebar-btn btn-deactivate" id="toggleStatusBtn">
         <i class="fas fa-ban"></i>
         Deactivate
@@ -607,6 +605,20 @@ document.addEventListener('DOMContentLoaded', function () {
     return name.substring(0, 2).toUpperCase();
   }
 
+  // === ROLE FORMATTER ===
+  function formatRole(role) {
+    if (!role) return 'Unknown';
+    const roleMap = {
+      'admin': 'Admin',
+      'traffic_person': 'Traffic Person',
+      'vendor': 'Vendor',
+      'user': 'User',
+      'Admin': 'Admin',
+      'Traffic Person': 'Traffic Person'
+    };
+    return roleMap[role] || role;
+  }
+
   // === SIDEBAR OPEN / CLOSE ===
   function openSidebar(row) {
     const data = JSON.parse(row.dataset.employee);
@@ -631,8 +643,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('profileEmail').textContent = data.email;
     document.getElementById('profileContact').textContent = data.contact || '-';
 
-    // Update details section
-    document.getElementById('profileRole').textContent = data.role;
+    // Update details section - Use role field with formatting
+    const roleDisplay = formatRole(data.role);
+    document.getElementById('profileRole').textContent = roleDisplay;
     document.getElementById('profileStatus').textContent = data.status;
     document.getElementById('profileJoinDate').textContent = data.joinDate;
 
@@ -699,7 +712,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     row.querySelector('.action-edit')?.addEventListener('click', e => {
       e.stopPropagation();
-      showToast('Edit functionality coming soon!', 'info');
+      const employeeId = row.dataset.employeeId;
+      window.location.href = `/employees/${employeeId}/edit/`;
     });
 
     row.querySelector('.action-delete')?.addEventListener('click', e => {
@@ -774,14 +788,24 @@ document.addEventListener('DOMContentLoaded', function () {
         const noDataRow = tbody.querySelector('tr td[colspan]');
         if (noDataRow) noDataRow.closest('tr').remove();
 
+        // Ensure role is formatted correctly
+        const employeeRole = data.employee.role || 'Unknown';
+        const roleDisplay = formatRole(employeeRole);
+
         const tr = document.createElement('tr');
         tr.className = 'clickable-row';
         tr.dataset.employeeId = data.employee.id;
-        tr.dataset.employee = JSON.stringify(data.employee);
+        
+        // Build employee data object with proper role
+        const employeeData = {
+          ...data.employee,
+          role: roleDisplay
+        };
+        tr.dataset.employee = JSON.stringify(employeeData);
 
         tr.innerHTML = `
           <td><img src="${data.employee.img}" class="employee-avatar" alt="${data.employee.name}">${data.employee.name}</td>
-          <td><span class="role-badge ${data.employee.role==='Admin'?'role-admin':'role-traffic'}">${data.employee.role}</span></td>
+          <td><span class="role-badge ${data.employee.role==='Admin' || data.employee.role==='admin' ? 'role-admin':'role-traffic'}">${roleDisplay}</span></td>
           <td>${data.employee.contact}</td>
           <td>${data.employee.email}</td>
           <td class="action-col">
