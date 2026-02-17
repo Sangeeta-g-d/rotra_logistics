@@ -1938,3 +1938,99 @@ def resend_otp_forgot_password(request):
         'success': False,
         'errors': serializer.errors
     }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class UpdateTripLocationStatusView(APIView):
+    """
+    API to update trip status to either 'reached_loading_point' or 'reached_unloading_point'
+    
+    Endpoint: /api/update-trip-location-status/<id>/
+    Method: POST
+    
+    Request body:
+    {
+        "status": "reached_loading_point"  OR  "reached_unloading_point",
+        "current_location": "City Name" (optional)
+    }
+    
+    Response:
+    {
+        "status": true,
+        "message": "Trip status updated successfully.",
+        "data": {
+            "id": 1,
+            "load_id": "LOAD001",
+            "trip_status": "reached_loading_point",
+            "current_location": "City Name",
+            "updated_at": "2026-02-17T10:30:00Z"
+        }
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, id):
+        vendor = request.user
+        
+        # Get status from request
+        new_status = request.data.get('status', '').strip()
+        
+        # Validate status - only allow these two statuses
+        allowed_statuses = ['reached_loading_point', 'reached_unloading_point']
+        if new_status not in allowed_statuses:
+            return Response({
+                "status": False,
+                "message": f"Invalid status. Allowed values are: {', '.join(allowed_statuses)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Try to get the load
+        try:
+            load = Load.objects.get(id=id)
+        except Load.DoesNotExist:
+            return Response({
+                "status": False,
+                "message": f"Load with ID {id} not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check authorization - vendor must have a request for this load
+        load_request = LoadRequest.objects.filter(
+            load=load,
+            vendor=vendor
+        ).first()
+        
+        # Alternative: check if vendor owns the vehicle or driver assigned to load
+        vehicle_authorized = load.vehicle and load.vehicle.owner == vendor
+        driver_authorized = load.driver and load.driver.owner == vendor
+        
+        # Vendor is not authorized
+        if not load_request and not vehicle_authorized and not driver_authorized:
+            return Response({
+                "status": False,
+                "message": "You are not authorized to update this load. No request or assignment found."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            # Update trip status using the existing method
+            load.update_trip_status(
+                new_status=new_status,
+                user=vendor,
+                send_notification=True
+            )
+            
+            return Response({
+                "status": True,
+                "message": f"Trip status updated to '{new_status}' successfully.",
+                "data": {
+                    "id": load.id,
+                    "load_id": load.load_id,
+                    "trip_status": load.trip_status,
+
+                    "updated_at": load.updated_at
+                }
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                "status": False,
+                "message": f"Error updating trip status: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

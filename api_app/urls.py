@@ -63,5 +63,6 @@ urlpatterns = [
     path('forgot-password/reset/', views.reset_password, name='reset-password'),
     path('forgot-password/resend-otp/', views.resend_otp_forgot_password, name='resend-otp-forgot-password'),
 
-    
+    # Trip location status update endpoint
+    path('update-load/<int:id>/', UpdateTripLocationStatusView.as_view(), name='update-trip-location-status'),
 ]
