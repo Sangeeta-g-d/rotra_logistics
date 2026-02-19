@@ -36,9 +36,6 @@
     .status-unloading_completed { background: #d1fae5; color: #16a34a; }
     .status-pod_pending { background: #fef3c7; color: #d97706; }
     .status-pod_received_at_office { background: #d1fae5; color: #16a34a; }
-    .status-balance_pending { background: #fef3c7; color: #d97706; }
-    .status-balance_hold { background: #fed7d7; color: #c53030; }
-    .status-balance_paid { background: #d1fae5; color: #16a34a; }
     .status-trip_closed { background: #d1fae5; color: #16a34a; }
   </style>
 </head>
@@ -238,9 +235,6 @@
         <option value="unloading_completed">Unloading completed</option>
         <option value="pod_pending">POD status - Pending</option>
         <option value="pod_received_at_office">POD status - received at rotra office</option>
-        <option value="balance_pending">Balance pending</option>
-        <option value="balance_hold">Balance hold</option>
-        <option value="balance_paid">Balance paid</option>
         <option value="trip_closed">Trip closed</option>
       </select>
       <input type="text" id="searchInput" placeholder="Search trips..." class="search-input">
@@ -556,9 +550,6 @@
             <option value="unloading_completed">Unloading completed</option>
             <option value="pod_pending">POD status - Pending</option>
             <option value="pod_received_at_office">POD status - received at rotra office</option>
-            <option value="balance_pending">Balance pending</option>
-            <option value="balance_hold">Balance hold</option>
-            <option value="balance_paid">Balance paid</option>
             <option value="trip_closed">Trip closed</option>
           </select>
           <button class="btn-update" id="btnUpdateStatus">Update Status</button>
@@ -1654,9 +1645,6 @@ function renderTimeline(data) {
     'unloading_completed',
     'pod_pending',
     'pod_received_at_office',
-    'balance_pending',
-    'balance_hold',
-    'balance_paid',
     'trip_closed'
   ];
   
@@ -1832,27 +1820,6 @@ function getStatusInfo(status, data) {
       fileUrl: data.pod_document,
       fileName: data.pod_document_name
     },
-    balance_pending: {
-      icon: 'fa-money-bill-wave',
-      title: 'Balance pending',
-      description: 'Balance payment pending',
-      timestamp: formatTimestamp(data.payment_completed_at),
-      hasFile: false
-    },
-    balance_hold: {
-      icon: 'fa-pause-circle',
-      title: 'Balance hold',
-      description: data.hold_reason ? `Hold Reason: ${data.hold_reason}` : 'Balance payment on hold',
-      timestamp: formatTimestamp(data.hold_at),
-      hasFile: false
-    },
-    balance_paid: {
-      icon: 'fa-credit-card',
-      title: 'Balance paid',
-      description: 'Balance payment completed',
-      timestamp: formatTimestamp(data.payment_completed_at),
-      hasFile: false
-    },
     trip_closed: {
       icon: 'fa-check-circle',
       title: 'Trip closed',
@@ -1912,21 +1879,12 @@ function updateTripStatus() {
     'unloading_completed': 'Unloading completed',
     'pod_pending': 'POD status - Pending',
     'pod_received_at_office': 'POD status - received at rotra office',
-    'balance_pending': 'Balance pending',
-    'balance_hold': 'Balance hold',
-    'balance_paid': 'Balance paid',
     'trip_closed': 'Trip closed'
   };
   
   // Check if status is same as current
   if (selectedStatus === currentStatus) {
     showToast('Trip is already at this status', 'error');
-    return;
-  }
-  
-  // Special handling for Balance Paid - show Hold/Completed dialog
-  if (selectedStatus === 'balance_paid') {
-    showHoldCompletedModal();
     return;
   }
   
@@ -1944,12 +1902,6 @@ function updateTripStatus() {
     if (!podCheck) {
       return;
     }
-  }
-  
-  // Handle Hold status - need reason
-  if (selectedStatus === 'balance_hold') {
-    showHoldReasonModal(selectedStatus);
-    return;
   }
   
   // Proceed with status update
@@ -2213,7 +2165,7 @@ function submitConfirmedPayment() {
       showToast(result.message || 'Payment completed', 'success');
       closePaymentCompleteModal();
       // update UI: update row and sidebar
-      updateTableRow(currentTripId, 'balance_paid', 'Balance Paid');
+      updateTableRow(currentTripId, 'trip_closed', 'Trip Closed');
       setTimeout(() => {
         loadTripDetails(currentTripId);
       }, 300);
@@ -2396,9 +2348,6 @@ function createHoldingChargesModal() {
           <option value="unloading_completed">Unloading completed</option>
           <option value="pod_pending">POD status - Pending</option>
           <option value="pod_received_at_office">POD status - received at rotra office</option>
-          <option value="balance_pending">Balance pending</option>
-          <option value="balance_hold">Balance hold</option>
-          <option value="balance_paid">Balance paid</option>
           <option value="trip_closed">Trip closed</option>
         </select>
       </div>

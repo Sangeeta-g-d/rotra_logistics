@@ -2142,15 +2142,12 @@ def get_trip_details_api(request, trip_id):
             'trip_requested': 0,
             'trip_confirmed': 7.7,
             'reached_loading_point': 15.4,
-            'upload_lr': 23.1,
-            'in_transit': 30.8,
-            'reached_unloading_point': 38.5,
-            'unloading_completed': 46.2,
-            'pod_pending': 53.8,
-            'pod_received_at_office': 61.5,
-            'balance_pending': 69.2,
-            'balance_hold': 76.9,
-            'balance_paid': 84.6,
+            'upload_lr': 30,
+            'in_transit': 40,
+            'reached_unloading_point': 50,
+            'unloading_completed': 60,
+            'pod_pending': 70,
+            'pod_received_at_office': 80,
             'trip_closed': 100,
         }
         progress = status_progress.get(load.trip_status, 0)
@@ -2399,7 +2396,7 @@ def update_trip_status_api(request, trip_id):
             status_flow = [
                 'trip_requested', 'trip_confirmed', 'reached_loading_point', 'upload_lr',
                 'in_transit', 'reached_unloading_point', 'unloading_completed', 'pod_pending',
-                'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid', 'trip_closed'
+                'pod_received_at_office', 'trip_closed'
             ]
             
             try:
@@ -2416,7 +2413,7 @@ def update_trip_status_api(request, trip_id):
         valid_statuses = [
             'trip_requested', 'trip_confirmed', 'reached_loading_point', 'upload_lr',
             'in_transit', 'reached_unloading_point', 'unloading_completed', 'pod_pending',
-            'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid', 'trip_closed'
+            'pod_received_at_office', 'trip_closed'
         ]
         
         if new_status not in valid_statuses:
@@ -2442,7 +2439,7 @@ def update_trip_status_api(request, trip_id):
                 }, status=400)
         
         # For hold status, require hold reason
-        if new_status == 'hold' or new_status == 'balance_hold':
+        if new_status == 'hold':
             hold_reason = body.get('hold_reason', '').strip()
             if not hold_reason:
                 return JsonResponse({
@@ -2482,9 +2479,6 @@ def update_trip_status_api(request, trip_id):
             'unloading_completed': 'unloading_at',
             'pod_pending': 'pod_uploaded_at',
             'pod_received_at_office': 'pod_received_at',
-            'balance_pending': 'payment_completed_at',
-            'balance_hold': 'hold_at',
-            'balance_paid': 'payment_completed_at',
             'trip_closed': 'payment_completed_at',
         }
 
@@ -2503,9 +2497,6 @@ def update_trip_status_api(request, trip_id):
             'unloading_completed': 'Trip status updated to Unloading completed',
             'pod_pending': 'Trip status updated to POD status - Pending',
             'pod_received_at_office': 'Trip status updated to POD status - received at rotra office',
-            'balance_pending': 'Trip status updated to Balance pending',
-            'balance_hold': 'Trip status updated to Balance hold',
-            'balance_paid': 'Trip status updated to Balance paid',
             'trip_closed': 'Trip status updated to Trip closed',
         }
         
@@ -2794,9 +2785,6 @@ def payment_management(request):
         'unloading_completed',
         'pod_pending',
         'pod_received_at_office',
-        'balance_pending',
-        'balance_hold',
-        'balance_paid',
         'trip_closed',
     ]
 
@@ -3027,9 +3015,9 @@ def mark_final_payment_paid_api(request, trip_id):
             # Save the model
             load.save()
 
-            # Update status to balance_paid WITH notification
+            # Update status to trip_closed WITH notification
             previous_status = load.trip_status
-            load.update_trip_status('balance_paid', user=request.user, send_notification=True)
+            load.update_trip_status('trip_closed', user=request.user, send_notification=True)
 
             return JsonResponse({
                 'success': True,

@@ -353,9 +353,6 @@ class Load(models.Model):
         ('unloading_completed', 'Unloading completed'),
         ('pod_pending', 'POD status - Pending'),
         ('pod_received_at_office', 'POD status - received at rotra office'),
-        ('balance_pending', 'Balance pending'),
-        ('balance_hold', 'Balance hold'),
-        ('balance_paid', 'Balance paid'),
         ('trip_closed', 'Trip closed'),
     ]
 
@@ -641,9 +638,6 @@ class Load(models.Model):
             'unloading_completed': 'unloading_at',
             'pod_pending': 'pod_uploaded_at',
             'pod_received_at_office': 'pod_received_at',
-            'balance_pending': 'payment_completed_at',
-            'balance_hold': 'hold_at',
-            'balance_paid': 'payment_completed_at',
             'trip_closed': 'payment_completed_at',
         }
 
@@ -783,17 +777,14 @@ class Load(models.Model):
         """Get progress percentage based on trip status"""
         progress_map = {
             'trip_requested': 0,
-            'trip_confirmed': 7.7,
-            'reached_loading_point': 15.4,
-            'upload_lr': 23.1,
-            'in_transit': 30.8,
-            'reached_unloading_point': 38.5,
-            'unloading_completed': 46.2,
-            'pod_pending': 53.8,
-            'pod_received_at_office': 61.5,
-            'balance_pending': 69.2,
-            'balance_hold': 76.9,
-            'balance_paid': 84.6,
+            'trip_confirmed': 10,
+            'reached_loading_point': 20,
+            'upload_lr': 30,
+            'in_transit': 40,
+            'reached_unloading_point': 50,
+            'unloading_completed': 60,
+            'pod_pending': 70,
+            'pod_received_at_office': 80,
             'trip_closed': 100,
         }
         return progress_map.get(self.trip_status, 0)

@@ -10,7 +10,7 @@ from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from rest_framework.decorators import api_view
 import re
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Count
 from django.core.files.storage import default_storage
 from django.views.decorators.csrf import csrf_exempt
@@ -70,7 +70,6 @@ def admin_dashboard(request):
         closed_trips = Load.objects.filter(created_by=request.user, trip_status='trip_closed').count()
         ongoing_trips = Load.objects.filter(created_by=request.user).exclude(trip_status__in=['trip_closed', 'trip_requested']).count()
         unassigned_loads = Load.objects.filter(created_by=request.user, driver__isnull=True).count()
-        balance_pending = Load.objects.filter(created_by=request.user, trip_status='balance_pending').count()
 
         context = {
             'user': request.user,
@@ -78,7 +77,6 @@ def admin_dashboard(request):
             'closed_trips': closed_trips,
             'ongoing_trips': ongoing_trips,
             'unassigned_loads': unassigned_loads,
-            'balance_pending': balance_pending,
         }
     else:
         # Admin sees all statistics and KPIs - Trip/Load Status Focus
@@ -92,20 +90,12 @@ def admin_dashboard(request):
         ongoing_statuses = [
             'trip_confirmed', 'reached_loading_point', 'upload_lr', 'in_transit',
             'reached_unloading_point', 'unloading_completed', 'pod_pending', 
-            'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid'
+            'pod_received_at_office'
         ]
         ongoing_trips = Load.objects.filter(trip_status__in=ongoing_statuses).count()
         
         # Non-assigned loads (pending status with no driver)
         unassigned_loads = Load.objects.filter(driver__isnull=True).count()
-        
-        # Payment-related stats
-        balance_pending = Load.objects.filter(trip_status='balance_pending').count()
-        balance_paid = Load.objects.filter(trip_status='balance_paid').count()
-        balance_hold = Load.objects.filter(trip_status='balance_hold').count()
-        
-        # On-hold trips
-        on_hold_trips = Load.objects.filter(trip_status='balance_hold').count()
         
         # Active drivers and vehicles
         active_drivers = Driver.objects.filter(is_active=True).count()
@@ -123,10 +113,6 @@ def admin_dashboard(request):
             'closed_trips': closed_trips,
             'ongoing_trips': ongoing_trips,
             'unassigned_loads': unassigned_loads,
-            'balance_pending': balance_pending,
-            'balance_paid': balance_paid,
-            'balance_hold': balance_hold,
-            'on_hold_trips': on_hold_trips,
             'active_drivers': active_drivers,
             'active_vehicles': active_vehicles,
 
@@ -782,12 +768,16 @@ def load_list(request):
     # Get customers with their contact persons
     customers = Customer.objects.filter(is_active=True).prefetch_related('contacts').order_by('customer_name')
     vehicle_types = VehicleType.objects.all().order_by('name')
+    
+    # Get all traffic persons (employees) for assignment
+    employees = CustomUser.objects.filter(role='traffic_person', is_active=True).order_by('full_name')
 
     context = {
         'loads': loads,
         'customers': customers,
         'vehicle_types': vehicle_types,
         'tds_rate': tds_rate.rate if tds_rate else 2,
+        'employees': employees,
     }
     return render(request, 'load_list.html', context)
 
@@ -1285,6 +1275,21 @@ def add_load(request):
             # =========================
             # 9. Create Load
             # =========================
+            # Get assigned traffic person if provided
+            assigned_traffic_person_id = request.POST.get('assigned_traffic_person')
+            created_by_user = request.user  # Default to current user
+            
+            if assigned_traffic_person_id:
+                try:
+                    assigned_traffic_person = CustomUser.objects.get(
+                        id=assigned_traffic_person_id,
+                        role='traffic_person',
+                        is_active=True
+                    )
+                    created_by_user = assigned_traffic_person
+                except CustomUser.DoesNotExist:
+                    pass  # Fall back to current user if invalid
+            
             load = Load.objects.create(
                 customer=customer,
                 contact_person_name=contact_person_name,
@@ -1306,7 +1311,7 @@ def add_load(request):
                 first_half_payment=first_half_payment,
                 second_half_payment=second_half_payment,
 
-                created_by=request.user,
+                created_by=created_by_user,
                 status='pending',
                 trip_status='pending'
             )
@@ -2187,9 +2192,6 @@ def get_trip_details_api(request, trip_id):
             'unloading_completed': 46.2,
             'pod_pending': 53.8,
             'pod_received_at_office': 61.5,
-            'balance_pending': 69.2,
-            'balance_hold': 76.9,
-            'balance_paid': 84.6,
             'trip_closed': 100,
         }
         progress = status_progress.get(load.trip_status, 0)
@@ -2438,7 +2440,7 @@ def update_trip_status_api(request, trip_id):
             status_flow = [
                 'trip_requested', 'trip_confirmed', 'reached_loading_point', 'upload_lr',
                 'in_transit', 'reached_unloading_point', 'unloading_completed', 'pod_pending',
-                'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid', 'trip_closed'
+                'pod_received_at_office', 'trip_closed'
             ]
             
             try:
@@ -2455,7 +2457,7 @@ def update_trip_status_api(request, trip_id):
         valid_statuses = [
             'trip_requested', 'trip_confirmed', 'reached_loading_point', 'upload_lr',
             'in_transit', 'reached_unloading_point', 'unloading_completed', 'pod_pending',
-            'pod_received_at_office', 'balance_pending', 'balance_hold', 'balance_paid', 'trip_closed'
+            'pod_received_at_office', 'trip_closed'
         ]
         
         if new_status not in valid_statuses:
@@ -2481,7 +2483,7 @@ def update_trip_status_api(request, trip_id):
                 }, status=400)
         
         # For hold status, require hold reason
-        if new_status == 'hold' or new_status == 'balance_hold':
+        if new_status == 'hold':
             hold_reason = body.get('hold_reason', '').strip()
             if not hold_reason:
                 return JsonResponse({
@@ -2521,9 +2523,6 @@ def update_trip_status_api(request, trip_id):
             'unloading_completed': 'unloading_at',
             'pod_pending': 'pod_uploaded_at',
             'pod_received_at_office': 'pod_received_at',
-            'balance_pending': 'payment_completed_at',
-            'balance_hold': 'hold_at',
-            'balance_paid': 'payment_completed_at',
             'trip_closed': 'payment_completed_at',
         }
 
@@ -2542,9 +2541,6 @@ def update_trip_status_api(request, trip_id):
             'unloading_completed': 'Trip status updated to Unloading completed',
             'pod_pending': 'Trip status updated to POD status - Pending',
             'pod_received_at_office': 'Trip status updated to POD status - received at rotra office',
-            'balance_pending': 'Trip status updated to Balance pending',
-            'balance_hold': 'Trip status updated to Balance hold',
-            'balance_paid': 'Trip status updated to Balance paid',
             'trip_closed': 'Trip status updated to Trip closed',
         }
         
@@ -2873,9 +2869,6 @@ def payment_management(request):
         'unloading_completed',
         'pod_pending',
         'pod_received_at_office',
-        'balance_pending',
-        'balance_hold',
-        'balance_paid',
         'trip_closed',
     ]
 
@@ -3106,9 +3099,9 @@ def mark_final_payment_paid_api(request, trip_id):
             # Save the model
             load.save()
 
-            # Update status to balance_paid WITH notification
+            # Update status to trip_closed WITH notification
             previous_status = load.trip_status
-            load.update_trip_status('balance_paid', user=request.user, send_notification=True)
+            load.update_trip_status('trip_closed', user=request.user, send_notification=True)
 
             return JsonResponse({
                 'success': True,
@@ -4059,6 +4052,37 @@ def update_vehicle(request, vehicle_id):
         vehicle.reg_no = reg_no
         vehicle.owner = owner
         
+        # Update vehicle specifications
+        vehicle_type = request.POST.get('type', '').strip()
+        if vehicle_type:
+            vehicle.type = vehicle_type
+        
+        load_capacity = request.POST.get('load_capacity', '').strip()
+        if load_capacity:
+            try:
+                vehicle.load_capacity = Decimal(load_capacity)
+            except InvalidOperation:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid load capacity value'
+                }, status=400)
+        else:
+            vehicle.load_capacity = None
+        
+        location = request.POST.get('location', '').strip()
+        if location:
+            vehicle.location = location
+        else:
+            vehicle.location = None
+        
+        # Handle to_location (ArrayField)
+        to_location_data = request.POST.get('to_location', '[]').strip()
+        try:
+            to_location = json.loads(to_location_data) if to_location_data else []
+            vehicle.to_location = to_location
+        except (json.JSONDecodeError, ValueError):
+            vehicle.to_location = []
+        
         # Handle file uploads - only update if new file is provided
         file_fields = {
             'insurance_doc': request.FILES.get('insurance_doc'),
@@ -4083,12 +4107,15 @@ def update_vehicle(request, vehicle_id):
         
         return JsonResponse({
             'success': True,
-           
             'vehicle': {
                 'id': vehicle.id,
                 'reg_no': vehicle.reg_no,
                 'owner_name': owner.full_name,
                 'owner_phone': owner.phone_number,
+                'type': vehicle.type,
+                'load_capacity': str(vehicle.load_capacity) if vehicle.load_capacity else '',
+                'location': vehicle.location or '',
+                'to_location': vehicle.to_location or [],
                 'hasInsurance': bool(vehicle.insurance_doc),
                 'hasRC': bool(vehicle.rc_doc),
             }
@@ -4668,9 +4695,6 @@ def pod_management(request):
         'unloading_completed',
         'pod_pending',
         'pod_received_at_office',
-        'balance_pending',
-        'balance_hold',
-        'balance_paid',
         'trip_closed',
     ]
 

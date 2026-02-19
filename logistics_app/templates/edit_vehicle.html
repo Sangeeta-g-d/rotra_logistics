@@ -441,7 +441,44 @@
                 </div>
             </div>
 
-           
+            <!-- Vehicle Specifications -->
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Vehicle Type</label>
+                    <input type="text" name="type" 
+                           value="{{ vehicle.type }}" 
+                           placeholder="e.g. Truck, Trailer, Lorry"
+                           style="text-transform: uppercase;">
+                    <small>Type of vehicle</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Load Capacity (in tons)</label>
+                    <input type="number" name="load_capacity" 
+                           value="{{ vehicle.load_capacity|default:'' }}" 
+                           placeholder="e.g. 10.50"
+                           step="0.01"
+                           min="0">
+                    <small>Maximum load capacity in metric tons</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Current Location</label>
+                    <input type="text" name="location" 
+                           value="{{ vehicle.location|default:'' }}" 
+                           placeholder="Enter current location">
+                    <small>Current location of the vehicle</small>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Destination Locations</label>
+                    <input type="text" name="to_location" 
+                           value="{% for loc in vehicle.to_location %}{{ loc }}{% if not forloop.last %}, {% endif %}{% endfor %}" 
+                           placeholder="Enter locations separated by commas"
+                           id="toLocationInput">
+                    <small>Enter multiple locations separated by commas (e.g. Mumbai, Pune, Delhi)</small>
+                </div>
+            </div>
 
             <!-- Documents Section -->
             <div class="form-grid full-width">
@@ -673,6 +710,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             const formData = new FormData(this);
+            
+            // Process to_location: convert comma-separated string to array
+            const toLocationInput = document.getElementById('toLocationInput').value.trim();
+            if (toLocationInput) {
+                const locations = toLocationInput.split(',').map(loc => loc.trim()).filter(loc => loc);
+                formData.set('to_location', JSON.stringify(locations));
+            } else {
+                formData.set('to_location', JSON.stringify([]));
+            }
             
             // Get vehicle ID from hidden field
             const vehicleId = formData.get('vehicle_id');
