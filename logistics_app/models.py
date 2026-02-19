@@ -413,39 +413,6 @@ class Load(models.Model):
     material = models.CharField(max_length=255, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
 
-    # PAYMENTS
-    final_payment = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
-    
-    # Payment split (90% and 10%)
-    first_half_payment = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        verbose_name="First Half Payment (90%)",
-        help_text="First payment installment - 90% of total freight"
-    )
-    
-    second_half_payment = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        verbose_name="Second Half Payment (10%)",
-        help_text="Second payment installment - 10% of total freight"
-    )
-
-    first_half_payment_paid = models.BooleanField(
-        default=False,
-        verbose_name="First Half Payment Paid",
-        help_text="Whether the first half payment has been paid"
-    )
-    
-    first_half_payment_paid_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name="First Half Payment Paid At",
-        help_text="When the first half payment was marked as paid"
-    )
-
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     trip_status = models.CharField(max_length=30, choices=TRIP_STATUS_CHOICES, default='trip_requested')
@@ -521,30 +488,6 @@ class Load(models.Model):
         help_text="Reason for putting the trip on hold"
     )
 
-    # Payment adjustment tracking
-    # Stores the amount expected before any manual adjustment (e.g., second half expected)
-    before_payment_amount = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        help_text="Amount expected before manual adjustment"
-    )
-
-    # Stores the final confirmed amount that was paid (may be adjusted up/down)
-    confirmed_paid_amount = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Confirmed amount actually paid for final settlement"
-    )
-
-    payment_adjustment_reason = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Reason for payment adjustment (increase/decrease)"
-    )
-
     # Holding charges (kept for backward compatibility - now calculated from HoldingCharge model)
     holding_charges = models.DecimalField(
         max_digits=14,
@@ -592,36 +535,11 @@ class Load(models.Model):
         if not self.pk and not self.pending_at:
             self.pending_at = timezone.now()
 
-        # Auto Sync Price = Final Payment
-        if self.final_payment and self.final_payment > 0:
-            self.price_per_unit = self.final_payment.quantize(Decimal('0.01'))
-
-        # Rounding
-        if self.final_payment is not None:
-            self.final_payment = self.final_payment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # Round price_per_unit
+        if self.price_per_unit is not None:
+            self.price_per_unit = self.price_per_unit.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
         super().save(*args, **kwargs)
-
-    def mark_first_half_payment_paid(self, user=None):
-        """Mark first half payment as paid"""
-        self.first_half_payment_paid = True
-        self.first_half_payment_paid_at = timezone.now()
-  
-        self.save(update_fields=[
-            'first_half_payment_paid',
-            'first_half_payment_paid_at',
-        ])
-        return self
-
-    def mark_first_half_payment_unpaid(self):
-        """Mark first half payment as unpaid"""
-        self.first_half_payment_paid = False
-        self.first_half_payment_paid_at = None
-        self.save(update_fields=[
-            'first_half_payment_paid',
-            'first_half_payment_paid_at',
-        ])
-        return self
 
     def update_trip_status(self, new_status, user=None, lr_number=None, tracking_details=None, send_notification=True):
         """Update trip status and send notifications"""
@@ -747,7 +665,7 @@ class Load(models.Model):
 
     @property
     def total_trip_amount(self):
-        base_amount = (self.final_payment or Decimal('0')).quantize(Decimal('0.01'))
+        base_amount = (self.price_per_unit or Decimal('0')).quantize(Decimal('0.01'))
         holding_charges = self.get_total_holding_charges()
         return (base_amount + holding_charges).quantize(Decimal('0.01'))
 
@@ -1009,3 +927,65 @@ class Notification(models.Model):
     def mark_as_read(self):
         self.is_read = True
         self.save()
+
+
+class Payment(models.Model):
+    """
+    Model to track individual payments made for a load/trip.
+    Each payment record stores amount paid, date/time, and description.
+    """
+    load = models.ForeignKey(
+        Load,
+        on_delete=models.CASCADE,
+        related_name='payments',
+        help_text='The load/trip this payment is for'
+    )
+    
+    amount_paid = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        help_text='Amount paid in this payment'
+    )
+    
+    payment_date = models.DateTimeField(
+        auto_now_add=True,
+        help_text='Date and time when payment was recorded'
+    )
+    
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Description or note for this payment (e.g., "First half payment", "Adjustment", etc.)'
+    )
+    
+    recorded_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_payments',
+        help_text='Admin/user who recorded this payment'
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When this payment record was created'
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text='When this payment record was last updated'
+    )
+    
+    class Meta:
+        ordering = ['-payment_date']
+        verbose_name = 'Payment'
+        verbose_name_plural = 'Payments'
+        indexes = [
+            models.Index(fields=['load', 'payment_date']),
+            models.Index(fields=['payment_date']),
+        ]
+    
+    def __str__(self):
+        return f"₹{self.amount_paid} - {self.load.load_id} - {self.payment_date.strftime('%Y-%m-%d')}"
+

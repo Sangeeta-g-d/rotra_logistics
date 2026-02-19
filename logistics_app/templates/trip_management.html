@@ -408,21 +408,8 @@
 
       <div class="payment-box">
         <div class="payment-row">
-          <span>Final Payment</span>
-          <span id="finalPaymentStatus" class="pending">₹0 Pending</span>
-        </div>
-        <div class="payment-row">
-          <span>First Half Payment (90%)</span>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span id="firstHalfPaymentStatus" class="pending">₹0</span>
-            <input type="checkbox" id="firstHalfPaymentCheckbox" title="Mark as paid" style="cursor: pointer; width: 18px; height: 18px;">
-          </div>
-        
-        </div>
-        <div class="payment-row">
-          <span>Second Half Payment (10%)</span>
-          <span id="secondHalfPaymentStatus" class="pending">₹0</span>
-         
+          <span>Trip Amount (Freight)</span>
+          <span id="pricePerUnitStatus" class="pending">₹0</span>
         </div>
         <div class="payment-row">
           <span>Holding Charges</span>
@@ -654,76 +641,6 @@ function attachSidebarEventListeners() {
 
   closeBtn.addEventListener('click', closeSidebar);
   overlay.addEventListener('click', closeSidebar);
-
-  // First half payment checkbox listener
-  document.getElementById('firstHalfPaymentCheckbox').addEventListener('change', function() {
-    if (!currentTripId) {
-      showToast('No trip selected', 'error');
-      this.checked = !this.checked; // Revert checkbox
-      return;
-    }
-    
-    const tripId = currentTripId;
-    const isPaid = this.checked;
-    console.log('Sending request for trip ID:', tripId, 'is_paid:', isPaid);
-    // Call API to update first half payment status
-    fetch(`/api/payment/${tripId}/mark-first-half-paid/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrftoken
-      },
-      body: JSON.stringify({ is_paid: isPaid })
-    })
-    .then(response => response.json())
-    .then(result => {
-      if (result.success) {
-        // Update UI with backend data
-        const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
-        const remainingAmountStatus = document.getElementById('remainingAmountStatus');
-        const totalAmountStatus = document.getElementById('totalAmountStatus');
-        
-        // Update first half payment status
-        if (isPaid) {
-          firstHalfPaymentStatus.className = 'paid';
-          // Add tooltip with payment info
-          let tooltipText = 'First half payment paid';
-          if (result.paid_at) {
-            tooltipText += `\nOn: ${result.paid_at}`;
-          }
-          if (result.paid_by) {
-            tooltipText += `\nBy: ${result.paid_by}`;
-          }
-          firstHalfPaymentStatus.title = tooltipText;
-        } else {
-          firstHalfPaymentStatus.className = 'pending';
-          firstHalfPaymentStatus.title = '';
-        }
-        
-        // Update remaining amount
-        remainingAmountStatus.textContent = `₹${parseFloat(result.remaining_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-        
-        // Update remaining amount color based on payment status
-        if (result.is_paid) {
-          remainingAmountStatus.className = 'paid';
-        } else {
-          remainingAmountStatus.className = 'pending';
-        }
-        
-        showToast(result.message || 'First half payment status updated', 'success');
-      } else {
-        // Revert checkbox on error
-        this.checked = !isPaid;
-        showToast('Error: ' + (result.error || 'Failed to update payment status'), 'error');
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      // Revert checkbox on error
-      this.checked = !isPaid;
-      showToast('Failed to update payment status', 'error');
-    });
-  });
 
   document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
   document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
@@ -1331,7 +1248,6 @@ function loadTripDetails(tripId) {
   .then(result => {
     if (result.success) {
       console.log('Backend data:', result.data); // Add this for debugging
-      console.log('First half payment paid:', result.data.first_half_payment_paid);
       populateSidebar(result.data);
     } else {
       showToast('Error loading trip details: ' + (result.error || 'Unknown error'), 'error');
@@ -1448,14 +1364,6 @@ function populateSidebar(data) {
       paymentAdjustmentBox.style.display = 'none';
   }
   
-  if (data.final_payment_paid) {
-    finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Paid`;
-    finalPaymentStatus.className = 'paid';
-  } else {
-    finalPaymentStatus.textContent = `₹${data.final_payment.toLocaleString('en-IN', {minimumFractionDigits: 2})} Pending`;
-    finalPaymentStatus.className = 'pending';
-  }
-  
   // Update payment display with first half and second half payment
   // User Amount
   const userAmountStatus = document.getElementById('userAmountStatus');
@@ -1467,67 +1375,17 @@ function populateSidebar(data) {
   const remainingAmountStatus = document.getElementById('remainingAmountStatus');
   const holdingChargesInfo = document.getElementById('holdingChargesInfo');
   const chargesAddedAtStatus = document.getElementById('chargesAddedAtStatus');
-  const firstHalfPaymentStatus = document.getElementById('firstHalfPaymentStatus');
-  const secondHalfPaymentStatus = document.getElementById('secondHalfPaymentStatus');
-  const firstHalfPaymentCheckbox = document.getElementById('firstHalfPaymentCheckbox');
+  const pricePerUnitStatus = document.getElementById('pricePerUnitStatus');
   const btnViewHoldingCharges = document.getElementById('btnViewHoldingCharges');
   
-  const finalPayment = data.final_payment || 0;
-  const firstHalfPayment = data.first_half_payment || 0;
-  const secondHalfPayment = data.second_half_payment || 0;
+  const pricePerUnit = data.price_per_unit || 0;
   const holdingCharges = data.holding_charges || 0;
-  const totalAmount = (finalPayment + holdingCharges);
+  const totalAmount = (pricePerUnit + holdingCharges);
   
-  // Display first and second half payments
-  firstHalfPaymentStatus.textContent = `₹${firstHalfPayment.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-  secondHalfPaymentStatus.textContent = `₹${secondHalfPayment.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  // Display trip amount and holding charges
+  pricePerUnitStatus.textContent = `₹${pricePerUnit.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   holdingChargesStatus.textContent = `₹${holdingCharges.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
   totalAmountStatus.textContent = `₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-  
-  // Set checkbox state based on backend data
-  firstHalfPaymentCheckbox.checked = data.first_half_payment_paid || false;
-  firstHalfPaymentCheckbox.dataset.tripId = data.id;
-  
-  // Calculate remaining amount: Total - First Half Payment
-  if (data.first_half_payment_paid) {
-    firstHalfPaymentStatus.className = 'paid';
-    // Add tooltip with payment info
-    let tooltipText = 'First half payment paid';
-    if (data.first_half_payment_paid_at) {
-        tooltipText += `\nOn: ${data.first_half_payment_paid_at}`;
-    }
-
-    firstHalfPaymentStatus.title = tooltipText;
-  } else {
-    firstHalfPaymentStatus.className = 'pending';
-    firstHalfPaymentStatus.title = '';
-  }
-  
-  // Calculate remaining amount based on payment status
-  let remainingAmount = totalAmount;
-  if (data.first_half_payment_paid) {
-    remainingAmount = totalAmount - firstHalfPayment;
-  }
-  
-  // If final payment is completed, remaining is 0
-  if (data.final_payment_paid) {
-    remainingAmount = 0;
-  }
-  
-  remainingAmountStatus.textContent = `₹${remainingAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-  
-  // Update remaining amount color based on payment status
-  if (data.final_payment_paid) {
-    remainingAmountStatus.className = 'paid';
-  } else if (data.first_half_payment_paid) {
-    remainingAmountStatus.className = 'paid';
-  } else {
-    remainingAmountStatus.className = 'pending';
-  }
-  
-  // Reset checkbox state
-  // firstHalfPaymentCheckbox.checked = false;
-  firstHalfPaymentCheckbox.dataset.tripId = data.id;
   
   // Store trip status for modal
   window.currentTripStatus = data.trip_status;
@@ -2066,9 +1924,7 @@ function showHoldCompletedModal() {
         return;
       }
       const data = result.data || {};
-      const firstHalf = parseFloat(data.first_half_payment || 0);
-      const secondHalf = parseFloat(data.second_half_payment || 0);
-      const beforeAmount = parseFloat(data.before_amount) || (firstHalf > 0 ? secondHalf : parseFloat(data.final_payment || 0));
+      const beforeAmount = parseFloat(data.price_per_unit || 0);
       
       // Get TDS details
       const applyTDS = data.apply_tds || false;

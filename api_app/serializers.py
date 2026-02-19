@@ -268,20 +268,20 @@ class LoadDetailsSerializer(serializers.ModelSerializer):
         # Get TDS percentage
         tds_percentage = self.get_tds_percentage(obj)
         
-        # Calculate TDS amount from final_payment
-        final_payment = obj.final_payment or Decimal('0.00')
-        tds_amount = (final_payment * Decimal(tds_percentage) / Decimal('100')).quantize(Decimal('0.01'))
+        # Calculate TDS amount from price_per_unit
+        price_per_unit = obj.price_per_unit or Decimal('0.00')
+        tds_amount = (price_per_unit * Decimal(tds_percentage) / Decimal('100')).quantize(Decimal('0.01'))
         
         return float(tds_amount)
     
     def get_net_amount_after_tds(self, obj):
         """Calculate net amount after deducting TDS"""
         if not obj.apply_tds:
-            return float(obj.final_payment or Decimal('0.00'))
+            return float(obj.price_per_unit or Decimal('0.00'))
         
-        final_payment = obj.final_payment or Decimal('0.00')
+        price_per_unit = obj.price_per_unit or Decimal('0.00')
         tds_amount = Decimal(str(self.get_tds_amount(obj)))
-        net_amount = (final_payment - tds_amount).quantize(Decimal('0.01'))
+        net_amount = (price_per_unit - tds_amount).quantize(Decimal('0.01'))
         
         return float(net_amount)
 
@@ -400,8 +400,6 @@ class VendorAcceptedLoadDetailsSerializer(serializers.ModelSerializer):
         return req.status if req else None
     
 class VendorTripDetailsSerializer(serializers.ModelSerializer):
-    first_half_payment_paid_at_ist = serializers.SerializerMethodField()
-    second_half_payment_paid_at_ist = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
     created_by_phone = serializers.CharField(source="created_by.phone_number", read_only=True)
 
@@ -416,15 +414,10 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     recent_comments = serializers.SerializerMethodField()
     holding_charges = serializers.SerializerMethodField()
 
-    first_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
-    first_half_payment_paid = serializers.BooleanField(read_only=True)
-    second_half_payment = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     total_holding_charges = serializers.SerializerMethodField()
     total_trip_amount = serializers.SerializerMethodField()
 
     hold_reason = serializers.SerializerMethodField()
-    before_payment_amount = serializers.SerializerMethodField()
-    confirmed_paid_amount = serializers.SerializerMethodField()
 
     # ✅ NEW FIELDS
     apply_tds = serializers.BooleanField(read_only=True)
@@ -445,9 +438,6 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "price_per_unit",
 
             # payments
-            "first_half_payment",
-            "first_half_payment_paid",
-            "second_half_payment",
             "total_holding_charges",
             "total_trip_amount",
             'hold_reason',
@@ -486,40 +476,8 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             # holding charges
             "holding_charges",
 
-
-            # payment adjustment
-            "before_payment_amount",
-            "confirmed_paid_amount",
-
             "created_at",
-            # IST-formatted payment timestamps
-            "first_half_payment_paid_at_ist",
-            "second_half_payment_paid_at_ist",
         ]
-    def get_first_half_payment_paid_at_ist(self, obj):
-        import pytz
-        from django.utils import timezone
-        dt = getattr(obj, 'first_half_payment_paid_at', None)
-        if not dt:
-            return None
-        ist = pytz.timezone("Asia/Kolkata")
-        if timezone.is_naive(dt):
-            dt = timezone.make_aware(dt, timezone.utc)
-        dt_ist = dt.astimezone(ist)
-        return dt_ist.strftime("%d %b %Y, %I:%M %p")
-
-    def get_second_half_payment_paid_at_ist(self, obj):
-        import pytz
-        from django.utils import timezone
-        dt = getattr(obj, 'payment_completed_at', None)
-        if not dt:
-            return None
-        ist = pytz.timezone("Asia/Kolkata")
-        if timezone.is_naive(dt):
-            dt = timezone.make_aware(dt, timezone.utc)
-        dt_ist = dt.astimezone(ist)
-        return dt_ist.strftime("%d %b %Y, %I:%M %p")
-
     def get_tds_percentage(self, obj):
         """
         If apply_tds is true → fetch value from TDSRate table
@@ -598,23 +556,7 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     
     def get_hold_reason(self, obj):
         """Return hold reason if trip status is 'hold', otherwise None"""
-        if obj.trip_status == 'balance_hold':
-            return obj.hold_reason
-        return None
-    
-    def get_before_payment_amount(self, obj):
-        """Return the amount that was expected before any manual adjustment."""
-        # If explicitly set, use it; otherwise default to second half or final payment
-        if getattr(obj, 'before_payment_amount', None) is not None and obj.before_payment_amount != 0:
-            return obj.before_payment_amount
-        # prefer second half if available
-        if getattr(obj, 'second_half_payment', None):
-            return obj.second_half_payment
-        return obj.final_payment
-
-    def get_confirmed_paid_amount(self, obj):
-        """Return the confirmed paid amount if present, otherwise None."""
-        return obj.confirmed_paid_amount if getattr(obj, 'confirmed_paid_amount', None) is not None else None
+        return obj.hold_reason if obj.hold_reason else None
     
 
 class LRUploadSerializer(serializers.ModelSerializer):

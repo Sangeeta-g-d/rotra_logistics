@@ -1209,50 +1209,8 @@ def add_load(request):
             else:
                 total_amount = Decimal('0.00')
 
-            final_payment = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
             # =========================
-            # 7. First & Second Payment
-            # =========================
-            first_half_str = request.POST.get('first_half_payment', '').replace(',', '').strip()
-            second_half_str = request.POST.get('second_half_payment', '').replace(',', '').strip()
-
-            if total_amount > 0:
-                # First half
-                if first_half_str:
-                    try:
-                        first_half_payment = Decimal(first_half_str).quantize(
-                            Decimal('0.01'), rounding=ROUND_HALF_UP
-                        )
-                    except:
-                        first_half_payment = (total_amount * Decimal('0.90')).quantize(
-                            Decimal('0.01'), rounding=ROUND_HALF_UP
-                        )
-                else:
-                    first_half_payment = (total_amount * Decimal('0.90')).quantize(
-                        Decimal('0.01'), rounding=ROUND_HALF_UP
-                    )
-
-                # Second half
-                if second_half_str:
-                    try:
-                        second_half_payment = Decimal(second_half_str).quantize(
-                            Decimal('0.01'), rounding=ROUND_HALF_UP
-                        )
-                    except:
-                        second_half_payment = (total_amount * Decimal('0.10')).quantize(
-                            Decimal('0.01'), rounding=ROUND_HALF_UP
-                        )
-                else:
-                    second_half_payment = (total_amount * Decimal('0.10')).quantize(
-                        Decimal('0.01'), rounding=ROUND_HALF_UP
-                    )
-            else:
-                first_half_payment = Decimal('0.00')
-                second_half_payment = Decimal('0.00')
-
-            # =========================
-            # 8. Optional Fields
+            # 7. Optional Fields
             # =========================
             contact_person_name = request.POST.get('contactPersonName', '').strip() or None
             contact_person_phone = request.POST.get('contactPersonPhone', '').strip() or None
@@ -1305,12 +1263,7 @@ def add_load(request):
                 notes=notes,
                 apply_tds=apply_tds,
                 user_amount=user_amount,
-
                 price_per_unit=total_amount,
-                final_payment=final_payment,
-                first_half_payment=first_half_payment,
-                second_half_payment=second_half_payment,
-
                 created_by=created_by_user,
                 status='pending',
                 trip_status='pending'
@@ -1326,9 +1279,6 @@ def add_load(request):
                     'id': load.id,
                     'load_id': load.load_id,
                     'price_per_unit': str(load.price_per_unit),
-                    'final_payment': str(load.final_payment),
-                    'first_half_payment': str(load.first_half_payment),
-                    'second_half_payment': str(load.second_half_payment),
                     'total_trip_amount': str(load.total_trip_amount),
                     'total_trip_amount_formatted': load.total_trip_amount_formatted,
                 }
@@ -2231,11 +2181,6 @@ def get_trip_details_api(request, trip_id):
             })
             total_holding_charges += charge.amount
 
-        # Get first half payment paid date
-        first_half_payment_date = None
-        if load.first_half_payment_paid_at:
-            first_half_payment_date = load.first_half_payment_paid_at.strftime('%b %d, %Y %I:%M %p')
-
         data = {
             'id': load.id,
             'load_id': load.load_id,
@@ -2263,25 +2208,19 @@ def get_trip_details_api(request, trip_id):
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
             
             # Payment details
-            'final_payment': float(load.final_payment),
-            'first_half_payment': float(load.first_half_payment or Decimal('0')),
-            'second_half_payment': float(load.second_half_payment or Decimal('0')),
+            'price_per_unit': float(load.price_per_unit),
             'holding_charges': float(total_holding_charges),
             'holding_charges_list': holding_charges_list,
-            'total_amount': float(load.final_payment) + float(total_holding_charges),
-            'final_payment_paid': final_payment_paid,
+            'total_amount': float(load.price_per_unit) + float(total_holding_charges),
             'holding_charges_added_at': load.holding_charges_added_at.isoformat() if load.holding_charges_added_at else None,
             'holding_charges_added_at_status': load.holding_charges_added_at_status or '',
             'user_amount':float(load.user_amount or 0),
-            # First half payment status (ADD THIS)
-            'first_half_payment_paid': load.first_half_payment_paid,
-            'first_half_payment_paid_at': first_half_payment_date,
 
-            # TDS Information - Applied to full amount (final_payment), not just second half
+            # TDS Information - Applied to price_per_unit
             'apply_tds': load.apply_tds,
             'tds_rate': float(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00),
-            'tds_amount': float((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100'))) if load.apply_tds else 0,
-            'tds_deductible_amount': float((load.final_payment or Decimal('0')) - ((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100')))) if load.apply_tds else float(load.final_payment or Decimal('0')),
+            'tds_amount': float((load.price_per_unit or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100'))) if load.apply_tds else 0,
+            'tds_deductible_amount': float((load.price_per_unit or Decimal('0')) - ((load.price_per_unit or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100')))) if load.apply_tds else float(load.price_per_unit or Decimal('0')),
 
             'weight': load.weight or 'N/A',
             'material': load.material or 'N/A',
@@ -2916,21 +2855,6 @@ def get_payment_details_api(request, trip_id):
         final_payment_date = None
         if hasattr(load, 'payment_completed_at') and load.payment_completed_at:
             final_payment_date = load.payment_completed_at.strftime('%b %d, %Y %I:%M %p')
-        
-        first_half_payment_date = None
-        if load.first_half_payment_paid_at:
-            first_half_payment_date = load.first_half_payment_paid_at.strftime('%b %d, %Y %I:%M %p')
-
-        # Calculate adjustment
-        adjustment_amount = Decimal('0.00')
-        adjustment_type = 'none'  # 'increase', 'decrease', or 'none'
-        
-        if load.confirmed_paid_amount and load.before_payment_amount:
-            adjustment_amount = load.confirmed_paid_amount - load.before_payment_amount
-            if adjustment_amount > 0:
-                adjustment_type = 'increase'
-            elif adjustment_amount < 0:
-                adjustment_type = 'decrease'
 
         # Get holding charges
         holding_charges = load.get_total_holding_charges()
@@ -2972,36 +2896,20 @@ def get_payment_details_api(request, trip_id):
             'vendor_phone': load.driver.owner.phone_number if load.driver and hasattr(load.driver, 'owner') and load.driver.owner else 'N/A',
 
             # Payment details
-            'final_payment': float(load.final_payment),
-            'total_amount': float(load.final_payment),
-            'first_half_payment': float(getattr(load, 'first_half_payment', 0) or 0),
-            'second_half_payment': float(getattr(load, 'second_half_payment', 0) or 0),
-            'before_amount': float(getattr(load, 'before_payment_amount', 0) or 0),
-            'confirmed_amount': float(getattr(load, 'confirmed_paid_amount', 0) or 0),
-            'final_payment_paid': final_payment_paid,
-            'final_payment_date': final_payment_date,
-            
-            # First half payment status
-            'first_half_payment_paid': load.first_half_payment_paid,
-            'first_half_payment_paid_at': first_half_payment_date,
-            
-            # Payment adjustment info
-            'adjustment_amount': float(adjustment_amount),
-            'adjustment_type': adjustment_type,
-            'adjustment_percentage': float((adjustment_amount / load.before_payment_amount * 100) if load.before_payment_amount > 0 else 0),
-            'payment_adjustment_reason': load.payment_adjustment_reason,
-            
-            # Holding charges
+            'price_per_unit': float(load.price_per_unit),
+            'total_amount': float(load.price_per_unit) + float(holding_charges),
             'holding_charges': float(holding_charges),
             'holding_charges_added_at': load.holding_charges_added_at.strftime('%b %d, %Y %I:%M %p') if load.holding_charges_added_at else None,
             'holding_charges_added_at_status': load.holding_charges_added_at_status,
             'holding_charges_list': holding_charges_list,
+            'final_payment_paid': final_payment_paid,
+            'final_payment_date': final_payment_date,
 
-            # TDS Information - Applied to full amount (final_payment), not just second half
+            # TDS Information - Applied to price_per_unit
             'apply_tds': load.apply_tds,
             'tds_rate': float(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00),
-            'tds_amount': float((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100'))) if load.apply_tds else 0,
-            'tds_deductible_amount': float((load.final_payment or Decimal('0')) - ((load.final_payment or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100')))) if load.apply_tds else float(load.final_payment or Decimal('0')),
+            'tds_amount': float((load.price_per_unit or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100'))) if load.apply_tds else 0,
+            'tds_deductible_amount': float((load.price_per_unit or Decimal('0')) - ((load.price_per_unit or Decimal('0')) * (Decimal(str(TDSRate.objects.first().rate if TDSRate.objects.exists() else 2.00)) / Decimal('100')))) if load.apply_tds else float(load.price_per_unit or Decimal('0')),
 
             # Show creator information for admin
             'created_by_name': load.created_by.full_name if load.created_by else 'System',

@@ -63,8 +63,7 @@
         "customer_location": "{{ load.customer.location|default:'-' }}",
         "contact_person_name": "{{ load.contact_person_name|default_if_none:''|default:'' }}{% if not load.contact_person_name and load.customer.contacts.all %}{{ load.customer.contacts.all.0.name }}{% elif not load.contact_person_name %}-{% endif %}",
         "contact_person_phone": "{{ load.contact_person_phone|default_if_none:''|default:'' }}{% if not load.contact_person_phone and load.customer.contacts.all %}{{ load.customer.contacts.all.0.phone_number }}{% elif not load.contact_person_phone %}-{% endif %}",
-        "price_per_unit": "{{ load.price_per_unit }}",
-        "final_payment": "{{ load.final_payment }}"
+        "price_per_unit": "{{ load.price_per_unit }}"
     }'>
     <td style="color:var(--primary); font-weight: 1000;">{{ load.load_id }}</td>
     <td>
@@ -422,34 +421,18 @@
         </div>
       </div>
 
-      <!-- Payment Split Section -->
+      <!-- Trip Amount (Freight) Section -->
       <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 16px 0;">
         <div style="font-weight: 600; color: #1e40af; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-          <i class="fas fa-coins"></i> Payment Split (90% & 10%)
+          <i class="fas fa-truck"></i> Trip Amount (Freight)
         </div>
         
         <div class="form-row">
-          <div class="form-group">
-            <label>First Half Payment (90%)</label>
-            <input type="number" id="firstHalfPaymentInput" name="first_half_payment" step="0.01" min="0" value="0.00" placeholder="Enter or auto-calculated" style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
-            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Edit this amount - second half will auto-adjust to match total</small>
+          <div class="form-group" style="flex: 1;">
+            <label>Price Per Unit / Trip Amount</label>
+            <input type="number" id="pricePerUnitInput" name="price_per_unit" step="0.01" min="0" value="0.00" placeholder="Enter trip amount" style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
+            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">The total freight amount for this trip</small>
           </div>
-          <div class="form-group">
-            <label>Second Half Payment (10%)</label>
-            <input type="number" id="secondHalfPaymentInput" name="second_half_payment" step="0.01" min="0" value="0.00" placeholder="Enter or auto-calculated" style="font-size: 14px; font-weight: 600; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%;">
-            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Edit this amount - first half will auto-adjust to match total</small>
-          </div>
-        </div>
-      </div>
-
-      <!-- Final Payment -->
-      <div class="form-row">
-        <div class="form-group">
-          <label>Final Payment</label>
-          <div class="payment-display final-payment">
-            <input type="text" id="finalPaymentDisplay" readonly value="₹ 0">
-          </div>
-          <input type="hidden" name="final_payment" id="hiddenFinalPayment">
         </div>
       </div>
 
@@ -994,40 +977,16 @@ document.addEventListener('DOMContentLoaded', function () {
   // ====================== 90-10 PAYMENT SPLIT CALCULATION ======================
   function calculatePaymentSplit() {
     const totalInput = document.getElementById('totalAmountInput');
-    const finalDisplay = document.getElementById('finalPaymentDisplay');
-    const hiddenFinalPayment = document.getElementById('hiddenFinalPayment');
-    const firstHalfInput = document.getElementById('firstHalfPaymentInput');
-    const secondHalfInput = document.getElementById('secondHalfPaymentInput');
+    const pricePerUnitInput = document.getElementById('pricePerUnitInput');
 
-    if (!totalInput || !finalDisplay) return;
+    if (!totalInput || !pricePerUnitInput) return;
 
     const total = parseFloat(totalInput.value) || 0;
 
     if (total > 0) {
-      const finalPayment = total;
-      const firstHalfPayment = total * 0.90;  // 90%
-      const secondHalfPayment = total * 0.10; // 10%
-
-      finalDisplay.value = '₹ ' + finalPayment.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-      hiddenFinalPayment.value = finalPayment;
-      
-      // Update input fields (only if they haven't been manually modified)
-      if (!firstHalfInput.dataset.modified) {
-        firstHalfInput.value = firstHalfPayment.toFixed(2);
-      }
-      if (!secondHalfInput.dataset.modified) {
-        secondHalfInput.value = secondHalfPayment.toFixed(2);
-      }
+      pricePerUnitInput.value = total.toFixed(2);
     } else {
-      finalDisplay.value = '₹ 0.00';
-      hiddenFinalPayment.value = '';
-      
-      if (!firstHalfInput.dataset.modified) {
-        firstHalfInput.value = '0.00';
-      }
-      if (!secondHalfInput.dataset.modified) {
-        secondHalfInput.value = '0.00';
-      }
+      pricePerUnitInput.value = '0.00';
     }
   }
 
