@@ -687,27 +687,15 @@
   <div class="top-bar">
     <h2>Payment Management</h2>
     <div class="search-add-container">
-      <input type="text" id="searchInput" placeholder="Search trips..." class="search-input">
+      <input type="text" id="searchInput" placeholder="Search payment records..." class="search-input">
       <button class="add-button" onclick="window.location.href='{% url 'load_list' %}'">View All Loads</button>
     </div>
   </div>
 
-  <!-- Payment Status Filters -->
+  <!-- Payment Records List -->
   <div class="filter-container" style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-    <button class="filter-btn active" data-filter="all" onclick="filterByPaymentStatus('all')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
-      <i class="fas fa-list"></i> All Payments
-    </button>
-    <button class="filter-btn" data-filter="advance_paid" onclick="filterByPaymentStatus('advance_paid')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
-      <i class="fas fa-check-circle" style="color: #2563eb;"></i> Advance Paid
-    </button>
-    <button class="filter-btn" data-filter="pending" onclick="filterByPaymentStatus('pending')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
-      <i class="fas fa-hourglass-end" style="color: #d97706;"></i> Pending
-    </button>
-    <button class="filter-btn" data-filter="on_hold" onclick="filterByPaymentStatus('on_hold')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
-      <i class="fas fa-pause-circle" style="color: #c53030;"></i> On Hold
-    </button>
-    <button class="filter-btn" data-filter="paid" onclick="filterByPaymentStatus('paid')" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
-      <i class="fas fa-check-double" style="color: #16a34a;"></i> Paid
+    <button class="filter-btn active" style="padding: 8px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">
+      <i class="fas fa-list"></i> All Payment Records
     </button>
   </div>
 
@@ -717,84 +705,51 @@
       <tr>
         <th>Load ID</th>
         <th>Route</th>
-        <th>Payment Status</th>
-        <th>Trip Amount (Freight)</th>
-        <th>Holding Charges</th>
-        <th>Total Amount</th>
+        <th>Amount Paid</th>
+        <th>Description</th>
+        <th>Payment Date/Time (IST)</th>
+        <th>Recorded By</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
-      {% if trips %}
-        {% for load in trips %}
-        <tr class="clickable-row" data-trip-id="{{ load.id }}" data-payment-status="{% if load.trip_status == 'balance_hold' %}on_hold{% elif load.trip_status == 'trip_closed' or load.trip_status == 'balance_paid' %}paid{% else %}pending{% endif %}">
-          <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
+      {% if payments %}
+        {% for payment in payments %}
+        <tr class="clickable-row" data-trip-id="{{ payment.load.id }}">
+          <td style="color:var(--primary); font-weight: 600;">{{ payment.load.load_id }}</td>
           <td>
             <div class="route-display">
-              {{ load.pickup_location }}
+              {{ payment.load.pickup_location }}
               <i class="fas fa-arrow-right route-arrow"></i>
-              {{ load.drop_location }}
+              {{ payment.load.drop_location }}
             </div>
           </td>
-          
-          <!-- Payment Status Column -->
-         <td>
-  <div class="payment-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
-    
-    {% if load.trip_status == "balance_hold" %}
-      <i class="fas fa-pause-circle" style="color: #c53030;"></i>
-      <span style="color: #c53030; background: #fed7d7; padding: 0 8px; border-radius: 4px;">
-        On Hold
-      </span>
-
-    {% elif load.trip_status in "trip_closed,balance_paid" %}
-      <i class="fas fa-check-double" style="color: #16a34a;"></i>
-      <span style="color: #16a34a; background: #d1fae5; padding: 0 8px; border-radius: 4px;">
-        Paid
-      </span>
-
-    {% else %}
-      <i class="fas fa-hourglass-end" style="color: #d97706;"></i>
-      <span style="color: #d97706; background: #fef3c7; padding: 0 8px; border-radius: 4px;">
-        Pending
-      </span>
-    {% endif %}
-
-  </div>
-</td>
-          
-          <!-- Trip Amount (Freight) Column -->
           <td>
-            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
-              <span style="font-weight: 600; color: #111827;">₹{{ load.price_per_unit|floatformat:2 }}</span>
-              <span style="font-size: 11px; color: #6b7280;">Freight amount</span>
-            </div>
+            <span style="font-weight: 600; color: #16a34a;">₹{{ payment.amount_paid|floatformat:2 }}</span>
           </td>
-          
-          <!-- Holding Charges Column -->
           <td>
-            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
-              <span style="font-weight: 600; color: #111827;">₹{{ load.holding_charges|floatformat:2 }}</span>
-              {% if load.holding_charges > 0 %}
-                <span style="font-size: 11px; color: #d97706; background: #fef3c7; padding: 2px 6px; border-radius: 3px;">Added</span>
+            <span style="color: #6b7280; font-size: 13px;">
+              {% if payment.description %}
+                {{ payment.description }}
               {% else %}
-                <span style="font-size: 11px; color: #6b7280;">None</span>
+                <span style="color: #9ca3af; font-style: italic;">-</span>
               {% endif %}
-            </div>
+            </span>
           </td>
-          
-          <!-- Total Amount Column -->
           <td>
-            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
-              <span style="font-weight: 700; color: var(--primary);">
-                ₹{{ load.total_trip_amount|floatformat:2 }}
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+              <span style="font-weight: 500; color: #1f2937; font-size: 13px;">
+                {% now "d M Y, h:i A" as payment_date %}
+                {{ payment.payment_date|date:"d M Y, h:i A" }}
               </span>
-              <span style="font-size: 11px; color: #6b7280;">Including charges</span>
+              <span style="font-size: 11px; color: #6b7280;">IST</span>
             </div>
           </td>
-          
+          <td>
+            <span style="font-size: 13px; color: #6b7280;">{{ payment.recorded_by.full_name|default:"System" }}</span>
+          </td>
           <td class="action-col">
-            <button class="action-view" onclick="viewTrip(event, {{ load.id }})">View Payment</button>
+            <button class="action-view" onclick="viewTrip(event, {{ payment.load.id }})">View Details</button>
           </td>
         </tr>
         {% endfor %}
@@ -867,28 +822,6 @@
 
       <!-- COMPREHENSIVE PAYMENT DETAILS SECTION -->
       <h3 class="section-title" style="margin-top:28px;">Payment Summary</h3>
-      
-      <!-- Payment Status Overview -->
-      <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 16px; border-radius: 12px; border-left: 4px solid #2563eb; margin-bottom: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <span style="font-weight: 600; color: #1e40af;">Payment Status</span>
-          <span id="paymentStatusBadge" style="background: #fef3c7; color: #d97706; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">⏳ Pending</span>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
-          <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">First Half (90%)</div>
-            <div style="font-weight: 700; color: #1f2937;">₹<span id="firstHalfDisplay">0.00</span></div>
-            <div style="font-size: 10px; color: #d97706; margin-top: 4px;" id="firstHalfStatusBadge">⏳ Pending</div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Paid At: <span id="firstHalfPaymentDate">-</span></div>
-          </div>
-          <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Second Half (10%)</div>
-            <div style="font-weight: 700; color: #1f2937;">₹<span id="secondHalfDisplay">0.00</span></div>
-            <div style="font-size: 10px; color: #d97706; margin-top: 4px;" id="secondHalfStatusBadge">⏳ Pending</div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Paid At: <span id="secondHalfPaymentDate">-</span></div>
-          </div>
-        </div>
-      </div>
 
       <!-- Holding Charges Section (if applicable) -->
       <div id="holdingChargesSection" style="display: none; background: #fef3c7; padding: 14px; border-radius: 8px; border-left: 4px solid #d97706; margin-bottom: 16px;">
@@ -896,6 +829,22 @@
           <i class="fas fa-clock" style="margin-right: 6px;"></i> Holding Charges
         </div>
         <div id="holdingChargesDetails"></div>
+      </div>
+
+      <!-- Holding Charges Section -->
+      <div id="holdingChargesSection" style="display: none; background: #fef3c7; padding: 14px; border-radius: 8px; border-left: 4px solid #d97706; margin-bottom: 16px;">
+        <div style="font-weight: 600; color: #92400e; margin-bottom: 12px;">
+          <i class="fas fa-clock" style="margin-right: 6px;"></i> Holding Charges
+        </div>
+        <div id="holdingChargesDetails" style="max-height: 250px; overflow-y: auto;"></div>
+      </div>
+
+      <!-- Payment Records Section (From Payment Model) -->
+      <div id="paymentRecordsSection" style="display: none; background: #dbeafe; padding: 14px; border-radius: 8px; border-left: 4px solid #2563eb; margin-bottom: 16px;">
+        <div style="font-weight: 600; color: #1e40af; margin-bottom: 12px;">
+          <i class="fas fa-receipt" style="margin-right: 6px;"></i> Payment Records (IST)
+        </div>
+        <div id="paymentRecordsDetails" style="max-height: 350px; overflow-y: auto;"></div>
       </div>
 
       <!-- TDS Section (if applicable) -->
@@ -981,6 +930,16 @@
         </div>
       </div>
 
+      <h3 class="section-title" style="margin-top:28px;">Load Details</h3>
+      <div class="detail-row"><span class="detail-label">Load ID</span><span class="detail-value" id="loadIdDisplay">-</span></div>
+      <div class="detail-row"><span class="detail-label">Trip Status</span><span class="detail-value" id="tripStatusDisplay">-</span></div>
+      <div class="detail-row"><span class="detail-label">Pickup Location</span><span class="detail-value" id="pickupLocationDisplay">-</span></div>
+      <div class="detail-row"><span class="detail-label">Drop Location</span><span class="detail-value" id="dropLocationDisplay">-</span></div>
+      <div class="detail-row"><span class="detail-label">Pickup Date</span><span class="detail-value" id="pickupDateDisplay">-</span></div>
+      <div class="detail-row"><span class="detail-label">Vehicle Type</span><span class="detail-value" id="vehicleTypeDisplay">-</span></div>
+      <div class="detail-row"><span class="detail-label">Vehicle No</span><span class="detail-value" id="vehicleNoDisplay">-</span></div>
+      <div class="detail-row"><span class="detail-label">Driver Name</span><span class="detail-value" id="driverNameDisplay">-</span></div>
+
       <h3 class="section-title" style="margin-top:28px;">Customer Details</h3>
       <div class="detail-row"><span class="detail-label">Customer Name</span><span class="detail-value" id="customerName">-</span></div>
       <div class="detail-row"><span class="detail-label">Customer Phone</span><span class="detail-value" id="customerPhone">-</span></div>
@@ -994,21 +953,6 @@
       <h3 class="section-title" style="margin-top:28px;">Assigned Driver</h3>
       <div class="detail-row"><span class="detail-label">Driver Name</span><span class="detail-value" id="assignedDriverName">-</span></div>
       <div class="detail-row"><span class="detail-label">Driver Phone</span><span class="detail-value" id="assignedDriverPhone">-</span></div>
-
-      <div class="progress-container">
-        <div class="progress-header">
-          <div class="progress-title">Trip Progress</div>
-          <div class="progress-percent" id="progressPercent">0% Complete</div>
-        </div>
-        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%;"></div></div>
-      </div>
-
-      <div class="timeline-section">
-        <h3 class="timeline-title">Trip Status Timeline</h3>
-        <div class="timeline" id="timelineContainer">
-          <!-- Timeline will be populated dynamically -->
-        </div>
-      </div>
     </div>
 
     <div class="chat-section">
@@ -1024,7 +968,6 @@
       </div>
       
       <div class="chat-buttons">
-        <button class="btn-update" id="btnUpdateStatus">Update Status</button>
         <button class="btn-upload-lr" id="btnUploadLR" style="display: none;">Upload LR</button>
         <button class="btn-upload-pod" id="btnUploadPOD" style="display: none;">Upload POD</button>
         <button class="btn-add-comment" id="btnAddComment">Add Comment</button>
@@ -1082,7 +1025,6 @@ function attachSidebarEventListeners() {
   closeBtn.addEventListener('click', closeSidebar);
   overlay.addEventListener('click', closeSidebar);
 
-  document.getElementById('btnUpdateStatus').addEventListener('click', updateTripStatus);
   document.getElementById('btnUploadLR').addEventListener('click', showLRUploadModal);
   document.getElementById('btnUploadPOD').addEventListener('click', showPODUploadModal);
   document.getElementById('btnAddComment').addEventListener('click', addComment);
@@ -1629,10 +1571,6 @@ function populateSidebar(data) {
   document.getElementById('assignedDriverName').textContent = data.driver_name;
   document.getElementById('assignedDriverPhone').textContent = data.driver_phone;
   
-  document.getElementById('progressPercent').textContent = `${data.progress}% Complete`;
-  document.getElementById('progressFill').style.width = `${data.progress}%`;
-  
-  renderTimeline(data);
   renderChatMessages(data.comments || []);
   
   const uploadLRBtn = document.getElementById('btnUploadLR');
@@ -1670,45 +1608,25 @@ function populatePaymentDetails(data) {
   }
   
   const badgeEl = document.getElementById('paymentStatusBadge');
-  badgeEl.textContent = (data.trip_status === 'trip_closed' || data.trip_status === 'balance_paid' ? '✓ ' : '⏳ ') + statusBadge;
-  badgeEl.style.cssText = statusBadgeClass + '; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;';
-  
-  // Trip Amount (Freight) and Holding Charges Displays
-  document.getElementById('firstHalfDisplay').textContent = data.price_per_unit.toLocaleString('en-IN', {minimumFractionDigits: 2});
-  document.getElementById('secondHalfDisplay').textContent = data.holding_charges.toLocaleString('en-IN', {minimumFractionDigits: 2});
-  
-  // Trip Amount Status (always paid - it's part of the trip)
-  const firstHalfBadge = document.getElementById('firstHalfStatusBadge');
-  firstHalfBadge.textContent = 'Base Amount';
-  firstHalfBadge.style.color = '#6b7280';
-  firstHalfBadge.style.fontSize = '11px';
-  
-  // Holding Charges Status
-  const secondHalfBadge = document.getElementById('secondHalfStatusBadge');
-  if (data.holding_charges > 0) {
-    secondHalfBadge.textContent = '⚠️ Added';
-    secondHalfBadge.style.color = '#d97706';
-    secondHalfBadge.style.fontSize = '11px';
-  } else {
-    secondHalfBadge.textContent = 'None';
-    secondHalfBadge.style.color = '#6b7280';
-    secondHalfBadge.style.fontSize = '11px';
+  if (badgeEl) {
+    badgeEl.textContent = (data.trip_status === 'trip_closed' || data.trip_status === 'balance_paid' ? '✓ ' : '⏳ ') + statusBadge;
+    badgeEl.style.cssText = statusBadgeClass + '; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;';
   }
   
-  // Payment Date - Use trip closed date or payment_completed_at
-  let paymentDate = '-';
-  if (data.trip_status === 'trip_closed' || data.trip_status === 'balance_paid') {
-    if (data.closed_at) {
-      const closedDate = new Date(data.closed_at);
-      paymentDate = closedDate.toLocaleDateString('en-IN', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: '2-digit' 
-      });
-    }
+  // LOAD DETAILS DISPLAY
+  document.getElementById('loadIdDisplay').textContent = data.load_id || '-';
+  document.getElementById('tripStatusDisplay').textContent = data.trip_status_display || '-';
+  document.getElementById('pickupLocationDisplay').textContent = data.pickup_location || '-';
+  document.getElementById('dropLocationDisplay').textContent = data.drop_location || '-';
+  document.getElementById('pickupDateDisplay').textContent = data.pickup_date || '-';
+  document.getElementById('vehicleTypeDisplay').textContent = data.vehicle_type || '-';
+  document.getElementById('vehicleNoDisplay').textContent = data.vehicle_no || 'Not Assigned';
+  document.getElementById('driverNameDisplay').textContent = data.driver_name || 'Not Assigned';
+  
+  // Trip Amount Display
+  if (document.getElementById('totalFreightDisplay')) {
+    document.getElementById('totalFreightDisplay').textContent = data.price_per_unit.toLocaleString('en-IN', {minimumFractionDigits: 2});
   }
-  document.getElementById('firstHalfPaymentDate').textContent = paymentDate;
-  document.getElementById('secondHalfPaymentDate').textContent = paymentDate;
   
   // HOLDING CHARGES SECTION
   const holdingChargesSection = document.getElementById('holdingChargesSection');
@@ -1733,6 +1651,45 @@ function populatePaymentDetails(data) {
     document.getElementById('holdingChargesDetails').innerHTML = holdingChargesHTML;
   } else {
     holdingChargesSection.style.display = 'none';
+  }
+  
+  // PAYMENT RECORDS SECTION - Display from Payment model
+  const paymentRecordsSection = document.getElementById('paymentRecordsSection');
+  if (data.payment_records && data.payment_records.length > 0) {
+    paymentRecordsSection.style.display = 'block';
+    let paymentRecordsHTML = '';
+    let totalPaid = 0;
+    
+    data.payment_records.forEach((payment, index) => {
+      totalPaid += payment.amount_paid;
+      const rowBg = index % 2 === 0 ? '#f9fafb' : 'white';
+      paymentRecordsHTML += `
+        <div style="background: ${rowBg}; padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #2563eb;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 600; color: #1f2937; font-size: 14px;">₹${payment.amount_paid.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
+            <span style="color: #6b7280; font-size: 12px;">${payment.payment_datetime} IST</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px;">
+            <span style="color: #6b7280;">Recorded by: ${payment.recorded_by}</span>
+          </div>
+          ${payment.description ? `<div style="font-size: 11px; color: #6b7280; margin-top: 4px;"><strong>Note:</strong> ${payment.description}</div>` : ''}
+        </div>
+      `;
+    });
+    
+    // Add total paid summary
+    paymentRecordsHTML = `
+      <div style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="color: #1e40af; font-weight: 600;">Total Paid</span>
+          <span style="color: #1e40af; font-weight: 700; font-size: 16px;">₹${totalPaid.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
+        </div>
+      </div>
+    ` + paymentRecordsHTML;
+    
+    document.getElementById('paymentRecordsDetails').innerHTML = paymentRecordsHTML;
+  } else {
+    paymentRecordsSection.style.display = 'none';
   }
   
   // TDS SECTION - Applied to full freight amount (final_payment), not just second half
@@ -1905,208 +1862,6 @@ function renderChatMessages(comments) {
   container.scrollTop = container.scrollHeight;
 }
 
-function renderTimeline(data) {
-  const container = document.getElementById('timelineContainer');
-  container.innerHTML = '';
-  
-  const statusOrder = [
-    'trip_requested',
-    'trip_confirmed',
-    'reached_loading_point',
-    'upload_lr',
-    'in_transit',
-    'reached_unloading_point',
-    'unloading_completed',
-    'pod_pending',
-    'pod_received_at_office',
-    'balance_pending',
-    'balance_hold',
-    'balance_paid',
-    'trip_closed'
-  ];
-  
-  const currentStatusIndex = statusOrder.indexOf(data.trip_status);
-  
-  statusOrder.forEach((status, index) => {
-    let isCompleted = index < currentStatusIndex;
-    let isCurrent = index === currentStatusIndex;
-    let isPending = index > currentStatusIndex;
-    
-    if (data.trip_status === 'in_transit' && status === 'unloading') {
-      isCurrent = true;
-      isCompleted = false;
-      isPending = false;
-    }
-    
-    const timelineItem = createTimelineItem(status, isCompleted, isCurrent, isPending, data);
-    container.appendChild(timelineItem);
-  });
-}
-
-function createTimelineItem(status, isCompleted, isCurrent, isPending, data) {
-  const timelineItem = document.createElement('div');
-  timelineItem.className = 'timeline-item';
-  
-  let dotClass = 'pending';
-  let mainClass = 'pending';
-  
-  if (isCompleted) {
-    dotClass = 'completed';
-    mainClass = 'completed';
-  } else if (isCurrent) {
-    dotClass = 'current';
-    mainClass = 'current';
-  }
-  
-  const statusInfo = getStatusInfo(status, data);
-  
-  let fileButton = '';
-  if (statusInfo.hasFile && statusInfo.fileUrl) {
-    fileButton = `
-      <button class="view-file-btn" onclick="window.open('${statusInfo.fileUrl}', '_blank')" title="View ${statusInfo.fileName || 'document'}">
-        <i class="fas fa-file-pdf"></i> View Document
-      </button>
-    `;
-  }
-  
-  timelineItem.innerHTML = `
-    <div class="timeline-dot ${dotClass}">
-      <i class="fas ${statusInfo.icon}"></i>
-    </div>
-    <div class="timeline-content">
-      <div class="timeline-main ${mainClass}">${statusInfo.title}</div>
-      <div class="timeline-sub">${statusInfo.description}</div>
-      ${fileButton}
-    </div>
-    <div class="timeline-time">${statusInfo.timestamp}</div>
-  `;
-  
-  return timelineItem;
-}
-
-function getStatusInfo(status, data) {
-  const formatTimestamp = (timestampStr) => {
-    if (!timestampStr) return 'Pending';
-    try {
-      return new Date(timestampStr).toLocaleString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        hour: 'numeric', 
-        minute: 'numeric',
-        hour12: true 
-      });
-    } catch (e) {
-      return 'Pending';
-    }
-  };
-
-  const statusConfig = {
-    trip_requested: {
-      icon: 'fa-clipboard-check',
-      title: 'Trip Requested',
-      description: 'Trip booking requested',
-      timestamp: formatTimestamp(data.pending_at),
-      hasFile: false
-    },
-    trip_confirmed: {
-      icon: 'fa-check-circle',
-      title: 'Trip Confirmed',
-      description: 'Trip booking confirmed by vendor',
-      timestamp: formatTimestamp(data.assigned_at),
-      hasFile: false
-    },
-    reached_loading_point: {
-      icon: 'fa-box',
-      title: 'Reached at Loading point',
-      description: 'Cargo reached loading point',
-      timestamp: formatTimestamp(data.loaded_at),
-      hasFile: false
-    },
-    upload_lr: {
-      icon: 'fa-file-invoice',
-      title: 'Upload LR',
-      description: 'Loading receipt document uploaded',
-      timestamp: formatTimestamp(data.lr_uploaded_at),
-      hasFile: !!data.lr_document,
-      fileUrl: data.lr_document,
-      fileName: data.lr_document_name
-    },
-    in_transit: {
-      icon: 'fa-truck',
-      title: 'In transit',
-      description: 'Cargo in transit to destination',
-      timestamp: formatTimestamp(data.in_transit_at),
-      hasFile: false
-    },
-    reached_unloading_point: {
-      icon: 'fa-box-open',
-      title: 'Reached at unloading point',
-      description: 'Cargo reached unloading point at destination',
-      timestamp: formatTimestamp(data.unloading_at),
-      hasFile: false
-    },
-    unloading_completed: {
-      icon: 'fa-check-double',
-      title: 'Unloading completed',
-      description: 'Unloading process completed',
-      timestamp: formatTimestamp(data.unloading_at),
-      hasFile: false
-    },
-    pod_pending: {
-      icon: 'fa-clock',
-      title: 'POD status - Pending',
-      description: 'Proof of delivery pending',
-      timestamp: formatTimestamp(data.pod_uploaded_at),
-      hasFile: false
-    },
-    pod_received_at_office: {
-      icon: 'fa-building',
-      title: 'POD status - received at rotra office',
-      description: 'POD received at office',
-      timestamp: formatTimestamp(data.pod_received_at),
-      hasFile: !!data.pod_document,
-      fileUrl: data.pod_document,
-      fileName: data.pod_document_name
-    },
-    balance_pending: {
-      icon: 'fa-money-bill-wave',
-      title: 'Balance pending',
-      description: 'Balance payment pending',
-      timestamp: formatTimestamp(data.payment_completed_at),
-      hasFile: false
-    },
-    balance_hold: {
-      icon: 'fa-pause-circle',
-      title: 'Balance hold',
-      description: data.hold_reason ? `Hold Reason: ${data.hold_reason}` : 'Balance payment on hold',
-      timestamp: formatTimestamp(data.hold_at),
-      hasFile: false
-    },
-    balance_paid: {
-      icon: 'fa-credit-card',
-      title: 'Balance paid',
-      description: 'Balance payment completed',
-      timestamp: formatTimestamp(data.payment_completed_at),
-      hasFile: false
-    },
-    trip_closed: {
-      icon: 'fa-check-circle',
-      title: 'Trip closed',
-      description: 'Trip completed successfully',
-      timestamp: formatTimestamp(data.payment_completed_at),
-      hasFile: false
-    },
-    payment_completed: {
-      icon: 'fa-credit-card',
-      title: 'Payment Completed',
-      description: 'Final payment processed',
-      timestamp: formatTimestamp(data.payment_completed_at),
-      hasFile: false
-    }
-  };
-  
-  return statusConfig[status] || { icon: 'fa-circle', title: status, description: '', timestamp: 'Pending', hasFile: false };
-}
 
 function closeSidebar() {
   const sidebar = document.getElementById('profileSidebar');

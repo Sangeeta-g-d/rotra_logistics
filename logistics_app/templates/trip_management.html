@@ -445,6 +445,7 @@
         </div>
         <div style="margin-top: 12px; display: flex; gap: 8px;">
           <button id="btnAddHoldingCharges" style="padding: 8px 12px; background: var(--amber); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap;">Add Charges</button>
+          <button id="btnAddPayment" style="padding: 8px 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap;">Add Payment</button>
         </div>
         <div id="holdingChargesInfo" style="margin-top: 8px; font-size: 12px; color: #6b7280; display: none;">
           <span id="chargesAddedAtStatus"></span>
@@ -648,6 +649,7 @@ function attachSidebarEventListeners() {
   document.getElementById('sendComment').addEventListener('click', addComment);
   document.getElementById('btnCloseTrip').addEventListener('click', closeTrip);
   document.getElementById('btnAddHoldingCharges').addEventListener('click', addHoldingCharges);
+  document.getElementById('btnAddPayment').addEventListener('click', addPayment);
   
   // Initialize POD received modal button - ALWAYS VISIBLE
   const btnAddPODReceived = document.getElementById('btnAddPODReceivedDate');
@@ -2193,22 +2195,6 @@ function createHoldingChargesModal() {
       </div>
       
       <div style="margin-bottom: 15px;">
-        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Trip Stage</label>
-        <select id="hcTripStage" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
-          <option value="trip_requested">Trip Requested</option>
-          <option value="trip_confirmed">Trip Confirmed</option>
-          <option value="reached_loading_point">Reached at Loading point</option>
-          <option value="upload_lr">Upload LR</option>
-          <option value="in_transit">In transit</option>
-          <option value="reached_unloading_point">Reached at unloading point</option>
-          <option value="unloading_completed">Unloading completed</option>
-          <option value="pod_pending">POD status - Pending</option>
-          <option value="pod_received_at_office">POD status - received at rotra office</option>
-          <option value="trip_closed">Trip closed</option>
-        </select>
-      </div>
-      
-      <div style="margin-bottom: 15px;">
         <label style="display: block; margin-bottom: 5px; font-weight: 500;">Reason</label>
         <textarea id="hcReason" placeholder="Enter reason for holding charges" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; min-height: 80px; resize: vertical;"></textarea>
       </div>
@@ -2276,7 +2262,6 @@ function closeHoldingChargesModal() {
 function submitHoldingCharges() {
   const amount = document.getElementById('hcAmount').value.trim();
   const reason = document.getElementById('hcReason').value.trim();
-  const tripStage = document.getElementById('hcTripStage').value;
   
   if (!amount) {
     showToast('Please enter the amount', 'error');
@@ -2295,8 +2280,7 @@ function submitHoldingCharges() {
   
   const data = {
     amount: parseFloat(amount),
-    reason: reason,
-    trip_stage: tripStage
+    reason: reason
   };
   
   fetch(`/api/trip/${currentTripId}/add-holding-charges/`, {
@@ -2320,6 +2304,136 @@ function submitHoldingCharges() {
   .catch(error => {
     console.error('Error:', error);
     showToast('Failed to add holding charges', 'error');
+  });
+}
+
+function addPayment() {
+  if (!currentTripId) {
+    showToast('No trip selected', 'error');
+    return;
+  }
+  
+  // Show modal for payment
+  const modal = document.getElementById('paymentModal');
+  if (!modal) {
+    createPaymentModal();
+  }
+  document.getElementById('paymentModal').style.display = 'flex';
+}
+
+function createPaymentModal() {
+  const modalHTML = `
+  <div class="payment-modal" id="paymentModal">
+    <div class="modal-content" style="width: 90%; max-width: 500px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0;">Add Payment</h3>
+        <button class="close-payment-modal" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Amount Paid (₹)</label>
+        <input type="number" id="paymentAmount" placeholder="Enter amount paid" min="0" step="0.01" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Description</label>
+        <textarea id="paymentDescription" placeholder="Enter description or notes about this payment" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; min-height: 80px; resize: vertical;"></textarea>
+      </div>
+      
+      <div style="display: flex; gap: 10px;">
+        <button id="btnSubmitPayment" style="flex: 1; padding: 10px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Add Payment</button>
+        <button class="close-payment-modal" style="flex: 1; padding: 10px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Cancel</button>
+      </div>
+    </div>
+  </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  
+  // Add modal styles if not already added
+  if (!document.getElementById('paymentModalStyles')) {
+    const style = document.createElement('style');
+    style.id = 'paymentModalStyles';
+    style.textContent = `
+      .payment-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      
+      .payment-modal .modal-content {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.querySelectorAll('.close-payment-modal').forEach(btn => {
+    btn.addEventListener('click', closePaymentModal);
+  });
+  
+  document.getElementById('btnSubmitPayment').addEventListener('click', submitPayment);
+}
+
+function closePaymentModal() {
+  const modal = document.getElementById('paymentModal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.getElementById('paymentAmount').value = '';
+    document.getElementById('paymentDescription').value = '';
+  }
+}
+
+function submitPayment() {
+  const amount = document.getElementById('paymentAmount').value.trim();
+  const description = document.getElementById('paymentDescription').value.trim();
+  
+  if (!amount) {
+    showToast('Please enter the payment amount', 'error');
+    return;
+  }
+  
+  if (isNaN(amount) || parseFloat(amount) <= 0) {
+    showToast('Please enter a valid positive amount', 'error');
+    return;
+  }
+  
+  const data = {
+    amount_paid: parseFloat(amount),
+    description: description || 'Payment recorded'
+  };
+  
+  fetch(`/api/payment/${currentTripId}/record-payment/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Payment recorded successfully', 'success');
+      closePaymentModal();
+      loadTripDetails(currentTripId);
+    } else {
+      showToast('Error: ' + (result.error || 'Failed to record payment'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to record payment', 'error');
   });
 }
 

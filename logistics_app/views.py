@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification, HoldingCharge, TDSRate,CustomerContactPerson
+from .models import CustomUser, Customer, Driver, VehicleType, Load, Vehicle, LoadRequest, TripComment, Notification, HoldingCharge, TDSRate, Payment, CustomerContactPerson
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from datetime import datetime, date
@@ -2800,34 +2800,19 @@ def payment_management(request):
         messages.error(request, "Access denied.")
         return redirect('admin_login')
 
-    # Only show trips with these statuses for payment management
-    payment_statuses = [
-        'upload_lr',
-        'in_transit',
-        'reached_unloading_point',
-        'unloading_completed',
-        'pod_pending',
-        'pod_received_at_office',
-        'trip_closed',
-    ]
-
+    # Fetch Payment records with related Load information
     if request.user.role == 'traffic_person':
-        trips = Load.objects.filter(
-            created_by=request.user,
-            trip_status__in=payment_statuses
+        payments = Payment.objects.filter(
+            load__created_by=request.user
         ).select_related(
-            'driver', 'vehicle', 'vehicle_type', 'customer'
-        ).order_by('-updated_at')
+            'load', 'load__customer', 'load__driver', 'load__vehicle', 'load__vehicle_type', 'recorded_by'
+        ).order_by('-payment_date')
     else:
-        trips = Load.objects.filter(
-            trip_status__in=payment_statuses
-        ).select_related(
-            'driver', 'vehicle', 'vehicle_type', 'customer'
-        ).order_by('-updated_at')
+        payments = Payment.objects.all().select_related(
+            'load', 'load__customer', 'load__driver', 'load__vehicle', 'load__vehicle_type', 'recorded_by'
+        ).order_by('-payment_date')
 
-    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",trips)
-
-    return render(request, 'payment_management.html', {'trips': trips})
+    return render(request, 'payment_management.html', {'payments': payments})
 
 
 @login_required
@@ -2919,6 +2904,22 @@ def get_payment_details_api(request, trip_id):
             'created_at': load.created_at.strftime('%b %d, %Y %I:%M %p'),
             'last_updated': load.updated_at.strftime('%b %d, %Y %I:%M %p'),
         }
+        
+        # Get payment records from Payment model
+        payment_records = []
+        for payment in load.payments.all().order_by('-payment_date'):
+            # Time is already stored in IST, no conversion needed
+            payment_records.append({
+                'id': payment.id,
+                'amount_paid': float(payment.amount_paid),
+                'payment_date': payment.payment_date.strftime('%d %b %Y'),
+                'payment_time': payment.payment_date.strftime('%I:%M %p'),
+                'payment_datetime': payment.payment_date.strftime('%d %b %Y, %I:%M %p'),
+                'description': payment.description,
+                'recorded_by': payment.recorded_by.full_name if payment.recorded_by else 'System'
+            })
+        
+        data['payment_records'] = payment_records
 
         return JsonResponse({'success': True, 'data': data})
 
@@ -2929,6 +2930,67 @@ def get_payment_details_api(request, trip_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def record_payment_api(request, trip_id):
+    """API endpoint to record a payment for a trip"""
+    try:
+        import json
+        
+        # Admin can access any trip, traffic person only their own
+        if request.user.role == 'traffic_person':
+            load = Load.objects.select_related('created_by').get(id=trip_id, created_by=request.user)
+        else:
+            # Admin can access any trip
+            load = Load.objects.select_related('created_by').get(id=trip_id)
+        
+        # Parse JSON request
+        try:
+            data = json.loads(request.body.decode('utf-8') or '{}')
+        except:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        amount_paid = data.get('amount_paid')
+        description = data.get('description', 'Payment recorded')
+        
+        # Validate amount
+        if not amount_paid:
+            return JsonResponse({'success': False, 'error': 'Amount paid is required'}, status=400)
+        
+        try:
+            amount_paid = Decimal(str(amount_paid))
+            if amount_paid <= 0:
+                return JsonResponse({'success': False, 'error': 'Amount must be greater than 0'}, status=400)
+        except:
+            return JsonResponse({'success': False, 'error': 'Invalid amount format'}, status=400)
+        
+        # Create Payment record
+        payment = Payment.objects.create(
+            load=load,
+            amount_paid=amount_paid,
+            description=description,
+            recorded_by=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Payment recorded successfully',
+            'payment': {
+                'id': payment.id,
+                'amount_paid': float(payment.amount_paid),
+                'payment_date': payment.payment_date.strftime('%b %d, %Y %I:%M %p'),
+                'description': payment.description
+            }
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
+    except Exception as e:
+        print(f"Error recording payment: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Server error: ' + str(e)}, status=500)
 
 @login_required
 @require_http_methods(["POST"])
