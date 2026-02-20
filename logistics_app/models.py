@@ -328,6 +328,7 @@ class Vehicle(models.Model):
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
+    current_location_updated_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when location was last updated")
 
     def __str__(self):
         return self.reg_no
@@ -534,6 +535,24 @@ class Load(models.Model):
         # Initial timestamp
         if not self.pk and not self.pending_at:
             self.pending_at = timezone.now()
+
+        # Auto-update current_location_updated_at when current_location changes
+        if self.pk:
+            # This is an existing record, check if current_location changed
+            try:
+                old_instance = Load.objects.get(pk=self.pk)
+                if old_instance.current_location != self.current_location and self.current_location:
+                    # Current location has changed, update the timestamp
+                    self.current_location_updated_at = timezone.now()
+                    print(f"✓ Updated current_location_updated_at for Load {self.load_id}: {self.current_location_updated_at}")
+            except Load.DoesNotExist:
+                pass
+        else:
+            # This is a new record
+            if self.current_location:
+                # Set timestamp if current_location is provided
+                self.current_location_updated_at = timezone.now()
+                print(f"✓ Set current_location_updated_at for NEW Load {self.load_id}: {self.current_location_updated_at}")
 
         # Round price_per_unit
         if self.price_per_unit is not None:

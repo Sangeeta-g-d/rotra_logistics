@@ -1647,17 +1647,68 @@ def vehicle_inventory(request):
         return redirect('admin_login')
 
     # Vehicles: still only those whose owner was created by this admin
-    vehicles = Vehicle.objects.select_related('owner').filter(status='active').order_by('-id')
+    all_vehicles = Vehicle.objects.select_related('owner').filter(status='active').order_by('-id')
+    print(f"\n✓ TOTAL ACTIVE VEHICLES: {all_vehicles.count()}")
     
     # Add current_location to each vehicle by fetching from latest active load
-    for vehicle in vehicles:
-        # Get the latest load for this vehicle that's currently in transit or later
+    # Filter to show only vehicles with location updated within 24 hours
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    filtered_vehicles = []
+    cutoff_time = timezone.now() - timedelta(hours=24)
+    print(f"✓ CUTOFF TIME (24 hours ago): {cutoff_time}")
+    
+    for vehicle in all_vehicles:
+        print(f"\n--- VEHICLE: {vehicle.reg_no} ---")
+        
+        # Check location update timestamp from either Load OR Vehicle itself
+        location_timestamp = None
+        source = None
+        current_location = None
+        
+        # First, try to get location from the latest load
         latest_load = Load.objects.filter(
-            vehicle=vehicle,
-            status__in=['assigned', 'in_transit']
+            vehicle=vehicle
         ).select_related().order_by('-created_at').first()
         
-        vehicle.current_location_from_load = latest_load.current_location if latest_load else None
+        if latest_load:
+            print(f"  ✓ Latest Load ID: {latest_load.id}")
+            print(f"  ✓ Load Status: {latest_load.status}")
+            print(f"  ✓ Current Location: {latest_load.current_location}")
+            print(f"  ✓ Location Updated At: {latest_load.current_location_updated_at}")
+            
+            current_location = latest_load.current_location
+            location_timestamp = latest_load.current_location_updated_at
+            source = "Load"
+            vehicle.current_location_from_load = latest_load.current_location
+        else:
+            print(f"  ✗ No loads found for this vehicle, checking vehicle's own timestamp...")
+            
+        # Fallback: Check vehicle's own location timestamp if load doesn't have timestamp
+        if not location_timestamp and vehicle.current_location_updated_at:
+            print(f"  ✓ Using Vehicle's location timestamp: {vehicle.current_location_updated_at}")
+            location_timestamp = vehicle.current_location_updated_at
+            current_location = vehicle.location
+            source = "Vehicle"
+            vehicle.current_location_from_load = vehicle.location
+        
+        # Include vehicle if it has a recent location update
+        if location_timestamp:
+            is_recent = location_timestamp >= cutoff_time
+            print(f"  ✓ Location from {source}, Updated At: {location_timestamp}")
+            print(f"  ✓ Is Recent (>= {cutoff_time})?: {is_recent}")
+            
+            if is_recent:
+                filtered_vehicles.append(vehicle)
+                print(f"  ✓ ✓ ADDED TO INVENTORY")
+            else:
+                print(f"  ✗ Too old, not added")
+        else:
+            print(f"  ✗ No location update timestamp found anywhere, skipping")
+    
+    vehicles = filtered_vehicles
+    print(f"\n✓ FINAL FILTERED VEHICLES: {len(vehicles)}")
 
     # Vendors: ALL active vendors (role='vendor')
     vendors = CustomUser.objects.filter(role='vendor', is_active=True).order_by('full_name')

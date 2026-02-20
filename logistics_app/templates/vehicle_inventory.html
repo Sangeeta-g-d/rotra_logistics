@@ -245,21 +245,6 @@
             background: white;
         }
 
-        .sidebar-btn {
-            width: 100%;
-            padding: 12px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
         .btn-view-history {
             background-color: #dc2626;
             color: white;
@@ -267,16 +252,6 @@
 
         .btn-view-history:hover {
             background-color: #b91c1c;
-        }
-
-        .btn-edit {
-            background-color: white;
-            color: #374151;
-            border: 1px solid #d1d5db;
-        }
-
-        .btn-edit:hover {
-            background-color: #f9fafb;
         }
 
         .btn-deactivate {
@@ -459,7 +434,7 @@
             flex-wrap: nowrap;
         }
 
-        .action-view, .action-edit, .action-delete {
+        .action-view, .action-delete {
             background: #f3f4f6;
             border: 1px solid #d1d5db;
             padding: 5px 8px;
@@ -476,12 +451,6 @@
             background: #dc2626;
             color: white;
             border-color: #dc2626;
-        }
-
-        .action-edit:hover {
-            background: #2563eb;
-            color: white;
-            border-color: #2563eb;
         }
 
         .action-delete:hover {
@@ -597,7 +566,6 @@
                         <td class="action-col">
                             <div class="action-buttons">
                                 <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
-                                <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
                                 <button class="action-delete" data-vehicle-id="{{ vehicle.id }}" title="Delete"><i class="fas fa-trash"></i></button>
                             </div>
                         </td>
@@ -749,7 +717,7 @@
 
         <div class="info-section" id="vehicleInfoSection">
             <h4 class="info-section-title">
-                <i class="fas fa-user"></i>
+                <i class="fas fa-truck"></i>
                 Vehicle Information
             </h4>
             <div class="info-row" id="vehicleTypeRow">
@@ -824,18 +792,7 @@
         </div>
 
         <div class="sidebar-actions">
-            <button class="sidebar-btn btn-view-history">
-                <i class="fas fa-history"></i>
-                View Trip History
-            </button>
-            <button class="sidebar-btn btn-edit">
-                <i class="fas fa-edit"></i>
-                Edit
-            </button>
-            <button class="sidebar-btn btn-deactivate" id="toggleStatusBtn">
-                <i class="fas fa-ban"></i>
-                Deactivate
-            </button>
+           
         </div>
     </div>
 
@@ -1075,87 +1032,108 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Update avatar with vehicle reg no initials
         const avatarEl = document.getElementById("profileAvatar");
-        avatarEl.textContent = getInitials(data.reg_no);
+        if (avatarEl) avatarEl.textContent = getInitials(data.reg_no);
 
         // Update profile info from backend data
-        document.getElementById("profileRegNo").textContent = data.reg_no;
-        document.getElementById("profileOwnerName").textContent = data.owner_name;
-        document.getElementById("profileOwnerPhone").textContent = data.owner_phone;
+        const profileRegNo = document.getElementById("profileRegNo");
+        const profileOwnerName = document.getElementById("profileOwnerName");
+        const profileOwnerPhone = document.getElementById("profileOwnerPhone");
+        
+        if (profileRegNo) profileRegNo.textContent = data.reg_no;
+        if (profileOwnerName) profileOwnerName.textContent = data.owner_name;
+        if (profileOwnerPhone) profileOwnerPhone.textContent = data.owner_phone;
 
         // Update vehicle information section
-        document.getElementById("vehicleTypeValue").textContent = data.type;
+        const vehicleTypeValue = document.getElementById("vehicleTypeValue");
+        if (vehicleTypeValue) vehicleTypeValue.textContent = data.type;
         
         // Update load capacity
         const loadCapacityRow = document.getElementById("loadCapacityRow");
         const loadCapacityValue = document.getElementById("loadCapacityValue");
-        if (data.load_capacity && data.load_capacity.trim() !== '') {
-            loadCapacityValue.textContent = `${data.load_capacity} tons`;
-            loadCapacityRow.style.display = 'flex';
-        } else {
-            loadCapacityRow.style.display = 'none';
+        if (loadCapacityRow && loadCapacityValue) {
+            if (data.load_capacity && data.load_capacity.trim() !== '') {
+                loadCapacityValue.textContent = `${data.load_capacity} tons`;
+                loadCapacityRow.style.display = 'flex';
+            } else {
+                loadCapacityRow.style.display = 'none';
+            }
         }
         
         // Update current location
         const locationRow = document.getElementById("locationRow");
         const locationValue = document.getElementById("locationValue");
-        if (data.location && data.location.trim() !== '') {
-            locationValue.textContent = data.location;
-            locationRow.style.display = 'flex';
-        } else {
-            locationRow.style.display = 'none';
+        if (locationRow && locationValue) {
+            if (data.location && data.location.trim() !== '') {
+                locationValue.textContent = data.location;
+                locationRow.style.display = 'flex';
+            } else {
+                locationRow.style.display = 'none';
+            }
         }
         
         // Update destinations
         const toLocationsRow = document.getElementById("toLocationsRow");
         const toLocationsValue = document.getElementById("toLocationsValue");
-        if (data.to_locations && Array.isArray(data.to_locations) && data.to_locations.length > 0) {
-            toLocationsValue.textContent = data.to_locations.join(', ');
-            toLocationsRow.style.display = 'flex';
-        } else {
-            toLocationsRow.style.display = 'none';
+        if (toLocationsRow && toLocationsValue) {
+            if (data.to_locations && Array.isArray(data.to_locations) && data.to_locations.length > 0) {
+                toLocationsValue.textContent = data.to_locations.join(', ');
+                toLocationsRow.style.display = 'flex';
+            } else {
+                toLocationsRow.style.display = 'none';
+            }
         }
 
         // Update owner information section
-        document.getElementById("ownerInfoName").textContent = data.owner_name;
-        document.getElementById("ownerInfoPhone").textContent = data.owner_phone;
+        const ownerInfoName = document.getElementById("ownerInfoName");
+        const ownerInfoPhone = document.getElementById("ownerInfoPhone");
+        if (ownerInfoName) ownerInfoName.textContent = data.owner_name;
+        if (ownerInfoPhone) ownerInfoPhone.textContent = data.owner_phone;
 
         // Update performance from backend data (placeholder - update when backend provides)
-        document.getElementById("totalTrips").textContent = '0 trips';
-        document.getElementById("completedTrips").textContent = '0 trips';
-        document.getElementById("pendingTrips").textContent = '0 trips';
-
+        const totalTrips = document.getElementById("totalTrips");
+        const completedTrips = document.getElementById("completedTrips");
+        const pendingTrips = document.getElementById("pendingTrips");
+        if (totalTrips) totalTrips.textContent = '0 trips';
+        if (completedTrips) completedTrips.textContent = '0 trips';
+        if (pendingTrips) pendingTrips.textContent = '0 trips';
         // Update documents from backend data
         const docRC = document.getElementById("docRC");
         const docInsurance = document.getElementById("docInsurance");
 
         // RC Document
-        if (data.hasRC) {
-            docRC.className = 'document-status uploaded';
-            docRC.innerHTML = '<i class="fas fa-check"></i>';
-        } else {
-            docRC.className = 'document-status not-uploaded';
-            docRC.innerHTML = '<i class="fas fa-times"></i>';
+        if (docRC) {
+            if (data.hasRC) {
+                docRC.className = 'document-status uploaded';
+                docRC.innerHTML = '<i class="fas fa-check"></i>';
+            } else {
+                docRC.className = 'document-status not-uploaded';
+                docRC.innerHTML = '<i class="fas fa-times"></i>';
+            }
         }
 
         // Insurance Document
-        if (data.hasInsurance) {
-            docInsurance.className = 'document-status uploaded';
-            docInsurance.innerHTML = '<i class="fas fa-check"></i>';
-        } else {
-            docInsurance.className = 'document-status not-uploaded';
-            docInsurance.innerHTML = '<i class="fas fa-times"></i>';
+        if (docInsurance) {
+            if (data.hasInsurance) {
+                docInsurance.className = 'document-status uploaded';
+                docInsurance.innerHTML = '<i class="fas fa-check"></i>';
+            } else {
+                docInsurance.className = 'document-status not-uploaded';
+                docInsurance.innerHTML = '<i class="fas fa-times"></i>';
+            }
         }
 
         // Update toggle button based on backend status
         const toggleBtn = document.getElementById('toggleStatusBtn');
-        if (data.status === 'active') {
-            toggleBtn.innerHTML = '<i class="fas fa-ban"></i> Deactivate';
-            toggleBtn.classList.remove('btn-activate');
-            toggleBtn.classList.add('btn-deactivate');
-        } else {
-            toggleBtn.innerHTML = '<i class="fas fa-check-circle"></i> Activate';
-            toggleBtn.classList.remove('btn-deactivate');
-            toggleBtn.classList.add('btn-activate');
+        if (toggleBtn) {
+            if (data.status === 'active') {
+                toggleBtn.innerHTML = '<i class="fas fa-ban"></i> Deactivate';
+                toggleBtn.classList.remove('btn-activate');
+                toggleBtn.classList.add('btn-deactivate');
+            } else {
+                toggleBtn.innerHTML = '<i class="fas fa-check-circle"></i> Activate';
+                toggleBtn.classList.remove('btn-deactivate');
+                toggleBtn.classList.add('btn-activate');
+            }
         }
         
         sidebar.classList.add('open');
@@ -1181,7 +1159,7 @@ document.addEventListener("DOMContentLoaded", function () {
     overlay.addEventListener("click", closeSidebar);
 
     // Toggle Status Button
-    document.getElementById('toggleStatusBtn').addEventListener('click', function() {
+    document.getElementById('toggleStatusBtn')?.addEventListener('click', function() {
         if (!currentVehicleId || !confirm('Change vehicle status?')) return;
         fetch(`/vehicle/${currentVehicleId}/toggle-status/`, {
             method: 'POST',
@@ -1199,16 +1177,11 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     /* --------------------------------------------------------------
-       ACTION BUTTONS (View / Edit / Delete)
+       ACTION BUTTONS (View / Delete)
     -------------------------------------------------------------- */
     function attachActionListeners(row) {
         row.querySelector(".action-view")?.addEventListener("click", e => {
             e.stopPropagation(); openSidebar(row);
-        });
-
-       row.querySelector('.action-edit')?.addEventListener('click', e => { 
-            e.stopPropagation(); 
-            window.location.href = `/vehicle/${row.dataset.vehicleId}/edit/`;
         });
 
         row.querySelector(".action-delete")?.addEventListener("click", e => {
@@ -1285,7 +1258,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     <td class="action-col">
                         <div class="action-buttons">
                             <button class="action-view" title="View"><i class="fas fa-eye"></i></button>
-                            <button class="action-edit" title="Edit"><i class="fas fa-edit"></i></button>
                             <button class="action-delete" data-vehicle-id="${data.vehicle.id}" title="Delete"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>

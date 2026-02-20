@@ -220,6 +220,60 @@
     .status-balance_paid { background: #d1fae5; color: #059669; }
     .status-trip_closed { background: #d1fae5; color: #059669; }
 
+    /* Filter Buttons Styles */
+    .filter-container {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 12px 0;
+      align-items: center;
+    }
+
+    .filter-label {
+      font-weight: 600;
+      color: #374151;
+      font-size: 14px;
+      margin-right: 8px;
+    }
+
+    .filter-btn {
+      padding: 8px 16px;
+      border: 2px solid #e5e7eb;
+      background: white;
+      color: #6b7280;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      border-color: #2563eb;
+      background: #eff6ff;
+      color: #2563eb;
+    }
+
+    .filter-btn.active {
+      background: #2563eb;
+      color: white;
+      border-color: #2563eb;
+    }
+
+    .pod-status-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-block;
+      text-transform: capitalize;
+    }
+
+    .pod-status-badge.pod-status-pod_pending { background: #fef3c7; color: #d97706; }
+    .pod-status-badge.pod-status-upload_soft_copy { background: #dbeafe; color: #2563eb; }
+    .pod-status-badge.pod-status-received_at_office { background: #d1fae5; color: #059669; }
+    .pod-status-badge.pod-status-received_at_unloading { background: #fce7f3; color: #be185d; }
+
     .pod-status-badge {
       padding: 4px 12px;
       border-radius: 20px;
@@ -683,6 +737,14 @@
       <div class="table-header">
         <h3 class="table-title">POD Status Overview</h3>
       </div>
+      <div class="filter-container">
+        <span class="filter-label">Filter by POD Status:</span>
+        <button class="filter-btn active" data-pod-status="all">All</button>
+        <button class="filter-btn" data-pod-status="pod_pending">POD Pending</button>
+        <button class="filter-btn" data-pod-status="upload_soft_copy">Upload Soft Copy</button>
+        <button class="filter-btn" data-pod-status="received_at_office">Received at Office</button>
+        <button class="filter-btn" data-pod-status="received_at_unloading">Received at Unloading</button>
+      </div>
       <div class="table-container">
         <table>
           <thead>
@@ -700,7 +762,7 @@
           </thead>
           <tbody id="loadsTableBody">
             {% for load in loads %}
-            <tr data-load-id="{{ load.id }}">
+            <tr data-load-id="{{ load.id }}" data-pod-status="{{ load.pod_status }}">
               <td style="color:var(--primary); font-weight: 600;">{{ load.load_id }}</td>
               <td>
                 {{ load.customer.customer_name }}
@@ -933,6 +995,7 @@
             let filteredRows = [...allRows];
             let currentPage = 1;
             let perPage = 10;
+            let selectedPodStatus = 'all';
 
             const entriesSelect = document.getElementById('entriesPerPage');
             const showingStart = document.getElementById('showingStart');
@@ -942,6 +1005,7 @@
             const nextBtn = document.getElementById('nextPage');
             const currentPageInfo = document.getElementById('currentPageInfo');
             const searchInput = document.getElementById('searchInput');
+            const filterBtns = document.querySelectorAll('.filter-btn');
 
             function renderPage() {
               const start = (currentPage - 1) * perPage;
@@ -978,11 +1042,27 @@
               } 
             });
 
+            // Add click event listeners to filter buttons
+            filterBtns.forEach(btn => {
+              btn.addEventListener('click', () => {
+                // Remove active class from all buttons
+                filterBtns.forEach(b => b.classList.remove('active'));
+                // Add active class to clicked button
+                btn.classList.add('active');
+                // Update selected status
+                selectedPodStatus = btn.getAttribute('data-pod-status');
+                currentPage = 1;
+                applyFilters();
+              });
+            });
+
             function applyFilters() {
               const term = (searchInput && searchInput.value) ? searchInput.value.toLowerCase() : '';
               filteredRows = allRows.filter(row => {
                 const matchesSearch = term === '' || row.textContent.toLowerCase().includes(term);
-                return matchesSearch;
+                const podStatus = row.getAttribute('data-pod-status');
+                const matchesPodStatus = selectedPodStatus === 'all' || podStatus === selectedPodStatus;
+                return matchesSearch && matchesPodStatus;
               });
               currentPage = 1;
               renderPage();
