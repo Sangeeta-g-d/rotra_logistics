@@ -2232,6 +2232,22 @@ def get_trip_details_api(request, trip_id):
             })
             total_holding_charges += charge.amount
 
+        # Get all payments for this trip
+        payments_list = []
+        all_payments = load.payments.all().select_related('recorded_by').order_by('-payment_date')
+        total_paid = Decimal('0.00')
+        
+        for payment in all_payments:
+            payments_list.append({
+                'id': payment.id,
+                'amount_paid': float(payment.amount_paid),
+                'payment_date': payment.payment_date.isoformat(),
+                'payment_date_display': payment.payment_date.strftime('%b %d, %Y %I:%M %p'),
+                'description': payment.description or 'N/A',
+                'recorded_by': payment.recorded_by.full_name if payment.recorded_by else 'System',
+            })
+            total_paid += payment.amount_paid
+
         data = {
             'id': load.id,
             'load_id': load.load_id,
@@ -2266,6 +2282,10 @@ def get_trip_details_api(request, trip_id):
             'holding_charges_added_at': load.holding_charges_added_at.isoformat() if load.holding_charges_added_at else None,
             'holding_charges_added_at_status': load.holding_charges_added_at_status or '',
             'user_amount':float(load.user_amount or 0),
+            
+            # Payment details
+            'payments_list': payments_list,
+            'total_paid': float(total_paid),
 
             # TDS Information - Applied to price_per_unit
             'apply_tds': load.apply_tds,
@@ -3291,8 +3311,9 @@ def add_holding_charges_api(request, trip_id):
             for charge in all_charges
         ]
         
-        # Calculate the new total
-        new_total = float(load.final_payment) + float(load.get_total_holding_charges())
+        # Calculate total holding charges and total amount payable
+        total_holding_charges = float(load.get_total_holding_charges())
+        total_amount_payable = float(load.price_per_unit) + total_holding_charges
         
         return JsonResponse({
             'success': True,
@@ -3307,8 +3328,8 @@ def add_holding_charges_api(request, trip_id):
                 'created_at': holding_charge.created_at.isoformat(),
                 'created_at_display': holding_charge.created_at.strftime('%b %d, %Y %I:%M %p')
             },
-            'total_holding_charges': float(load.get_total_holding_charges()),
-            'total_amount': new_total,
+            'total_holding_charges': total_holding_charges,
+            'total_amount_payable': total_amount_payable,
             'all_charges': charges_list
         })
         
