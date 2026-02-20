@@ -196,3 +196,38 @@ STATICFILES_DIRS = [
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ================================================================
+# CELERY CONFIGURATION
+# ================================================================
+# Message Broker (Redis or RabbitMQ)
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+
+# Result Backend (where task results are stored)
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+
+# Task Serialization
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# Timezone
+CELERY_TIMEZONE = 'UTC'
+
+# Task routing
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+
+# Celery Beat Schedule (Periodic Tasks)
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'delete-old-unassigned-loads': {
+        'task': 'logistics_app.tasks.delete_old_unassigned_loads',
+        'schedule': crontab(hour=2, minute=0),  # Run daily at 2:00 AM UTC
+        'args': (2,)  # Delete loads older than 2 days
+    },
+}
+
+# ================================================================
+# END CELERY CONFIGURATION
+# ================================================================
