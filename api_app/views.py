@@ -1875,13 +1875,13 @@ def reset_password(request):
         otp_record = serializer.validated_data['otp_record']
         new_password = serializer.validated_data['new_password']
         
-        # Update user password
+        # Update user password using set_password to hash it properly
         user.set_password(new_password)
-        user.save()
+        user.save(update_fields=['password'])  # ✅ Explicitly save password field
         
-        # Mark OTP as verified
-        otp_record.is_verified = True
-        otp_record.save()
+        # Optional: Mark OTP as used by updating a flag or deleting it
+        # For security, we can delete the OTP to prevent reuse
+        otp_record.delete()
         
         return Response({
             'success': True,

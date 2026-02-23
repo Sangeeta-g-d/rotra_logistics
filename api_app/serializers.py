@@ -773,14 +773,15 @@ class ResetPasswordSerializer(serializers.Serializer):
         otp = data.get('otp')
 
         try:
+            # Look for the OTP that is already verified by verify_otp_forgot_password step
             otp_record = PhoneOTP.objects.filter(
                 phone_number=phone_number,
                 otp=otp,
                 purpose='forgot_password',
-                is_verified=False
+                is_verified=True  # ✅ FIXED: Should look for verified OTP
             ).latest('created_at')
         except PhoneOTP.DoesNotExist:
-            raise serializers.ValidationError("Invalid OTP.")
+            raise serializers.ValidationError("Invalid or unverified OTP. Please verify OTP first.")
 
         if otp_record.is_expired():
             raise serializers.ValidationError("OTP has expired. Please request a new one.")
