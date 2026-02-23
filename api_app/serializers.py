@@ -5,12 +5,13 @@ from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 import uuid
-from logistics_app.models import VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment, HoldingCharge
+from logistics_app.models import VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment, HoldingCharge, Payment
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import password_validation
 from decimal import Decimal
 import pytz
 from django.utils import timezone
+from django.db.models import Sum
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -348,6 +349,26 @@ class TripCommentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['sender', 'sender_type', 'created_at', 'is_read']
 
+class PaymentSerializer(serializers.ModelSerializer):
+    recorded_by_name = serializers.CharField(source='recorded_by.full_name', read_only=True)
+    recorded_by_phone = serializers.CharField(source='recorded_by.phone_number', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            'id',
+            'amount_paid',
+            'payment_date',
+            'description',
+            'recorded_by',
+            'recorded_by_name',
+            'recorded_by_phone',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'payment_date']
+
+
 class HoldingChargeSerializer(serializers.ModelSerializer):
     added_by_name = serializers.CharField(source='added_by.full_name', read_only=True)
 
@@ -424,6 +445,10 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     tds_percentage = serializers.SerializerMethodField()
     pod_received_at = serializers.SerializerMethodField()
 
+    # 💳 PAYMENT FIELDS
+    payments = serializers.SerializerMethodField()
+    total_amount_paid = serializers.SerializerMethodField()
+
     class Meta:
         model = Load
         fields = [
@@ -441,6 +466,8 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
             "total_holding_charges",
             "total_trip_amount",
             'hold_reason',
+            "payments",
+            "total_amount_paid",
 
             # ✅ TDS
             "apply_tds",
@@ -557,6 +584,17 @@ class VendorTripDetailsSerializer(serializers.ModelSerializer):
     def get_hold_reason(self, obj):
         """Return hold reason if trip status is 'hold', otherwise None"""
         return obj.hold_reason if obj.hold_reason else None
+    
+    def get_payments(self, obj):
+        """Get all payments for this load"""
+        payments = obj.payments.all().order_by('-payment_date')
+        serializer = PaymentSerializer(payments, many=True)
+        return serializer.data
+    
+    def get_total_amount_paid(self, obj):
+        """Calculate total amount paid for this load"""
+        total = obj.payments.aggregate(total=Sum('amount_paid'))['total']
+        return float(total) if total else 0.0
     
 
 class LRUploadSerializer(serializers.ModelSerializer):
