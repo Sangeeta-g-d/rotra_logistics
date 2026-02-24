@@ -410,6 +410,46 @@
         <div class="payment-row">
           <span>Trip Amount (Freight)</span>
           <span id="pricePerUnitStatus" class="pending">₹0</span>
+          <button
+            id="btnEditPrice"
+            style="padding: 4px 8px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: auto;"
+            title="Edit price"
+          >
+            <i class="fas fa-edit"></i>
+          </button>
+        </div>
+
+        <!-- Price edit mode -->
+        <div id="priceEditMode" style="display: none; background: #f0f9ff; padding: 12px; border-radius: 8px; border: 1px solid #bfdbfe; margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 8px; color: #1e40af; font-weight: 600; font-size: 13px;">Edit Trip Amount</label>
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+            <span style="color: #1f2937; font-weight: 500;">₹</span>
+            <input
+              type="number"
+              id="pricePerUnitInput"
+              class="location-card__input"
+              placeholder="Enter price"
+              step="0.01"
+              min="0"
+              style="flex: 1; padding: 8px 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box;"
+            />
+          </div>
+          <div class="location-card__button-group">
+            <button
+              id="btnSavePrice"
+              class="location-card__button location-card__button--save"
+              style="flex: 1;"
+            >
+              <i class="fas fa-check" style="margin-right: 4px;"></i> Save
+            </button>
+            <button
+              id="btnCancelEditPrice"
+              class="location-card__button location-card__button--cancel"
+              style="flex: 1;"
+            >
+              <i class="fas fa-times" style="margin-right: 4px;"></i> Cancel
+            </button>
+          </div>
         </div>
         <div class="payment-row">
           <span>Holding Charges</span>
@@ -669,6 +709,22 @@ function attachSidebarEventListeners() {
   const btnAddPODReceived = document.getElementById('btnAddPODReceivedDate');
   if (btnAddPODReceived) {
     btnAddPODReceived.addEventListener('click', showPODReceivedModal);
+  }
+  
+  // Price edit functionality
+  const btnEditPrice = document.getElementById('btnEditPrice');
+  if (btnEditPrice) {
+    btnEditPrice.addEventListener('click', togglePriceEditMode);
+  }
+  
+  const btnSavePrice = document.getElementById('btnSavePrice');
+  if (btnSavePrice) {
+    btnSavePrice.addEventListener('click', savePrice);
+  }
+  
+  const btnCancelEditPrice = document.getElementById('btnCancelEditPrice');
+  if (btnCancelEditPrice) {
+    btnCancelEditPrice.addEventListener('click', togglePriceEditMode);
   }
   
   const commentInput = document.getElementById('commentInput');
@@ -2679,6 +2735,92 @@ function updateTableRow(tripId, newStatus, newStatusDisplay) {
       statusBadge.className = 'status-badge status-' + newStatus;
     }
   }
+}
+
+// Price editing functionality
+function togglePriceEditMode() {
+  if (!currentTripId) {
+    showToast('No trip selected. Please select a trip first.', 'error');
+    return;
+  }
+  
+  const priceEditMode = document.getElementById('priceEditMode');
+  const btnEditPrice = document.getElementById('btnEditPrice');
+  const pricePerUnitStatus = document.getElementById('pricePerUnitStatus');
+  const pricePerUnitInput = document.getElementById('pricePerUnitInput');
+  
+  const isEditMode = priceEditMode.style.display === 'block';
+  
+  if (!isEditMode) {
+    // Enter edit mode
+    const currentPrice = pricePerUnitStatus.textContent.replace('₹', '').trim();
+    const numPrice = parseFloat(currentPrice.replace(/,/g, '')) || 0;
+    
+    pricePerUnitInput.value = numPrice;
+    priceEditMode.style.display = 'block';
+    btnEditPrice.style.display = 'none';
+    pricePerUnitInput.focus();
+  } else {
+    // Exit edit mode
+    priceEditMode.style.display = 'none';
+    btnEditPrice.style.display = 'block';
+    pricePerUnitInput.value = '';
+  }
+}
+
+function savePrice() {
+  if (!currentTripId) {
+    showToast('No trip selected. Please select a trip first.', 'error');
+    return;
+  }
+  
+  const pricePerUnitInput = document.getElementById('pricePerUnitInput');
+  const newPrice = pricePerUnitInput.value.trim();
+  
+  if (!newPrice) {
+    showToast('Please enter a price', 'error');
+    return;
+  }
+  
+  const parsePrice = parseFloat(newPrice);
+  if (isNaN(parsePrice) || parsePrice < 0) {
+    showToast('Please enter a valid positive price', 'error');
+    return;
+  }
+  
+  const btnSavePrice = document.getElementById('btnSavePrice');
+  btnSavePrice.disabled = true;
+  btnSavePrice.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  
+  fetch(`/api/trip/${currentTripId}/update-price/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify({ price_per_unit: parsePrice })
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Price updated successfully', 'success');
+      document.getElementById('pricePerUnitStatus').textContent = `₹${parsePrice.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+      togglePriceEditMode();
+      loadTripDetails(currentTripId);
+    } else {
+      showToast('Error: ' + (result.error || 'Failed to update price'), 'error');
+    }
+    
+    btnSavePrice.disabled = false;
+    btnSavePrice.innerHTML = '<i class="fas fa-check" style="margin-right: 4px;"></i> Save';
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to update price', 'error');
+    
+    btnSavePrice.disabled = false;
+    btnSavePrice.innerHTML = '<i class="fas fa-check" style="margin-right: 4px;"></i> Save';
+  });
 }
 
 // Current location update functionality

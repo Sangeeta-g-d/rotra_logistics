@@ -2576,6 +2576,74 @@ def update_trip_status_api(request, trip_id):
 
 @login_required
 @require_http_methods(["POST"])
+def update_trip_price_api(request, trip_id):
+    """Update trip price (price_per_unit)"""
+    try:
+        # Get the load - only load creator can update price
+        load = Load.objects.get(id=trip_id)
+        
+        if load.created_by != request.user and not request.user.is_staff:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to update this trip'
+            }, status=403)
+        
+        # Parse the new price from request body
+        try:
+            body = json.loads(request.body)
+            new_price = body.get('price_per_unit')
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid request body'
+            }, status=400)
+        
+        # Validate price
+        if new_price is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'Price is required'
+            }, status=400)
+        
+        try:
+            new_price = Decimal(str(new_price))
+        except (InvalidOperation, ValueError):
+            return JsonResponse({
+                'success': False,
+                'error': 'Price must be a valid number'
+            }, status=400)
+        
+        if new_price < 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'Price cannot be negative'
+            }, status=400)
+        
+        # Update the price
+        load.price_per_unit = new_price
+        load.updated_at = timezone.now()
+        load.save()
+        
+        # Format price for display
+        formatted_price = float(new_price)
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Trip price updated successfully',
+            'new_price': str(new_price),
+            'formatted_price': f'₹{formatted_price:,.2f}'
+        })
+        
+    except Load.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
+    except Exception as e:
+        print(f"Error updating trip price: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
 def add_trip_comment_api(request, trip_id):
     """Add a comment to the trip chat"""
     try:

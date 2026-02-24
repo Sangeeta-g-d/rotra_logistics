@@ -65,6 +65,7 @@ urlpatterns = [
     path('vehicle-inventory/', views.vehicle_inventory, name='vehicle_inventory'),
     path('api/trip/<int:trip_id>/details/', views.get_trip_details_api, name='get_trip_details_api'),
     path('api/trip/<int:trip_id>/update-status/', views.update_trip_status_api, name='update_trip_status_api'),
+    path('api/trip/<int:trip_id>/update-price/', views.update_trip_price_api, name='update_trip_price_api'),
     path('api/trip/<int:trip_id>/add-comment/', views.add_trip_comment_api, name='add_trip_comment'),
     path('api/trip/<int:trip_id>/comments/', views.get_trip_comments_api, name='get_trip_comments'),
     path('api/trip/<int:trip_id>/unread-count/', views.get_unread_comments_count_api, name='unread_comments_count'),

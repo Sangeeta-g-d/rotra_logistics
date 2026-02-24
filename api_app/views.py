@@ -1789,10 +1789,17 @@ def forgot_password_request(request):
     if serializer.is_valid():
         phone_number = serializer.validated_data['phone_number']
         
+        # Clean up old unverified OTPs for this phone number (to prevent OTP confusion)
+        PhoneOTP.objects.filter(
+            phone_number=phone_number,
+            purpose='forgot_password',
+            is_verified=False
+        ).delete()
+        
         # Generate OTP
         otp = generate_otp()
         
-        # Save OTP to database
+        # Create new OTP record
         PhoneOTP.objects.create(
             phone_number=phone_number,
             otp=otp,
@@ -1834,21 +1841,44 @@ def verify_otp_forgot_password(request):
         phone_number = serializer.validated_data['phone_number']
         otp = serializer.validated_data['otp']
         
-        # Mark OTP as verified
-        otp_record = PhoneOTP.objects.filter(
-            phone_number=phone_number,
-            otp=otp,
-            purpose='forgot_password'
-        ).latest('created_at')
+        try:
+            # Mark OTP as verified - look for the most recent unverified OTP
+            otp_record = PhoneOTP.objects.filter(
+                phone_number=phone_number,
+                otp=otp,
+                purpose='forgot_password',
+                is_verified=False  # Only verify if not already verified
+            ).latest('created_at')
+            
+            # Check if OTP is expired before verifying
+            if otp_record.is_expired():
+                return Response({
+                    'success': False,
+                    'message': 'OTP has expired. Please request a new one.',
+                    'phone_number': phone_number
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            otp_record.is_verified = True
+            otp_record.save()
+            
+            return Response({
+                'success': True,
+                'message': 'OTP verified successfully. You can now reset your password.',
+                'phone_number': phone_number
+            }, status=status.HTTP_200_OK)
         
-        otp_record.is_verified = True
-        otp_record.save()
-        
-        return Response({
-            'success': True,
-            'message': 'OTP verified successfully. You can now reset your password.',
-            'phone_number': phone_number
-        }, status=status.HTTP_200_OK)
+        except PhoneOTP.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Invalid OTP for the given phone number.',
+                'phone_number': phone_number
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'Error verifying OTP: {str(e)}',
+                'phone_number': phone_number
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     return Response({
         'success': False,
@@ -1871,27 +1901,55 @@ def reset_password(request):
     serializer = ResetPasswordSerializer(data=request.data)
     
     if serializer.is_valid():
-        user = serializer.validated_data['user']
-        otp_record = serializer.validated_data['otp_record']
-        new_password = serializer.validated_data['new_password']
-        
-        # Update user password using set_password to hash it properly
-        user.set_password(new_password)
-        user.save(update_fields=['password'])  # ✅ Explicitly save password field
-        
-        # Optional: Mark OTP as used by updating a flag or deleting it
-        # For security, we can delete the OTP to prevent reuse
-        otp_record.delete()
-        
-        return Response({
-            'success': True,
-            'message': 'Password reset successfully. You can now login with your new password.',
-            'user': {
-                'email': user.email,
-                'full_name': user.full_name,
-                'phone_number': user.phone_number
-            }
-        }, status=status.HTTP_200_OK)
+        try:
+            user = serializer.validated_data['user']
+            otp_record = serializer.validated_data['otp_record']
+            new_password = serializer.validated_data['new_password']
+            
+            # CRITICAL: Refresh user from database to get latest state
+            user = CustomUser.objects.get(pk=user.pk)
+            
+            # Update user password using set_password to hash it properly
+            user.set_password(new_password)
+            
+            # Save the entire user object (not just password field) to ensure all changes are committed
+            user.save()
+            
+            # Verify password was actually saved by checking with a fresh query
+            user_verify = CustomUser.objects.get(pk=user.pk)
+            if not user_verify.check_password(new_password):
+                return Response({
+                    'success': False,
+                    'message': 'Failed to update password. Please try again.',
+                    'errors': ['Password update failed during verification']
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # Mark OTP as used by deleting it to prevent reuse and replay attacks
+            otp_record.delete()
+            
+            return Response({
+                'success': True,
+                'message': 'Password reset successfully. You can now login with your new password.',
+                'user': {
+                    'email': user_verify.email,
+                    'full_name': user_verify.full_name,
+                    'phone_number': user_verify.phone_number
+                }
+            }, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'User not found.',
+                'errors': ['User no longer exists']
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'success': False,
+                'message': 'Error resetting password.',
+                'errors': [str(e)]
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     return Response({
         'success': False,
@@ -1903,36 +1961,52 @@ def reset_password(request):
 @permission_classes([AllowAny])
 def resend_otp_forgot_password(request):
     """
-    Resend OTP for forgot password
+    Resend OTP for forgot password - invalidates all previous unverified OTPs
     """
     serializer = ForgotPasswordRequestSerializer(data=request.data)
     
     if serializer.is_valid():
         phone_number = serializer.validated_data['phone_number']
         
-        # Invalidate previous OTPs
+        # Delete all previous unverified OTPs for this phone (cleaner than marking as verified)
         PhoneOTP.objects.filter(
             phone_number=phone_number,
             purpose='forgot_password',
             is_verified=False
-        ).update(is_verified=True)
+        ).delete()
         
         # Generate new OTP
         otp = generate_otp()
         
-        PhoneOTP.objects.create(
-            phone_number=phone_number,
-            otp=otp,
-            purpose='forgot_password'
-        )
-        
-        sms_result = send_otp_fast2sms(phone_number, otp)
-        
-        if sms_result['success']:
+        try:
+            # Create new OTP record
+            PhoneOTP.objects.create(
+                phone_number=phone_number,
+                otp=otp,
+                purpose='forgot_password'
+            )
+            
+            # Send OTP via SMS
+            sms_result = send_otp_fast2sms(phone_number, otp)
+            
+            if sms_result['success']:
+                return Response({
+                    'success': True,
+                    'message': 'New OTP sent successfully. Please check your phone.',
+                    'phone_number': phone_number
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'success': False,
+                    'message': 'Failed to send OTP. Please try again.',
+                    'error': sms_result.get('error', 'Unknown SMS error')
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
             return Response({
-                'success': True,
-                'message': 'New OTP sent successfully.'
-            }, status=status.HTTP_200_OK)
+                'success': False,
+                'message': f'Error during OTP resend: {str(e)}',
+                'phone_number': phone_number
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     return Response({
         'success': False,
