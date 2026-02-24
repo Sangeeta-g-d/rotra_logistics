@@ -2171,16 +2171,26 @@ def update_trip_location(request, trip_id):
 def get_trip_details_api(request, trip_id):
     """API endpoint to get detailed trip information"""
     try:
-        # Admin can access any trip, traffic person only their own
-        if request.user.role == 'traffic_person':
+        # Check user permissions before attempting to fetch
+        # Admin/staff can access ANY trip
+        # Traffic person can only access their own trips
+        
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            # Strict permission: traffic person can only see trips they created
             load = Load.objects.select_related(
                 'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by', 'driver__owner'
             ).get(id=trip_id, created_by=request.user)
-        else:
-            # Admin can access any trip
+        elif request.user.is_staff or request.user.role == 'admin':
+            # Admin/staff can access any trip
             load = Load.objects.select_related(
                 'customer', 'driver', 'vehicle', 'vehicle_type', 'created_by', 'driver__owner'
             ).get(id=trip_id)
+        else:
+            # User doesn't have permission to view trips
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to view trip details'
+            }, status=403)
         
         # Progress mapping
         status_progress = {
@@ -2348,7 +2358,18 @@ def get_trip_details_api(request, trip_id):
 def upload_lr_document_api(request, trip_id):
     """Upload LR document and update trip status"""
     try:
-        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        # Get load with permission checks
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            # Traffic person can only upload for their own trips
+            load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            # Admin/staff can upload for any trip
+            load = Load.objects.select_related('driver__owner').get(id=trip_id)
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to upload LR for this trip'
+            }, status=403)
         
         # Check if LR is already uploaded
         if load.lr_document:
@@ -2414,7 +2435,13 @@ def upload_lr_document_api(request, trip_id):
 def view_lr_document_api(request, trip_id):
     """View LR document"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         if not load.lr_document:
             return JsonResponse({'success': False, 'error': 'No LR document found'}, status=404)
@@ -2435,7 +2462,19 @@ def update_trip_status_api(request, trip_id):
     """Update trip status - can skip to any status"""
     try:
         import json
-        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        
+        # Check permissions: Admin/staff can access any trip, traffic person only their own
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            # Strict permission: traffic person can only update trips they created
+            load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            # Admin/staff can update any trip
+            load = Load.objects.select_related('driver__owner').get(id=trip_id)
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to update trip status'
+            }, status=403)
         
         # Get new status from request body
         try:
@@ -2579,10 +2618,14 @@ def update_trip_status_api(request, trip_id):
 def update_trip_price_api(request, trip_id):
     """Update trip price (price_per_unit)"""
     try:
-        # Get the load - only load creator can update price
-        load = Load.objects.get(id=trip_id)
-        
-        if load.created_by != request.user and not request.user.is_staff:
+        # Get the load with permission checks
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            # Traffic person can only update their own trips
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            # Admin/staff can update any trip
+            load = Load.objects.get(id=trip_id)
+        else:
             return JsonResponse({
                 'success': False,
                 'error': 'You do not have permission to update this trip'
@@ -2650,8 +2693,8 @@ def add_trip_comment_api(request, trip_id):
         # Get the load
         load = Load.objects.select_related('driver__owner').get(id=trip_id)
         
-        # Check permissions: Only load creator (admin) or assigned vendor can comment
-        is_admin = load.created_by == request.user
+        # Check permissions: Any admin/staff can comment or the assigned vendor
+        is_admin = request.user.is_staff or request.user.role == 'admin'
         is_vendor = (load.driver and 
                     hasattr(load.driver, 'owner') and 
                     load.driver.owner == request.user)
@@ -2735,20 +2778,13 @@ def add_trip_comment_api(request, trip_id):
 def get_trip_comments_api(request, trip_id):
     """Get all comments for a trip"""
     try:
-        # Get the load
-        load = Load.objects.select_related('driver__owner').get(id=trip_id)
-        
-        # Check permissions
-        is_admin = load.created_by == request.user
-        is_vendor = (load.driver and 
-                    hasattr(load.driver, 'owner') and 
-                    load.driver.owner == request.user)
-        
-        if not (is_admin or is_vendor):
-            return JsonResponse({
-                'success': False,
-                'error': 'You do not have permission to view these comments'
-            }, status=403)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.select_related('driver__owner').get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         # Get all comments for this load
         comments = TripComment.objects.filter(load=load).select_related('sender').order_by('created_at')
@@ -2796,16 +2832,13 @@ def get_trip_comments_api(request, trip_id):
 def get_unread_comments_count_api(request, trip_id):
     """Get count of unread comments for current user"""
     try:
-        load = Load.objects.get(id=trip_id)
-        
-        # Check permissions
-        is_admin = load.created_by == request.user
-        is_vendor = (load.driver and 
-                    hasattr(load.driver, 'owner') and 
-                    load.driver.owner == request.user)
-        
-        if not (is_admin or is_vendor):
-            return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         # Count unread comments not sent by current user
         unread_count = TripComment.objects.filter(
@@ -2831,7 +2864,13 @@ def get_unread_comments_count_api(request, trip_id):
 def close_trip_api(request, trip_id):
     """Mark trip as completed and close it"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         # Prevent closing from early/active stages
         cannot_close_statuses = [
@@ -2871,7 +2910,13 @@ def close_trip_api(request, trip_id):
 def upload_pod_document_api(request, trip_id):
     """Upload POD document and update trip status"""
     try:
-        load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.select_related('driver__owner').get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.select_related('driver__owner').get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         # Check if POD is already uploaded
         if load.pod_document:
@@ -3244,7 +3289,13 @@ def mark_final_payment_paid_api(request, trip_id):
 def mark_first_half_payment_paid_api(request, trip_id):
     """Mark first half payment as paid"""
     try:
-        load = Load.objects.get(id=trip_id, created_by=request.user)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         # Check if first half payment exists
         if not load.first_half_payment or load.first_half_payment <= 0:
@@ -4697,7 +4748,13 @@ def update_pod_notes(request, trip_id):
     API endpoint to update POD notes/tracking details
     """
     try:
-        load = Load.objects.get(id=trip_id)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         # Parse request body
         data = json.loads(request.body)
@@ -4737,7 +4794,13 @@ def update_pod_received_date(request, trip_id):
     API endpoint to update POD received date and time
     """
     try:
-        load = Load.objects.get(id=trip_id)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
         
         # Parse request body
         data = json.loads(request.body)
@@ -4833,7 +4896,14 @@ def update_pod_status(request, trip_id):
     API endpoint to update POD status (AJAX)
     """
     try:
-        load = Load.objects.get(id=trip_id)
+        # Check permission
+        if request.user.role == 'traffic_person' and not request.user.is_staff:
+            load = Load.objects.get(id=trip_id, created_by=request.user)
+        elif request.user.is_staff or request.user.role == 'admin':
+            load = Load.objects.get(id=trip_id)
+        else:
+            return JsonResponse({'error': 'No permission to access this trip'}, status=403)
+        
         data = json.loads(request.body)
         new_status = data.get('pod_status')
         
