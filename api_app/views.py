@@ -10,12 +10,12 @@ from rest_framework.generics import RetrieveAPIView
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from logistics_app.models import CustomUser, VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment
+from logistics_app.models import CustomUser, VehicleType, Vehicle, Driver, Load, LoadRequest, TripComment, Payment
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Sum
 from logistics_app.models import PhoneOTP
 from .utils import generate_otp,send_otp_fast2sms
 from django.db import transaction
@@ -1374,14 +1374,44 @@ class VendorTripHistoryView(APIView):
             if load.lr_document:
                 lr_file_url = request.build_absolute_uri(load.lr_document.url)
             
-            # Prepare trip data with POD information
+            # Get payment details for closed trips
+            payment_details = {
+                "payments": [],
+                "total_amount_paid": 0,
+                "payment_records_count": 0
+            }
+            
+            # Fetch all payment records for this load
+            payments = Payment.objects.filter(load=load).order_by('-payment_date')
+            if payments.exists():
+                payment_records = []
+                total_paid = Decimal('0.00')
+                
+                for payment in payments:
+                    total_paid += payment.amount_paid
+                    payment_records.append({
+                        "id": payment.id,
+                        "amount_paid": float(payment.amount_paid),
+                        "payment_date": payment.payment_date.isoformat(),
+                        "payment_datetime": payment.payment_date.strftime('%d %b %Y, %I:%M %p'),
+                        "description": payment.description,
+                        "recorded_by": payment.recorded_by.full_name if payment.recorded_by else "System"
+                    })
+                
+                payment_details = {
+                    "payments": payment_records,
+                    "total_amount_paid": float(total_paid),
+                    "payment_records_count": len(payment_records)
+                }
+            
+            # Prepare trip data with POD and payment information
             trip_data = {
                 "id": load.id,
                 "load_id": load.load_id,
                 "pickup_location": load.pickup_location,
                 "drop_location": load.drop_location,
                 "weight": load.weight,
-                "price_per_unit": load.price_per_unit,
+                "price_per_unit": float(load.price_per_unit),
                 "trip_status": load.trip_status,
                 "status_display": self.get_status_display(load.trip_status),
                 "pickup_date": load.pickup_date,
@@ -1418,7 +1448,10 @@ class VendorTripHistoryView(APIView):
                     "unloading_at": load.unloading_at,
                     "pod_uploaded_at": load.pod_uploaded_at,
                     "payment_completed_at": load.payment_completed_at,
-                }
+                },
+                
+                # Payment details for closed trips
+                "payment_info": payment_details
             }
             trip_history.append(trip_data)
 
@@ -1439,6 +1472,9 @@ class VendorTripHistoryView(APIView):
                     "payment_completed_count": status_counts.get('payment_completed', 0),
                     "trips_with_pod": loads.filter(pod_document__isnull=False).count(),
                     "trips_without_pod": loads.filter(pod_document__isnull=True).count(),
+                    "trips_with_payments": loads.filter(payments__isnull=False).distinct().count(),
+                    "total_amount_paid_all_trips": float(Payment.objects.filter(load__in=loads).aggregate(Sum('amount_paid'))['amount_paid__sum'] or Decimal('0.00')),
+                    "average_payment_per_trip": float((Payment.objects.filter(load__in=loads).aggregate(Sum('amount_paid'))['amount_paid__sum'] or Decimal('0.00')) / max(loads.count(), 1)),
                 }
             }
         }, status=200)
