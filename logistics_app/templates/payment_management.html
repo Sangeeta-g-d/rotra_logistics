@@ -725,7 +725,12 @@
             </div>
           </td>
           <td>
-            <span style="font-weight: 600; color: #16a34a;">₹{{ payment.amount_paid|floatformat:2 }}</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 600; color: #16a34a;" data-payment-id="{{ payment.id }}">₹{{ payment.amount_paid|floatformat:2 }}</span>
+              <button class="edit-amount-btn" onclick="openEditPaymentModal(event, {{ payment.id }}, {{ payment.amount_paid }}, {{ payment.load.id }})" style="background: none; border: none; color: #2563eb; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
           </td>
           <td>
             <span style="color: #6b7280; font-size: 13px;">
@@ -975,6 +980,38 @@
       <button class="btn-close-trip" id="btnCloseTrip">Close Trip</button>
     </div>
   </aside>
+
+  <!-- Edit Payment Modal -->
+  <div id="editPaymentModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">Edit Payment Amount</h3>
+        <button class="close-modal" onclick="closeEditPaymentModal()" style="background: none; border: none; font-size: 24px; color: #6b7280; cursor: pointer;">×</button>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #1f2937;">Current Amount</label>
+        <div style="padding: 12px; background: #f3f4f6; border-radius: 6px; font-weight: 600; color: #16a34a; font-size: 16px;">
+          ₹<span id="currentAmountDisplay">0.00</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label for="newAmountInput" style="display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #1f2937;">New Amount</label>
+        <input type="number" id="newAmountInput" placeholder="Enter new amount" step="0.01" min="0" style="width: 100%; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label for="paymentDescription" style="display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #1f2937;">Description (Optional)</label>
+        <textarea id="paymentDescription" placeholder="Add a note about this change..." style="width: 100%; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; resize: vertical; min-height: 80px;"></textarea>
+      </div>
+
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button onclick="closeEditPaymentModal()" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 8px; cursor: pointer; font-weight: 600; color: #1f2937;">Cancel</button>
+        <button onclick="savePaymentUpdate()" id="savePaymentBtn" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Update Amount</button>
+      </div>
+    </div>
+  </div>
 
   <div id="sidebarOverlay"></div>
 </div>
@@ -1997,6 +2034,102 @@ function updateTableRow(tripId, newStatus, newStatusDisplay) {
     }
   }
 }
+
+// Edit Payment Functions
+let currentPaymentEditData = {
+  paymentId: null,
+  loadId: null,
+  currentAmount: 0
+};
+
+function openEditPaymentModal(event, paymentId, currentAmount, loadId) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  currentPaymentEditData = {
+    paymentId: paymentId,
+    loadId: loadId,
+    currentAmount: currentAmount
+  };
+  
+  document.getElementById('currentAmountDisplay').textContent = parseFloat(currentAmount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+  document.getElementById('newAmountInput').value = currentAmount;
+  document.getElementById('paymentDescription').value = '';
+  
+  document.getElementById('editPaymentModal').style.display = 'flex';
+}
+
+function closeEditPaymentModal() {
+  document.getElementById('editPaymentModal').style.display = 'none';
+  currentPaymentEditData = {
+    paymentId: null,
+    loadId: null,
+    currentAmount: 0
+  };
+}
+
+function savePaymentUpdate() {
+  const newAmount = parseFloat(document.getElementById('newAmountInput').value);
+  const description = document.getElementById('paymentDescription').value.trim();
+  
+  if (isNaN(newAmount) || newAmount < 0) {
+    showToast('Please enter a valid amount', 'error');
+    return;
+  }
+  
+  const saveBtn = document.getElementById('savePaymentBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Updating...';
+  
+  fetch(`/api/payment/${currentPaymentEditData.paymentId}/update/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify({
+      amount_paid: newAmount,
+      description: description
+    })
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Payment amount updated successfully!', 'success');
+      
+      // Update the table display
+      const amountCell = document.querySelector(`[data-payment-id="${currentPaymentEditData.paymentId}"]`);
+      if (amountCell) {
+        amountCell.textContent = '₹' + parseFloat(newAmount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+      }
+      
+      // Refresh the sidebar if trip details are open
+      if (currentTripId) {
+        loadTripDetails(currentTripId);
+      }
+      
+      closeEditPaymentModal();
+    } else {
+      showToast('Error: ' + result.error, 'error');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Update Amount';
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to update payment amount', 'error');
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Update Amount';
+  });
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+  const modal = document.getElementById('editPaymentModal');
+  if (modal && event.target === modal) {
+    closeEditPaymentModal();
+  }
+});
 </script>
 
 </body>

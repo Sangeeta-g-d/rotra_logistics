@@ -8,7 +8,7 @@ from logistics_app.models import Load
 
 
 @shared_task(bind=True)
-def delete_old_unassigned_loads(self, days=2):
+def delete_old_unassigned_loads(self, days=1):
     """
     Periodic task to delete loads with no driver assigned after N days.
     

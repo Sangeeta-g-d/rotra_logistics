@@ -2124,10 +2124,10 @@ def trip_management(request):
             created_by=request.user
         ).exclude(
             status='pending'
-        )
+        ).exclude(trip_status='trip_closed')  # Exclude pending and trip_closed for traffic person view
     else:
         # Admin sees ALL trips from ALL users
-        trips = Load.objects.exclude(status='pending')
+        trips = Load.objects.exclude(status='pending').exclude(trip_status='trip_closed')  # Exclude pending and trip_closed for admin view
 
     trips = trips.select_related(
         'driver', 'vehicle', 'vehicle_type', 'customer', 'created_by'
@@ -3172,6 +3172,67 @@ def record_payment_api(request, trip_id):
         return JsonResponse({'success': False, 'error': 'Trip not found'}, status=404)
     except Exception as e:
         print(f"Error recording payment: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Server error: ' + str(e)}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def update_payment_api(request, payment_id):
+    """API endpoint to update an existing payment amount"""
+    try:
+        import json
+        
+        # Get the payment record
+        payment = Payment.objects.select_related('load', 'load__created_by').get(id=payment_id)
+        
+        # Check permission - user must be admin or the creator of the load
+        if request.user.role == 'traffic_person' and payment.load.created_by != request.user:
+            return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+        
+        # Parse JSON request
+        try:
+            data = json.loads(request.body.decode('utf-8') or '{}')
+        except:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        amount_paid = data.get('amount_paid')
+        description = data.get('description', '')
+        
+        # Validate amount
+        if amount_paid is None:
+            return JsonResponse({'success': False, 'error': 'Amount paid is required'}, status=400)
+        
+        try:
+            amount_paid = Decimal(str(amount_paid))
+            if amount_paid < 0:
+                return JsonResponse({'success': False, 'error': 'Amount cannot be negative'}, status=400)
+        except:
+            return JsonResponse({'success': False, 'error': 'Invalid amount format'}, status=400)
+        
+        # Update Payment record
+        old_amount = payment.amount_paid
+        payment.amount_paid = amount_paid
+        if description:
+            payment.description = description
+        payment.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Payment amount updated successfully',
+            'payment': {
+                'id': payment.id,
+                'amount_paid': float(payment.amount_paid),
+                'old_amount': float(old_amount),
+                'payment_date': payment.payment_date.strftime('%b %d, %Y %I:%M %p'),
+                'description': payment.description
+            }
+        })
+        
+    except Payment.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Payment record not found'}, status=404)
+    except Exception as e:
+        print(f"Error updating payment: {e}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Server error: ' + str(e)}, status=500)

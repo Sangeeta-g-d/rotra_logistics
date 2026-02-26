@@ -463,7 +463,7 @@ class VendorOngoingTrips(APIView):
             'payment_completed',
             'completed',
             'finished',
-            'closed'
+            'trip_closed'
         ]
         
         # 1️⃣ Loads where vendor has sent a request and it is not rejected
@@ -1324,6 +1324,7 @@ class VendorTripHistoryView(APIView):
         COMPLETED_STATUSES = [
             'pod_uploaded',
             'payment_completed',
+            'trip_closed',
         ]
         
         # Get loads where vendor has sent a request and it's accepted
