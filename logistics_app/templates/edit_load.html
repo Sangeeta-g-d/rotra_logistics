@@ -512,17 +512,16 @@
 
       <div class="form-grid">
         <div class="form-group full-width">
-          <label>Total Trip Amount <span class="required">*</span></label>
+          <label>Total Trip Amount</label>
           <input type="number" 
                  name="total_amount" 
                  id="totalAmountInput"
                  step="1" 
-                 min="1000" 
-                 required 
-                 placeholder="Enter full freight amount"
+                 min="0" 
+                 placeholder="Enter full freight amount (optional)"
                  value="{% if load.price_per_unit %}{{ load.price_per_unit|floatformat:'0' }}{% endif %}"
                  style="font-size:16px; font-weight:600; padding: 12px;">
-          <small>Enter the complete freight amount for the trip</small>
+          <small>Enter the complete freight amount for the trip (optional)</small>
         </div>
       </div>
 
@@ -770,10 +769,10 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    // Validate total amount
-    const totalAmount = parseFloat(totalInput.value);
-    if (!totalAmount || totalAmount < 1000) {
-      showAlert('Total trip amount must be at least ₹1000', 'error');
+    // Validate total amount (optional but if provided must be greater than 0)
+    const totalAmount = totalInput.value ? parseFloat(totalInput.value) : null;
+    if (totalAmount !== null && totalAmount <= 0) {
+      showAlert('Total trip amount must be greater than ₹0', 'error');
       totalInput.focus();
       return;
     }
