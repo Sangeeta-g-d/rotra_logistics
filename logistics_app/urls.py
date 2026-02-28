@@ -106,6 +106,9 @@ path('api/loads/customers/contact-persons/',
          views.get_customer_contact_persons, 
          name='get_customer_contact_persons'),
     path('api/trip/<int:trip_id>/update-pod-status/', views.update_pod_status, name='update_pod_status'),
+    path('account/delete/', views.delete_account_page, name='delete_account_page'),
+    path('api/account/delete/', views.delete_account_api, name='delete_account_api'),
+    path('privacy/', views.privacy_policy_page, name='privacy_policy'),
 ]
 
 

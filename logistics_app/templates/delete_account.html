@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delete Account - RoadFleet</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      color: #ef4444;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .warning-box {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .warning-icon {
+      color: #ef4444;
+      font-size: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .warning-text {
+      font-size: 13px;
+      color: #7f1d1d;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s;
+      box-sizing: border-box;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    }
+
+    .form-group input[type="password"]::placeholder {
+      color: #999;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-decoration: none;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-cancel {
+      background: #f3f4f6;
+      color: #6b7280;
+      border: 1px solid #e5e7eb;
+    }
+
+    .btn-cancel:hover {
+      background: #e5e7eb;
+      color: #4b5563;
+    }
+
+    .btn-delete {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-delete:hover:not(:disabled) {
+      background: #dc2626;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-delete:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .info-text {
+      font-size: 12px;
+      color: #999;
+      text-align: center;
+      margin-top: 16px;
+    }
+
+    .form-group input:disabled {
+      background: #f9fafb;
+      color: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <h1>⚠️ Delete Account</h1>
+        <p>This action cannot be undone. Please proceed carefully.</p>
+      </div>
+
+      <div class="warning-box">
+        <div class="warning-icon">!</div>
+        <div class="warning-text">
+          <strong>Warning:</strong> Deleting your account will permanently remove all your data, including trips, payments, and documents. This action is irreversible.
+        </div>
+      </div>
+
+      <form id="deleteAccountForm" onsubmit="handleDeleteAccount(event)">
+        {% csrf_token %}
+        
+        <div class="form-group">
+          <label for="phone">Phone Number</label>
+          <input 
+            type="tel" 
+            id="phone" 
+            name="phone_number" 
+            placeholder="Enter your registered phone number"
+            required
+          >
+          <p style="font-size: 12px; color: #999; margin-top: 6px;">Enter your registered phone number</p>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            placeholder="Enter your password to confirm"
+            required
+          >
+          <p style="font-size: 12px; color: #999; margin-top: 6px;">Enter your current password to verify</p>
+        </div>
+
+        <div class="form-group">
+          <label for="confirmation">
+            <input 
+              type="checkbox" 
+              id="confirmation" 
+              name="confirmation"
+              required
+              style="margin-right: 8px; cursor: pointer;"
+            >
+            I understand that this will permanently delete my account and all associated data
+          </label>
+        </div>
+
+        <div class="button-group">
+          <a href="/" class="btn btn-cancel">Cancel</a>
+          <button type="submit" class="btn btn-delete" id="deleteBtn">Delete Account</button>
+        </div>
+
+        <p class="info-text">Your data will be permanently deleted from our servers.</p>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    function handleDeleteAccount(event) {
+      event.preventDefault();
+
+      const phone = document.getElementById('phone').value;
+      const password = document.getElementById('password').value;
+      const confirmation = document.getElementById('confirmation').checked;
+
+      if (!password.trim()) {
+        Toastify({
+          text: "Please enter your password",
+          duration: 3000,
+          gravity: "top",
+          position: "right",
+          backgroundColor: "#ef4444"
+        }).showToast();
+        return;
+      }
+
+      if (!confirmation) {
+        Toastify({
+          text: "Please confirm that you understand the consequences",
+          duration: 3000,
+          gravity: "top",
+          position: "right",
+          backgroundColor: "#ef4444"
+        }).showToast();
+        return;
+      }
+
+      // Disable button and show loading
+      const deleteBtn = document.getElementById('deleteBtn');
+      const originalText = deleteBtn.innerHTML;
+      deleteBtn.disabled = true;
+      deleteBtn.innerHTML = '<span class="loading"></span>Deleting...';
+
+      // Send delete request
+      fetch('/api/account/delete/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+          phone_number: phone,
+          password: password
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Failed to delete account');
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          Toastify({
+            text: data.message || "Account deleted successfully.",
+            duration: 3000,
+            gravity: "top",
+            position: "right",
+            backgroundColor: "#10b981"
+          }).showToast();
+
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+        }
+      })
+      .catch(error => {
+        Toastify({
+          text: error.message || "Failed to delete account",
+          duration: 3000,
+          gravity: "top",
+          position: "right",
+          backgroundColor: "#ef4444"
+        }).showToast();
+
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = originalText;
+      });
+    }
+
+    // Prevent form submission on Enter key unless button is focused
+    document.getElementById('deleteAccountForm').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && e.target.type !== 'submit') {
+        e.preventDefault();
+      }
+    });
+  </script>
+</body>
+</html>

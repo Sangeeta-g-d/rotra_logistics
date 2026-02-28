@@ -5011,3 +5011,80 @@ def update_pod_status(request, trip_id):
         return JsonResponse({'success': False, 'error': 'Trip/Load not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+
+def delete_account_page(request):
+    """Display the delete account confirmation page - accessible to all users"""
+    return render(request, 'delete_account.html')
+
+
+def privacy_policy_page(request):
+    """Display the privacy policy page - accessible to all users"""
+    return render(request, 'privacy_policy.html')
+
+
+@require_http_methods(["POST"])
+def delete_account_api(request):
+    """
+    API endpoint to delete user account after verifying phone and password.
+    No authentication required - verifies credentials and deletes if valid.
+    Requires:
+    - phone_number: User's registered phone number
+    - password: User's password for verification
+    """
+    try:
+        # Parse JSON body
+        data = json.loads(request.body)
+        phone_number = data.get('phone_number', '').strip()
+        password = data.get('password', '').strip()
+
+        if not phone_number or not password:
+            return JsonResponse({
+                'success': False,
+                'error': 'Phone number and password are required'
+            }, status=400)
+
+        # Find user by phone number
+        try:
+            user = CustomUser.objects.get(phone_number=phone_number)
+        except CustomUser.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'User with this phone number not found'
+            }, status=404)
+
+        # Verify password
+        if not user.check_password(password):
+            return JsonResponse({
+                'success': False,
+                'error': 'Password is incorrect'
+            }, status=400)
+
+        # Get user details before deletion
+        user_id = user.id
+        user_email = user.email
+        user_name = user.full_name
+
+        # Perform account deletion
+        user.delete()
+
+        # Log the deletion activity
+        print(f"[ACCOUNT DELETION] User {user_id} ({user_name} - {user_email}) deleted their account")
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Account for {user_name} has been successfully deleted'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON format'
+        }, status=400)
+    except Exception as e:
+        print(f"[ERROR] Account deletion failed: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'An error occurred: {str(e)}'
+        }, status=500)
